@@ -4289,7 +4289,7 @@ MonoBehaviour:
   meleeEnemyPrefab: {fileID: 647810196636428393, guid: ea3692c4410425742a5bd027f082a638, type: 3}
   rangedEnemyPrefab: {fileID: 182428019434995599, guid: f16daf5aaa05cff4096e555aa313be14, type: 3}
   minEnemies: 2
-  maxEnemies: 3
+  maxEnemies: 5
   meleeScore: 100
   rangedScore: 150
   spawnPoints:

@@ -266,7 +266,7 @@ MonoBehaviour:
   firePoint: {fileID: 2842050383964018261}
   projectilePrefab: {fileID: 5802625534911860464, guid: 9ff845517dc32a04db14d1e43cff3991, type: 3}
   attackRange: 14
-  attackCooldown: 2.2
+  attackCooldown: 1.5
   cooldownRandomness: 0.6
   windupTime: 0.45
   projectileSpeed: 11

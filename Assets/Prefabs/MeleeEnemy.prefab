@@ -119,7 +119,7 @@ MonoBehaviour:
   attackRange: 1.1
   attackHeight: 1
   windupTime: 0.3
-  attackCooldown: 0.8
+  attackCooldown: 0.4
   damage: 15
   lungeSpeed: 6
   jumpWhenPlayerAbove: 1.5

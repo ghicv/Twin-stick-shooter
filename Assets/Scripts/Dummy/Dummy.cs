@@ -6,14 +6,18 @@ using UnityEngine;
 // and a health bar whose white "chip" trails behind to show how much was just lost.
 // Killing blow (retro style): a freeze frame, then the dummy blinks white for a moment, explodes into pixels
 // and disables itself; its DummySpawner then spawns a fresh one.
+// Falling off the map: it explodes right away, where it left the screen (like the player).
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(AudioSource))]
 public class Dummy : MonoBehaviour
 {
     [SerializeField] private float maxHealth = 100f;
 
-    [Tooltip("Falling below this height (world Y) removes the dummy (its spawner makes a new one).")]
+    [Tooltip("Falling below this height (world Y) makes the dummy explode (its spawner makes a new one).")]
     [SerializeField] private float fallLimitY = -8f;
+
+    [Tooltip("When it falls off the map, the explosion is placed at least this far inside the screen edge (units).")]
+    [SerializeField] private float screenMargin = 0.8f;
 
     [Header("References")]
     [Tooltip("Body sprite: flashes and squashes on hit, blinks while dying.")]
@@ -101,6 +105,7 @@ public class Dummy : MonoBehaviour
     private float bodyHalfHeight;
     private SpriteRenderer healthBarRenderer;
     private Rigidbody2D rb;
+    private Camera cam;
     private CameraShake cameraShake;
     private HitStop hitStop;
     private AudioSource audioSource;
@@ -113,8 +118,9 @@ public class Dummy : MonoBehaviour
     {
         rb = GetComponent<Rigidbody2D>();
         audioSource = GetComponent<AudioSource>();
-        cameraShake = Camera.main.GetComponent<CameraShake>(); // null → no shake
-        hitStop = Camera.main.GetComponent<HitStop>();         // null → no freeze frame
+        cam = Camera.main;
+        cameraShake = cam.GetComponent<CameraShake>(); // null → no shake
+        hitStop = cam.GetComponent<HitStop>();         // null → no freeze frame
 
         health = maxHealth;
         bodyColor = bodyRenderer.color;
@@ -165,9 +171,9 @@ public class Dummy : MonoBehaviour
         }
     }
 
-    private void Explode()
+    private void Explode(Vector2 position)
     {
-        SpawnEffect(explosionEffect, bodyRenderer.bounds.center, Vector2.up);
+        SpawnEffect(explosionEffect, position, Vector2.up);
         if (cameraShake != null)
             cameraShake.Shake(explosionShakeStrength, explosionShakeDuration);
 
@@ -176,8 +182,10 @@ public class Dummy : MonoBehaviour
 
     private void FixedUpdate()
     {
+        // Pushed off the map: explode where it left the screen, so the explosion can be seen.
+        // Uses the physics position (the body's center), which the sprite can lag behind by a step.
         if (rb.position.y < fallLimitY)
-            gameObject.SetActive(false); // pushed off the map; the spawner makes a new one
+            Explode(CameraView.ClampInside(cam, rb.position, screenMargin));
     }
 
     private void Update()
@@ -205,7 +213,7 @@ public class Dummy : MonoBehaviour
             bool white = Mathf.Repeat(dyingTimer, deathBlinkInterval * 2f) < deathBlinkInterval;
             bodyRenderer.color = white ? hitFlashColor : bodyColor;
             if (dyingTimer <= 0f)
-                Explode();
+                Explode(bodyRenderer.bounds.center);
             return;
         }
 

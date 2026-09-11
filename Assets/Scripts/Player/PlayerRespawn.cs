@@ -4,8 +4,9 @@ using UnityEngine;
 // Falling off the map or losing all health (PlayerHealth calls Die) = death. Retro death + respawn sequence:
 // 1. The player explodes where it fell out of view. The game keeps running for a moment (Freeze Delay).
 // 2. Time freezes: the game slows almost to a stop and the screen curves into an old CRT / fish-eye look.
-// 3. The player reappears where it exploded and is pulled to a random spawn point.
-// 4. Normal picture, normal speed, control back.
+// 3. Pixels gather where it exploded (with a sound) and the player reappears where they meet.
+// 4. After a short pause (Revive Delay) it is pulled to a random spawn point.
+// 5. Normal picture, normal speed, control back.
 // While dead, the player's physics, movement and gun are off. All timings are real seconds.
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(AudioSource))]
@@ -22,7 +23,7 @@ public class PlayerRespawn : MonoBehaviour
     [SerializeField] private ParticleSystem explosionEffect;
 
     [Tooltip("How far inside the screen edge the explosion (and the reappearing player) is placed (units).")]
-    [SerializeField] private float screenMargin = 0.8f;
+    [SerializeField] private float screenMargin = 1.4f;
 
     [SerializeField] private float explosionShakeStrength = 0.4f;
     [SerializeField] private float explosionShakeDuration = 0.35f;
@@ -38,13 +39,20 @@ public class PlayerRespawn : MonoBehaviour
     [Tooltip("Seconds for the game to slow down and the CRT / fish-eye look to switch on.")]
     [SerializeField] private float enterTime = 0.2f;
 
-    [Tooltip("Seconds the frozen moment lasts (explosion hanging in the air) before the player reappears.")]
-    [SerializeField] private float freezeTime = 0.6f;
+    [Tooltip("Seconds the frozen moment lasts (explosion hanging in the air) before the pixels start to gather.")]
+    [SerializeField] private float freezeTime = 0.3f;
 
     [Tooltip("CRT / fish-eye screen effect used while time is frozen. Empty = the one on the main camera.")]
     [SerializeField] private CRTScreen crtScreen;
 
     [Header("Respawn")]
+    [Tooltip("Pixels that gather where the player exploded; the player reappears when they meet, i.e. after the " +
+             "particles' Start Lifetime. It should use Unscaled Time so it plays at full speed during the slow motion. Optional.")]
+    [SerializeField] private ParticleSystem reviveEffect;
+
+    [Tooltip("Seconds the player stays where it reappeared before it is pulled to the spawn point.")]
+    [SerializeField] private float reviveDelay = 0.5f;
+
     [Tooltip("Seconds the player takes to travel from where it died to the spawn point.")]
     [SerializeField] private float pullTime = 0.6f;
 
@@ -63,6 +71,9 @@ public class PlayerRespawn : MonoBehaviour
 
     [Tooltip("Played when time starts to freeze.")]
     [SerializeField] private AudioClip timeFreezeSound;
+
+    [Tooltip("Played while the pixels gather. Best ending on a blip right when the player reappears (as long as the gather effect).")]
+    [SerializeField] private AudioClip gatherSound;
 
     [Tooltip("Played while the player is pulled to the spawn point (best about as long as Pull Time).")]
     [SerializeField] private AudioClip pullSound;
@@ -130,7 +141,7 @@ public class PlayerRespawn : MonoBehaviour
         movement.enabled = false;
         weapon.enabled = false;
 
-        Vector3 deathPoint = ClampToScreen(rb.position);
+        Vector3 deathPoint = CameraView.ClampInside(cam, rb.position, screenMargin);
         transform.position = deathPoint; // physics is off, so moving the transform is fine
         SetVisible(false);
         SpawnEffect(explosionEffect, deathPoint, Quaternion.Euler(0f, 0f, 90f)); // burst points up, into the arena
@@ -153,8 +164,17 @@ public class PlayerRespawn : MonoBehaviour
         SetCrt(1f);
         yield return new WaitForSecondsRealtime(freezeTime);
 
-        // 3. The player reappears where it exploded and is pulled to a random spawn point (eases in and out).
+        // 3. Pixels gather where the player exploded; when they meet, the player is back.
+        if (reviveEffect != null)
+        {
+            SpawnEffect(reviveEffect, transform.position, Quaternion.identity);
+            PlaySound(gatherSound);
+            yield return new WaitForSecondsRealtime(reviveEffect.main.startLifetime.constantMax);
+        }
         SetVisible(true);
+        yield return new WaitForSecondsRealtime(reviveDelay);
+
+        // 4. Pulled to a random spawn point (eases in and out).
         PlaySound(pullSound);
         Vector3 from = transform.position;
         Vector3 to = PickSpawnPoint();
@@ -171,7 +191,7 @@ public class PlayerRespawn : MonoBehaviour
         SpawnEffect(arriveEffect, to, Quaternion.identity);
         PlaySound(respawnSound);
 
-        // 4. Picture and game speed ease back to normal, then control is back.
+        // 5. Picture and game speed ease back to normal, then control is back.
         for (float t = 0f; t < recoverTime; t += Time.unscaledDeltaTime)
         {
             SetSpeed(Mathf.Lerp(slowMotionSpeed, 1f, t / recoverTime));
@@ -183,17 +203,6 @@ public class PlayerRespawn : MonoBehaviour
         movement.enabled = true;
         weapon.enabled = true;
         isDead = false;
-    }
-
-    // Keeps a point inside the camera view (minus Screen Margin), so effects at the death spot are visible.
-    private Vector3 ClampToScreen(Vector2 point)
-    {
-        float halfHeight = cam.orthographicSize;
-        float halfWidth = halfHeight * cam.aspect;
-        Vector3 center = cam.transform.position;
-        float x = Mathf.Clamp(point.x, center.x - halfWidth + screenMargin, center.x + halfWidth - screenMargin);
-        float y = Mathf.Clamp(point.y, center.y - halfHeight + screenMargin, center.y + halfHeight - screenMargin);
-        return new Vector3(x, y, transform.position.z);
     }
 
     private Vector3 PickSpawnPoint()
