@@ -1,0 +1,67 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &3053362794914255899
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1634852276799676713}
+  - component: {fileID: 5906022067298102564}
+  m_Layer: 0
+  m_Name: DamageNumber
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1634852276799676713
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3053362794914255899}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &5906022067298102564
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3053362794914255899}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a15ba2cd73352a94ea5d072a0e3357a0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DamageNumber
+  digitSprites:
+  - {fileID: 21300000, guid: 90026f4218531e04b92d789a903e26a1, type: 3}
+  - {fileID: 21300000, guid: 78d965ac99b32ee4fa79afdf2b57eb11, type: 3}
+  - {fileID: 21300000, guid: 654fd4e55456d7248a349615381ba2a3, type: 3}
+  - {fileID: 21300000, guid: e6d2f8a0593cd2d43a27e78f28d55d8e, type: 3}
+  - {fileID: 21300000, guid: c7eb6d6cc958f0e4aa0ab1e3e27faff4, type: 3}
+  - {fileID: 21300000, guid: fbad4c74e1ca7934ba4d291d9f56d5a4, type: 3}
+  - {fileID: 21300000, guid: ed11bf769ada6dd49910f7b392ce8175, type: 3}
+  - {fileID: 21300000, guid: ceb90ce48c920c84ca5f79d4de578911, type: 3}
+  - {fileID: 21300000, guid: da8cb55f942ff454c98f2ff8d7b61b30, type: 3}
+  - {fileID: 21300000, guid: 7ba75d80874283548a8b78b645764798, type: 3}
+  color: {r: 1, g: 1, b: 1, a: 1}
+  sortingOrder: 20
+  digitSpacing: 0.25
+  lifetime: 0.7
+  riseSpeed: 2.5
+  sideDrift: 0.6
+  popScale: 1.5
+  pixelSize: 0.0625
+  blinkStart: 0.7
+  blinkInterval: 0.04
