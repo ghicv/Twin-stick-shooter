@@ -7,7 +7,8 @@ using UnityEngine;
 // 3. Pixels gather where it exploded (with a sound) and the player reappears where they meet.
 // 4. After a short pause (Revive Delay) it is pulled to a random spawn point.
 // 5. Normal picture, normal speed, control back.
-// While dead, the player's physics, movement and gun are off. All timings are real seconds.
+// While dead, the player's physics, movement and gun are off. Dying loses all item upgrades (PlayerUpgrades).
+// All timings are real seconds.
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(AudioSource))]
 public class PlayerRespawn : MonoBehaviour
@@ -89,6 +90,7 @@ public class PlayerRespawn : MonoBehaviour
     private PlayerMovement movement;
     private PlayerWeapon weapon;
     private PlayerHealth health;
+    private PlayerUpgrades upgrades;
     private SpriteRenderer[] sprites;
     private Camera cam;
     private CameraShake cameraShake;
@@ -108,6 +110,7 @@ public class PlayerRespawn : MonoBehaviour
         movement = GetComponent<PlayerMovement>();
         weapon = GetComponent<PlayerWeapon>();
         health = GetComponent<PlayerHealth>(); // null → nothing to refill
+        upgrades = GetComponent<PlayerUpgrades>(); // null → nothing to lose
         sprites = GetComponentsInChildren<SpriteRenderer>(true);
         startPosition = rb.position;
 
@@ -140,6 +143,8 @@ public class PlayerRespawn : MonoBehaviour
         rb.linearVelocity = Vector2.zero;
         movement.enabled = false;
         weapon.enabled = false;
+        if (upgrades != null)
+            upgrades.Clear(); // item upgrades are lost on death
 
         Vector3 deathPoint = CameraView.ClampInside(cam, rb.position, screenMargin);
         transform.position = deathPoint; // physics is off, so moving the transform is fine

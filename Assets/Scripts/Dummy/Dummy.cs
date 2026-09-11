@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 // Target dummy for testing weapons. It takes damage from projectiles and gets knocked back by them
@@ -110,9 +111,25 @@ public class Dummy : MonoBehaviour
     private HitStop hitStop;
     private AudioSource audioSource;
 
+    // Every dummy/enemy currently in the game (homing bullets pick their target from here).
+    public static readonly List<Dummy> Active = new List<Dummy>();
+
     // Read by the enemy scripts: no acting while dying, and no steering right after a hit (knockback).
     public bool IsDying => health <= 0f;
     public float LastHitTime { get; private set; } = -100f;
+
+    // True when it left the game by falling off the map rather than being killed (the WaveManager drops no item then).
+    public bool FellOffMap { get; private set; }
+
+    private void OnEnable()
+    {
+        Active.Add(this);
+    }
+
+    private void OnDisable()
+    {
+        Active.Remove(this);
+    }
 
     private void Awake()
     {
@@ -185,7 +202,10 @@ public class Dummy : MonoBehaviour
         // Pushed off the map: explode where it left the screen, so the explosion can be seen.
         // Uses the physics position (the body's center), which the sprite can lag behind by a step.
         if (rb.position.y < fallLimitY)
+        {
+            FellOffMap = true;
             Explode(CameraView.ClampInside(cam, rb.position, screenMargin));
+        }
     }
 
     private void Update()

@@ -108,6 +108,7 @@ GameObject:
   - component: {fileID: 6780011380052750896}
   - component: {fileID: 4763005333442338900}
   - component: {fileID: 8892059692678184712}
+  - component: {fileID: 2241537855113456700}
   m_Layer: 8
   m_Name: Player
   m_TagString: Player
@@ -268,7 +269,10 @@ MonoBehaviour:
   firePoint: {fileID: 394257502416353809}
   gunVisual: {fileID: 3715816766596527898}
   muzzleFlash: {fileID: 4256841544112820263}
-  fireRate: 5
+  fireRate: 8
+  multiShotAngle: 18
+  extraBulletDamage: 0.5
+  explosiveFireRate: 0.7
   minSpread: 1.5
   maxSpread: 12
   spreadPerShot: 3
@@ -438,6 +442,23 @@ MonoBehaviour:
   blinkInterval: 0.06
   hurtSound: {fileID: 8300000, guid: 336450b6703bcc6428a511794cc732fc, type: 3}
   hurtVolume: 0.7
+--- !u!114 &2241537855113456700
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3121727891143946174}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 055c35dfd015ebf46a2c76862ee7fce5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerUpgrades
+  upgradeDuration: 12
+  maxExtraBullets: 2
+  maxBounces: 1
+  pickupSound: {fileID: 8300000, guid: f871e979a065ce0489547a00e57990ce, type: 3}
+  pickupVolume: 0.6
 --- !u!1 &4256841544112820263
 GameObject:
   m_ObjectHideFlags: 0

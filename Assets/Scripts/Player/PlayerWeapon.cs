@@ -4,6 +4,8 @@ using UnityEngine.InputSystem;
 
 // Basic gun: hold Left Mouse to shoot projectiles from the fire point, limited by Fire Rate. Unlimited ammo.
 // Clicks on UI buttons don't shoot.
+// Item upgrades (PlayerUpgrades): extra bullets fan out around the shot and share its damage; Explosive lowers
+// the fire rate; homing/explosive/bounce go to every bullet (see Projectile).
 // All projectile stats live here and are handed to each projectile when it is fired.
 //
 // Recoil: bullets leave at a random angle inside the current spread. Every shot opens the spread a bit
@@ -28,7 +30,20 @@ public class PlayerWeapon : MonoBehaviour
     [Header("Gun")]
     [Tooltip("Max shots per second while Left Mouse is held.")]
     [Min(0.1f)]
-    [SerializeField] private float fireRate = 5f;
+    [SerializeField] private float fireRate = 8f;
+
+    [Header("Item Upgrades")]
+    [Tooltip("Angle between the bullets of one shot when the Extra Bullet upgrade adds more (degrees).")]
+    [SerializeField] private float multiShotAngle = 18f;
+
+    [Tooltip("Each extra bullet adds this share of a normal bullet's damage to the whole shot, and the total is " +
+             "split evenly between the bullets (0.5: 2 bullets deal 150% together, 3 bullets 200%).")]
+    [Range(0f, 1f)]
+    [SerializeField] private float extraBulletDamage = 0.5f;
+
+    [Tooltip("The fire rate is multiplied by this while the Explosive upgrade is on (explosions cost fire rate).")]
+    [Range(0.1f, 1f)]
+    [SerializeField] private float explosiveFireRate = 0.7f;
 
     [Header("Recoil (spread)")]
     [Tooltip("Spread of an accurate shot: max random angle (degrees) each side of the aim.")]
@@ -79,6 +94,7 @@ public class PlayerWeapon : MonoBehaviour
 
     private InputAction attackAction;
     private Rigidbody2D playerRigidbody;
+    private PlayerUpgrades upgrades;
     private AudioSource audioSource;
     private CameraShake cameraShake;
     private Vector3 gunRestPosition;
@@ -91,6 +107,7 @@ public class PlayerWeapon : MonoBehaviour
     {
         attackAction = InputSystem.actions.FindAction("Player/Attack");
         playerRigidbody = GetComponent<Rigidbody2D>();
+        upgrades = GetComponent<PlayerUpgrades>(); // null → plain bullets
         audioSource = GetComponent<AudioSource>();
         cameraShake = Camera.main.GetComponent<CameraShake>(); // null if the camera has none → no shake
         gunRestPosition = gunVisual.localPosition;
@@ -124,7 +141,8 @@ public class PlayerWeapon : MonoBehaviour
 
             // "+=" instead of "Time.time + interval": a late frame doesn't push the next shot back,
             // so holding the button gives exactly fireRate shots per second at any FPS.
-            nextFireTime += 1f / fireRate;
+            float rate = fireRate * (upgrades != null && upgrades.Explosive ? explosiveFireRate : 1f);
+            nextFireTime += 1f / rate;
         }
 
         currentSpread = Mathf.MoveTowards(currentSpread, minSpread, spreadRecovery * Time.deltaTime);
@@ -138,10 +156,20 @@ public class PlayerWeapon : MonoBehaviour
         currentSpread = Mathf.Min(currentSpread + spreadPerShot, maxSpread);
 
         Quaternion shotRotation = firePoint.rotation * Quaternion.Euler(0f, 0f, spreadAngle);
-        Vector2 direction = shotRotation * Vector3.right;
 
-        Projectile projectile = Instantiate(projectilePrefab, firePoint.position, shotRotation);
-        projectile.Launch(direction, projectileSpeed, projectileDamage, projectileLifetime, playerRigidbody);
+        // One bullet, plus one per Extra Bullet upgrade, fanned out around the shot direction.
+        // Extra bullets add Extra Bullet Damage each to the shot, split evenly between all bullets.
+        int bulletCount = 1 + (upgrades != null ? upgrades.ExtraBullets : 0);
+        float damagePerBullet = projectileDamage * (1f + extraBulletDamage * (bulletCount - 1)) / bulletCount;
+        for (int i = 0; i < bulletCount; i++)
+        {
+            float fanAngle = (i - (bulletCount - 1) * 0.5f) * multiShotAngle;
+            Quaternion rotation = shotRotation * Quaternion.Euler(0f, 0f, fanAngle);
+            Projectile projectile = Instantiate(projectilePrefab, firePoint.position, rotation);
+            projectile.Launch(rotation * Vector3.right, projectileSpeed, damagePerBullet, projectileLifetime, playerRigidbody);
+            if (upgrades != null)
+                projectile.ApplyUpgrades(upgrades.Homing, upgrades.Explosive, upgrades.Bounces);
+        }
 
         // Feedback
         gunVisual.localPosition = gunRestPosition - Vector3.right * gunKickDistance;           // gun's local -X = backwards

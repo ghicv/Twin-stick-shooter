@@ -2,10 +2,11 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
-// Waves (prototype, no level data yet). The Start Wave button removes the practice dummies (first time only)
+// Waves (prototype, no level data yet). The Start Wave button removes the practice dummies (first time only),
+// clears the upgrade items on the map and the player's upgrades (every wave starts clean),
 // and spawns a few random enemies (melee or ranged) at random spawn points away from the player.
-// Killing an enemy (or knocking it off the map) gives score. When all are gone the wave is over
-// and the button shows up again for the next one.
+// Killing an enemy (or knocking it off the map) gives score; a killed enemy may drop an upgrade item
+// (ItemSpawner.TryDrop). When all are gone the wave is over and the button shows up again for the next one.
 public class WaveManager : MonoBehaviour
 {
     [Header("Enemies")]
@@ -28,6 +29,9 @@ public class WaveManager : MonoBehaviour
     [Tooltip("Played where each enemy appears (e.g. DustPuff). Optional.")]
     [SerializeField] private ParticleSystem spawnEffect;
 
+    [Tooltip("Killed enemies drop its items; its items are cleared when a wave starts. Optional.")]
+    [SerializeField] private ItemSpawner itemSpawner;
+
     [Header("UI")]
     [Tooltip("Starts the next wave. Hidden while a wave is on. Its click is hooked up in Awake.")]
     [SerializeField] private Button startWaveButton;
@@ -43,11 +47,13 @@ public class WaveManager : MonoBehaviour
     private readonly List<Dummy> enemies = new List<Dummy>();
     private readonly List<int> enemyScores = new List<int>();
     private Transform player;
+    private PlayerUpgrades playerUpgrades;
     private bool dummiesRemoved;
 
     private void Awake()
     {
         player = GameObject.FindWithTag("Player").transform;
+        playerUpgrades = player.GetComponent<PlayerUpgrades>(); // null → nothing to clear
         startWaveButton.onClick.AddListener(StartWave);
         messageText.text = "";
     }
@@ -63,6 +69,12 @@ public class WaveManager : MonoBehaviour
                 spawner.Stop();
             dummiesRemoved = true;
         }
+
+        // Every wave starts clean: no items lying around, no upgrades.
+        if (itemSpawner != null)
+            itemSpawner.ClearItems();
+        if (playerUpgrades != null)
+            playerUpgrades.Clear();
 
         Wave++;
         WaveRunning = true;
@@ -92,7 +104,12 @@ public class WaveManager : MonoBehaviour
 
             Score += enemyScores[i];
             if (enemies[i] != null)
+            {
+                // Killed on screen (not fallen into the void): it may drop an item where it died.
+                if (itemSpawner != null && !enemies[i].FellOffMap)
+                    itemSpawner.TryDrop(enemies[i].transform.position);
                 Destroy(enemies[i].gameObject);
+            }
             enemies.RemoveAt(i);
             enemyScores.RemoveAt(i);
         }

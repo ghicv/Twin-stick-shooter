@@ -287,6 +287,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Projectile
   trail: {fileID: 3123354633103240612}
   impactEffect: {fileID: 2594568554617404146, guid: 0ecc476074faa9446bb31bdf0ad3ec8b, type: 3}
+  homingRange: 5
+  homingConeAngle: 60
+  homingTurnSpeed: 360
+  homingCloseBoost: 3
+  homingDamage: 0.8
+  explosionRadius: 1
+  explosionDamage: 5
+  bounceDamage: 0.7
+  explosionEffect: {fileID: 1900384469608397415, guid: beb5acb5799f3c3458b596db4c7df869, type: 3}
 --- !u!58 &5209804466895811970
 CircleCollider2D:
   m_ObjectHideFlags: 0
