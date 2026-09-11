@@ -1,7 +1,9 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 
-// Basic gun: hold Left Mouse to shoot projectiles from the fire point, limited by Fire Rate.
+// Basic gun: hold Left Mouse to shoot projectiles from the fire point, limited by Fire Rate. Unlimited ammo.
+// Clicks on UI buttons don't shoot.
 // All projectile stats live here and are handed to each projectile when it is fired.
 //
 // Recoil: bullets leave at a random angle inside the current spread. Every shot opens the spread a bit
@@ -115,7 +117,8 @@ public class PlayerWeapon : MonoBehaviour
         if (attackAction.WasPressedThisFrame())
             nextFireTime = Mathf.Max(nextFireTime, Time.time);
 
-        if (attackAction.IsPressed() && Time.time >= nextFireTime)
+        bool pointerOnUI = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+        if (attackAction.IsPressed() && !pointerOnUI && Time.time >= nextFireTime)
         {
             Shoot();
 

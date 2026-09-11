@@ -1,7 +1,7 @@
 using System.Collections;
 using UnityEngine;
 
-// Falling off the map = death. Retro death + respawn sequence:
+// Falling off the map or losing all health (PlayerHealth calls Die) = death. Retro death + respawn sequence:
 // 1. The player explodes where it fell out of view. The game keeps running for a moment (Freeze Delay).
 // 2. Time freezes: the game slows almost to a stop and the screen curves into an old CRT / fish-eye look.
 // 3. The player reappears where it exploded and is pulled to a random spawn point.
@@ -77,6 +77,7 @@ public class PlayerRespawn : MonoBehaviour
     private AudioSource audioSource;
     private PlayerMovement movement;
     private PlayerWeapon weapon;
+    private PlayerHealth health;
     private SpriteRenderer[] sprites;
     private Camera cam;
     private CameraShake cameraShake;
@@ -86,12 +87,16 @@ public class PlayerRespawn : MonoBehaviour
     private float gameSpeed = 1f;
     private bool isDead;
 
+    // True from the moment of death until control is back.
+    public bool IsDead => isDead;
+
     private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
         audioSource = GetComponent<AudioSource>();
         movement = GetComponent<PlayerMovement>();
         weapon = GetComponent<PlayerWeapon>();
+        health = GetComponent<PlayerHealth>(); // null → nothing to refill
         sprites = GetComponentsInChildren<SpriteRenderer>(true);
         startPosition = rb.position;
 
@@ -104,11 +109,16 @@ public class PlayerRespawn : MonoBehaviour
 
     private void FixedUpdate()
     {
-        if (!isDead && rb.position.y < fallLimitY)
-        {
-            StopAllCoroutines(); // the last respawn may still be easing back to normal
-            StartCoroutine(DieAndRespawn());
-        }
+        if (rb.position.y < fallLimitY)
+            Die();
+    }
+
+    public void Die()
+    {
+        if (isDead)
+            return;
+
+        StartCoroutine(DieAndRespawn());
     }
 
     private IEnumerator DieAndRespawn()
@@ -156,6 +166,8 @@ public class PlayerRespawn : MonoBehaviour
         transform.position = to;
         rb.linearVelocity = Vector2.zero;
         rb.simulated = true;
+        if (health != null)
+            health.Refill();
         SpawnEffect(arriveEffect, to, Quaternion.identity);
         PlaySound(respawnSound);
 

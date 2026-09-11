@@ -31,6 +31,14 @@ public class DummySpawner : MonoBehaviour
         }
     }
 
+    // Turns this spawner off for good and removes its dummy (the WaveManager does this when the real waves start).
+    public void Stop()
+    {
+        if (current != null)
+            Destroy(current.gameObject);
+        enabled = false;
+    }
+
     private void Spawn()
     {
         current = Instantiate(dummyPrefab, transform.position, Quaternion.identity);

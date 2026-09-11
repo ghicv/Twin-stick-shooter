@@ -105,7 +105,9 @@ public class Dummy : MonoBehaviour
     private HitStop hitStop;
     private AudioSource audioSource;
 
-    private bool IsDying => health <= 0f;
+    // Read by the enemy scripts: no acting while dying, and no steering right after a hit (knockback).
+    public bool IsDying => health <= 0f;
+    public float LastHitTime { get; private set; } = -100f;
 
     private void Awake()
     {
@@ -132,6 +134,8 @@ public class Dummy : MonoBehaviour
     {
         if (IsDying)
             return;
+
+        LastHitTime = Time.time;
 
         // Blood spurts out of the wound, starting slightly outside the body.
         SpawnEffect(bloodEffect, hitPoint + hitNormal * 0.05f, hitNormal);

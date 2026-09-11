@@ -107,6 +107,7 @@ GameObject:
   - component: {fileID: 7948165044895939059}
   - component: {fileID: 6780011380052750896}
   - component: {fileID: 4763005333442338900}
+  - component: {fileID: 8892059692678184712}
   m_Layer: 8
   m_Name: Player
   m_TagString: Player
@@ -236,6 +237,7 @@ MonoBehaviour:
   jumpVolume: 0.3
   landSound: {fileID: 8300000, guid: 1420c4443851da741b08239e0851c05a, type: 3}
   landVolume: 0.35
+  hardLandingSpeed: 21
   pitchVariation: 0.08
 --- !u!114 &138357040129230196
 MonoBehaviour:
@@ -267,6 +269,8 @@ MonoBehaviour:
   gunVisual: {fileID: 3715816766596527898}
   muzzleFlash: {fileID: 4256841544112820263}
   fireRate: 5
+  magazineSize: 20
+  reloadTime: 1
   minSpread: 1.5
   maxSpread: 12
   spreadPerShot: 3
@@ -411,6 +415,28 @@ AudioSource:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+--- !u!114 &8892059692678184712
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3121727891143946174}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 963929dbad450ed429e31e3da15e6e4a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerHealth
+  maxHealth: 100
+  invulnerableTime: 0.6
+  spawnProtectionTime: 1
+  body: {fileID: 7107644010471966630}
+  knockback: {x: 6, y: 4}
+  hitShakeStrength: 0.2
+  hitShakeDuration: 0.15
+  blinkInterval: 0.06
+  hurtSound: {fileID: 8300000, guid: 336450b6703bcc6428a511794cc732fc, type: 3}
+  hurtVolume: 0.7
 --- !u!1 &4256841544112820263
 GameObject:
   m_ObjectHideFlags: 0
