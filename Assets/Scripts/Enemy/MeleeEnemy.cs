@@ -51,7 +51,7 @@ public class MeleeEnemy : MonoBehaviour
         float dt = Time.deltaTime * dummy.SpeedFactor; // slowed down → attacks come slower too
         cooldownTimer -= dt;
         jumpTimer -= dt;
-        if (dummy.IsDying)
+        if (dummy.IsDying || player == null) // no player: the game is restarting
             return;
 
         Vector2 toPlayer = player.transform.position - transform.position;

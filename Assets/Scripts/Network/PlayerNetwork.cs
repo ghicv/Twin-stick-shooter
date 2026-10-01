@@ -1,9 +1,12 @@
 using System.Collections.Generic;
 using Unity.Netcode;
+using Unity.Netcode.Components;
 using UnityEngine;
 
 // Network side of a player: everything about it that has to reach the other machines goes through here,
 // so the gameplay scripts stay plain MonoBehaviours.
+// - Single player has no network at all: MainMenu just makes the player and calls StartOffline. This machine is
+//   then both the host and the owner, and every message below goes straight to it instead of over the network.
 // - Each machine runs only its own player (movement, aim, input); the others see its position through the
 //   NetworkTransform (owner authority) and its aim from here.
 // - The host decides what counts: health, death, cores. They are sent to every machine.
@@ -56,23 +59,52 @@ public class PlayerNetwork : NetworkBehaviour
     private CoreBridge coreBridge;
     private CoreInventory inventory;
     private bool placed;
+    private int pendingSkin = -1;
 
-    public int Slot => slot.Value;
+    // Single player (no network).
+    public bool Offline { get; private set; }
+
+    // This machine decides what counts for this player (health, death, cores): the host, or single player.
+    public bool IsHostSide => Offline || IsServer;
+
+    // This machine controls this player: its owner, or single player.
+    public bool IsMine => Offline || IsOwner;
+
+    // Single player keeps these here instead (a NetworkVariable must not be written without a network).
+    private float offlineHealth;
+    private float offlineMaxHealth;
+    private bool offlineDead;
+
+    public int Slot => Offline ? 0 : slot.Value;
     public Color Color => skin.Value >= 0 && SkinCatalog.Instance != null ? SkinCatalog.Instance.Get(skin.Value).color
-                        : slot.Value >= 0 ? SlotColor(slot.Value) : Color.white;
+                        : Slot >= 0 ? SlotColor(Slot) : Color.white;
     public CoreBridge Cores => coreBridge;
     public PlayerRespawn Respawn => respawn;
 
     // Health and death are written by the host only.
-    public float Health { get => health.Value; set => health.Value = value; }
-    public float MaxHealth { get => maxHealth.Value; set => maxHealth.Value = value; }
-    public bool Dead { get => dead.Value; set => dead.Value = value; }
+    public float Health
+    {
+        get => Offline ? offlineHealth : health.Value;
+        set { if (Offline) offlineHealth = value; else health.Value = value; }
+    }
+
+    public float MaxHealth
+    {
+        get => Offline ? offlineMaxHealth : maxHealth.Value;
+        set { if (Offline) offlineMaxHealth = value; else maxHealth.Value = value; }
+    }
+
+    public bool Dead
+    {
+        get => Offline ? offlineDead : dead.Value;
+        set { if (Offline) offlineDead = value; else dead.Value = value; }
+    }
 
     // Its machine has finished joining (it gets every message from now on). A match only starts when all are ready.
     public bool Ready => ready.Value;
 
     // Alive and on screen (not exploded / waiting to come back / traveling).
-    public bool InPlay => !dead.Value && !respawn.IsTraveling;
+    public bool InPlay => !Dead && !respawn.IsTraveling;
 
     private void Awake()
     {
@@ -87,13 +119,33 @@ public class PlayerNetwork : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
-        All.Add(this);
         if (IsServer)
         {
             slot.Value = FreeSlot();
+            skin.Value = pendingSkin;
             maxHealth.Value = playerHealth.StartMaxHealth;
             health.Value = maxHealth.Value;
         }
+        Setup(IsOwner);
+    }
+
+    // Single player: right after MainMenu made the player (never spawned on a network).
+    public void StartOffline()
+    {
+        Offline = true;
+        // Nothing to sync: the body moves by itself (NetworkRigidbody2D had made it kinematic for the network).
+        GetComponent<NetworkTransform>().enabled = false;
+        GetComponent<NetworkRigidbody2D>().enabled = false;
+        GetComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Dynamic;
+
+        MaxHealth = playerHealth.StartMaxHealth;
+        Health = MaxHealth;
+        Setup(true);
+    }
+
+    private void Setup(bool mine)
+    {
+        All.Add(this);
         slot.OnValueChanged += OnSlotChanged;
         skin.OnValueChanged += OnSkinChanged;
         ApplyColor();
@@ -104,19 +156,28 @@ public class PlayerNetwork : NetworkBehaviour
         cores.OnListChanged += OnCoresChanged;
 
         // Only the owner runs the controls; the others just show where this player is.
-        bool mine = IsOwner;
         GetComponent<PlayerMovement>().enabled = mine;
         GetComponent<PlayerAim>().enabled = mine;
 
         if (mine)
         {
             Local = this;
-            ReadyRpc(); // this machine is in sync now
+            if (!Offline)
+                ReadyRpc(); // this machine is in sync now
             PlaceAtSpawnPoint();
         }
     }
 
-    public override void OnNetworkDespawn()
+    public override void OnNetworkDespawn() => Cleanup();
+
+    public override void OnDestroy()
+    {
+        if (Offline)
+            Cleanup(); // never despawned: it was never spawned
+        base.OnDestroy();
+    }
+
+    private void Cleanup()
     {
         All.Remove(this);
         slot.OnValueChanged -= OnSlotChanged;
@@ -129,7 +190,7 @@ public class PlayerNetwork : NetworkBehaviour
     private void OnSlotChanged(int previous, int current)
     {
         ApplyColor();
-        if (IsOwner)
+        if (IsMine)
             PlaceAtSpawnPoint();
     }
 
@@ -175,10 +236,11 @@ public class PlayerNetwork : NetworkBehaviour
     public void Fire(Vector2 position, float angle, float speed, float damage, float lifetime, float size)
     {
         int seed = Random.Range(1, int.MaxValue);
-        if (IsServer)
+        if (IsHostSide)
         {
             coreBridge.SpawnShot(position, angle, speed, damage, lifetime, size, seed, false);
-            ShotLookAlikeRpc(position, angle, speed, damage, lifetime, size, seed);
+            if (!Offline)
+                ShotLookAlikeRpc(position, angle, speed, damage, lifetime, size, seed);
         }
         else
         {
@@ -205,70 +267,133 @@ public class PlayerNetwork : NetworkBehaviour
 
     // ---------- Health (host → machines) ----------
 
-    public void PlayHurt(float blinkTime) => HurtRpc(blinkTime);
+    public void PlayHurt(float blinkTime)
+    {
+        if (Offline)
+            playerHealth.PlayHurt(blinkTime);
+        else
+            HurtRpc(blinkTime);
+    }
 
     [Rpc(SendTo.Everyone)]
     private void HurtRpc(float blinkTime) => playerHealth.PlayHurt(blinkTime);
 
-    public void PlayHurtBlinkOnly(float blinkTime) => BlinkRpc(blinkTime);
+    public void PlayHurtBlinkOnly(float blinkTime)
+    {
+        if (Offline)
+            playerHealth.PlayBlink(blinkTime);
+        else
+            BlinkRpc(blinkTime);
+    }
 
     [Rpc(SendTo.Everyone)]
     private void BlinkRpc(float blinkTime) => playerHealth.PlayBlink(blinkTime);
 
-    public void PushOwner(Vector2 velocity, bool set) => PushRpc(velocity, set);
+    public void PushOwner(Vector2 velocity, bool set)
+    {
+        if (Offline)
+            playerHealth.ApplyPush(velocity, set);
+        else
+            PushRpc(velocity, set);
+    }
 
     [Rpc(SendTo.Owner)]
     private void PushRpc(Vector2 velocity, bool set) => playerHealth.ApplyPush(velocity, set);
 
-    public void SlowOwner(float factor, float duration) => SlowRpc(factor, duration);
+    public void SlowOwner(float factor, float duration)
+    {
+        if (Offline)
+            playerHealth.ApplySlow(factor, duration);
+        else
+            SlowRpc(factor, duration);
+    }
 
     [Rpc(SendTo.Owner)]
     private void SlowRpc(float factor, float duration) => playerHealth.ApplySlow(factor, duration);
 
     // ---------- Owner → host ----------
 
-    public void RequestInvulnerable(float duration) => InvulnerableRpc(duration);
+    public void RequestInvulnerable(float duration)
+    {
+        if (Offline)
+            playerHealth.SetInvulnerable(duration);
+        else
+            InvulnerableRpc(duration);
+    }
 
     [Rpc(SendTo.Server)]
     private void InvulnerableRpc(float duration) => playerHealth.SetInvulnerable(duration);
 
-    public void ReportCrash(Vector2 point) => CrashRpc(point);
+    public void ReportCrash(Vector2 point)
+    {
+        if (Offline)
+            Crash(point);
+        else
+            CrashRpc(point);
+    }
 
     [Rpc(SendTo.Server)]
-    private void CrashRpc(Vector2 point)
+    private void CrashRpc(Vector2 point) => Crash(point);
+
+    private void Crash(Vector2 point)
     {
         if (playerHealth.LastAttacker != null)
             playerHealth.LastAttacker.OnEnemyCrash(target, null, point);
     }
 
-    public void ReportFell() => FellRpc();
+    public void ReportFell()
+    {
+        if (Offline)
+            respawn.Die(true);
+        else
+            FellRpc();
+    }
 
     [Rpc(SendTo.Server)]
     private void FellRpc() => respawn.Die(true);
 
-    public void ReportHardLanding(Vector2 feet) => HardLandingRpc(feet);
+    public void ReportHardLanding(Vector2 feet)
+    {
+        if (Offline)
+            coreBridge.OnHardLandingOnHost(feet);
+        else
+            HardLandingRpc(feet);
+    }
 
     [Rpc(SendTo.Server)]
     private void HardLandingRpc(Vector2 feet) => coreBridge.OnHardLandingOnHost(feet);
 
-    public void PickCore(CoreType type) => PickCoreRpc((int)type);
+    public void PickCore(CoreType type)
+    {
+        if (Offline)
+            AddCore((int)type);
+        else
+            PickCoreRpc((int)type);
+    }
 
     [Rpc(SendTo.Server)]
-    private void PickCoreRpc(int type)
+    private void PickCoreRpc(int type) => AddCore(type);
+
+    private void AddCore(int type)
     {
         if (MatchManager.Instance != null)
             MatchManager.Instance.PickDone(this);
         if (inventory.Has((CoreType)type))
             return;
         inventory.Add((CoreType)type); // right away on the host (the list event adds it everywhere else)
-        cores.Add(type);
+        if (!Offline)
+            cores.Add(type);
     }
 
-    // Owner: nothing to pick (owns every core already).
     [Rpc(SendTo.Server)]
     private void ReadyRpc() => ready.Value = true;
 
-    public void ReportPickSkipped() => PickSkippedRpc();
+    // Owner: nothing to pick (owns every core already).
+    public void ReportPickSkipped()
+    {
+        if (!Offline)
+            PickSkippedRpc(); // only a LAN match waits for the pick
+    }
 
     [Rpc(SendTo.Server)]
     private void PickSkippedRpc()
@@ -280,23 +405,41 @@ public class PlayerNetwork : NetworkBehaviour
     // ---------- Death (host → machines) ----------
 
     // outcome: see PlayerRespawn.DeathOutcome.
-    public void PlayDeath(Vector2 point, int outcome, Vector2 spawn) => DeathRpc(point, outcome, spawn);
+    public void PlayDeath(Vector2 point, int outcome, Vector2 spawn)
+    {
+        if (Offline)
+            respawn.PlayDeath(point, outcome, spawn);
+        else
+            DeathRpc(point, outcome, spawn);
+    }
 
     [Rpc(SendTo.Everyone)]
     private void DeathRpc(Vector2 point, int outcome, Vector2 spawn) => respawn.PlayDeath(point, outcome, spawn);
 
-    public void ReportRevived() => RevivedRpc();
+    public void ReportRevived()
+    {
+        if (Offline)
+            Revived();
+        else
+            RevivedRpc();
+    }
 
     [Rpc(SendTo.Server)]
-    private void RevivedRpc()
+    private void RevivedRpc() => Revived();
+
+    private void Revived()
     {
-        dead.Value = false;
+        Dead = false;
         playerHealth.Refill();
     }
 
     // ---------- Effects (host → the other machines) ----------
 
-    public void ShowEffect(int effect, Vector2 position, float scale) => EffectRpc(effect, position, scale);
+    public void ShowEffect(int effect, Vector2 position, float scale)
+    {
+        if (!Offline)
+            EffectRpc(effect, position, scale); // single player: nobody else to show
+    }
 
     [Rpc(SendTo.NotServer)]
     private void EffectRpc(int effect, Vector2 position, float scale) => coreBridge.PlayEffect(effect, position, scale);
@@ -321,16 +464,16 @@ public class PlayerNetwork : NetworkBehaviour
     // Body color (the skin's, else the slot's) and the skin's accessory.
     private void ApplyColor()
     {
-        if (slot.Value >= 0 || skin.Value >= 0)
+        if (Slot >= 0 || skin.Value >= 0)
             playerHealth.SetBodyColor(Color);
         SkinCatalog.Skin chosen = SkinCatalog.Instance != null ? SkinCatalog.Instance.Get(skin.Value) : null;
         accessory.sprite = chosen != null ? chosen.accessory : null;
     }
 
-    // Host, before spawning the player: the skin it picked.
+    // Host, before spawning the player: the skin it picked (set on the network once spawned).
     public void SetSkinOnHost(int value)
     {
-        skin.Value = value;
+        pendingSkin = value;
     }
 
     // Somebody in the session already wears that skin.
@@ -345,7 +488,7 @@ public class PlayerNetwork : NetworkBehaviour
     // Each slot starts at its own spawn point of the current map, spread over the list.
     private void PlaceAtSpawnPoint()
     {
-        if (placed || slot.Value < 0)
+        if (placed || Slot < 0)
             return;
 
         MapManager maps = FindAnyObjectByType<MapManager>();
@@ -353,7 +496,7 @@ public class PlayerNetwork : NetworkBehaviour
             return;
 
         Transform[] points = maps.CurrentMap.SpawnPoints;
-        Vector3 position = points[slot.Value * points.Length / 4 % points.Length].position;
+        Vector3 position = points[Slot * points.Length / 4 % points.Length].position;
         var rb = GetComponent<Rigidbody2D>();
         rb.position = position;
         transform.position = position;

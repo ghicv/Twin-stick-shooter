@@ -58,10 +58,10 @@ public class GameHUD : MonoBehaviour
             UpdateCoreIcons(local.Cores);
 
         bool waves = waveManager.isActiveAndEnabled;
-        scoreText.text = waves ? "SCORE " + waveManager.Score : "";
+        scoreText.text = waves ? Lang.T("SCORE ", "ĐIỂM ") + waveManager.Score : "";
         waveText.text = !waves ? ""
-            : waveManager.WaveRunning ? "WAVE " + waveManager.Wave + "   ENEMIES " + waveManager.EnemiesLeft
-            : "WAVE " + waveManager.Wave;
+            : waveManager.WaveRunning ? Lang.T("WAVE ", "ĐỢT ") + waveManager.Wave + Lang.T("   ENEMIES ", "   KẺ ĐỊCH ") + waveManager.EnemiesLeft
+            : Lang.T("WAVE ", "ĐỢT ") + waveManager.Wave;
     }
 
     // Cores are added one by one, so only the missing icons are made; when they were all lost (a new LAN match)

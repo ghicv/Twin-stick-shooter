@@ -88,10 +88,10 @@ public class CoreCards : MonoBehaviour
 
             CoreInventory.CoreInfo info = inventory.Info(offered[i]);
             card.icon.sprite = info.icon;
-            card.title.text = info.title;
-            card.tag.text = info.tag;
+            card.title.text = Lang.T(info.title, info.titleVi);
+            card.tag.text = Lang.T(info.tag, info.tagVi);
             card.tag.color = info.bulletCore ? bulletTagColor : singleTagColor;
-            card.description.text = info.description;
+            card.description.text = Lang.T(info.description, info.descriptionVi);
         }
         panel.SetActive(true);
         return true;

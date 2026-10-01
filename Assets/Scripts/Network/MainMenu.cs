@@ -5,7 +5,8 @@ using Unity.Netcode.Transports.UTP;
 using UnityEngine;
 using UnityEngine.UI;
 
-// Main menu: SINGLE PLAYER (waves, a local host nobody can join), HOST LAN or JOIN LAN (by IP, up to 4 players).
+// Main menu: SINGLE PLAYER (waves, no network at all), HOST LAN or JOIN LAN (by IP, up to 4 players),
+// and the language (ENGLISH / TIẾNG VIỆT, see Lang).
 // After hosting or joining, the player picks a skin (SkinPanel) and appears in the lobby map.
 // A small lobby panel lists the players (between matches); the host starts the match
 // (MatchManager). Nobody can join while a match is on. Losing the connection goes back to the menu.
@@ -29,9 +30,6 @@ public class MainMenu : MonoBehaviour
     [Tooltip("LAN: shown after hosting or joining; the player spawns once a skin is picked.")]
     [SerializeField] private SkinPanel skinPanel;
 
-    [Tooltip("Single player runs a local host on this port, so it never clashes with a LAN game on the same PC.")]
-    [SerializeField] private ushort singlePort = 7779;
-
     [Min(1)]
     [SerializeField] private int maxPlayers = 4;
 
@@ -42,6 +40,15 @@ public class MainMenu : MonoBehaviour
     [SerializeField] private Button joinButton;
     [SerializeField] private InputField ipInput;
     [SerializeField] private Text statusText;
+
+    [Header("Language")]
+    [SerializeField] private Button englishButton;
+    [SerializeField] private Button vietnameseButton;
+
+    [Tooltip("Label color of the language in use (the other one is dimmed).")]
+    [SerializeField] private Color languageOnColor = Color.white;
+
+    [SerializeField] private Color languageOffColor = new Color(1f, 1f, 1f, 0.35f);
 
     [Header("Lobby")]
     [SerializeField] private GameObject lobbyPanel;
@@ -85,6 +92,9 @@ public class MainMenu : MonoBehaviour
         leaveButton.onClick.AddListener(() => GameMode.Restart(false));
         startMatchButton.onClick.AddListener(() => MatchManager.Instance.StartMatch());
         collapseButton.onClick.AddListener(ToggleLobbyPanel);
+        englishButton.onClick.AddListener(() => SetLanguage(Lang.Language.English));
+        vietnameseButton.onClick.AddListener(() => SetLanguage(Lang.Language.Vietnamese));
+        ShowLanguage();
         lobbyPanelHeight = ((RectTransform)lobbyPanel.transform).sizeDelta.y;
 
         network.ConnectionApprovalCallback = ApproveConnection;
@@ -121,17 +131,12 @@ public class MainMenu : MonoBehaviour
         }
     }
 
+    // No network in single player: the player is simply made here.
     private void StartSingle()
     {
         GameMode.Current = GameMode.Mode.Single;
-        singleModeRoot.SetActive(true); // before the player spawns, so it finds the cores
-        transport.SetConnectionData("127.0.0.1", singlePort, "127.0.0.1"); // only this machine can connect
-        if (!network.StartHost())
-        {
-            singleModeRoot.SetActive(false);
-            Fail("COULD NOT START THE GAME");
-            return;
-        }
+        singleModeRoot.SetActive(true); // before the player appears, so it finds the cores
+        Instantiate(network.NetworkConfig.PlayerPrefab).GetComponent<PlayerNetwork>().StartOffline();
         menuPanel.SetActive(false);
     }
 
@@ -142,7 +147,7 @@ public class MainMenu : MonoBehaviour
         transport.SetConnectionData("127.0.0.1", port, "0.0.0.0"); // listen on every network card
         if (!network.StartHost())
         {
-            Fail("COULD NOT HOST (PORT " + port + " IN USE?)");
+            Fail(Lang.T("COULD NOT HOST (PORT " + port + " IN USE?)", "KHÔNG THỂ TẠO PHÒNG (CỔNG " + port + " ĐANG BẬN?)"));
             return;
         }
         Instantiate(matchManagerPrefab).Spawn(); // every machine (also the ones joining later) gets the match
@@ -160,10 +165,10 @@ public class MainMenu : MonoBehaviour
         transport.SetConnectionData(ip, port);
         if (!network.StartClient())
         {
-            Fail("COULD NOT CONNECT TO " + ip);
+            Fail(Lang.T("COULD NOT CONNECT TO ", "KHÔNG KẾT NỐI ĐƯỢC TỚI ") + ip);
             return;
         }
-        statusText.text = "CONNECTING TO " + ip + "...";
+        statusText.text = Lang.T("CONNECTING TO ", "ĐANG KẾT NỐI TỚI ") + ip + "...";
         SetMenuButtons(false);
     }
 
@@ -181,19 +186,29 @@ public class MainMenu : MonoBehaviour
         joinButton.interactable = interactable;
     }
 
-    // Host side: at most Max Players; single player takes nobody else.
+    // Host side: at most Max Players, and nobody joins during a match.
     private void ApproveConnection(NetworkManager.ConnectionApprovalRequest request, NetworkManager.ConnectionApprovalResponse response)
     {
         bool hostItself = request.ClientNetworkId == NetworkManager.ServerClientId;
         bool full = network.ConnectedClientsIds.Count >= maxPlayers;
-        bool single = GameMode.Current == GameMode.Mode.Single;
         bool playing = MatchManager.Instance != null && MatchManager.Instance.InMatch;
 
-        response.Approved = hostItself || (!full && !single && !playing);
-        response.CreatePlayerObject = response.Approved && single; // LAN players spawn after picking a skin
-        response.Reason = single ? "THAT GAME IS SINGLE PLAYER"
-                        : full ? "ROOM IS FULL (" + maxPlayers + " PLAYERS)"
-                        : playing ? "A MATCH IS ALREADY ON - TRY AGAIN LATER" : "";
+        response.Approved = hostItself || (!full && !playing);
+        response.CreatePlayerObject = false; // LAN players spawn after picking a skin
+        response.Reason = full ? ReasonFull : playing ? ReasonPlaying : ""; // shown in the joining player's language
+    }
+
+    private const string ReasonFull = "full";
+    private const string ReasonPlaying = "playing";
+
+    // Why this machine was sent back to the menu, in its own language.
+    private string ReasonText(string reason)
+    {
+        if (reason == ReasonFull)
+            return Lang.T("ROOM IS FULL (" + maxPlayers + " PLAYERS)", "PHÒNG ĐÃ ĐỦ NGƯỜI (" + maxPlayers + " NGƯỜI)");
+        if (reason == ReasonPlaying)
+            return Lang.T("A MATCH IS ALREADY ON - TRY AGAIN LATER", "TRẬN ĐẤU ĐANG DIỄN RA - HÃY THỬ LẠI SAU");
+        return Lang.T("DISCONNECTED", "MẤT KẾT NỐI");
     }
 
     private void OnClientConnected(ulong clientId)
@@ -208,8 +223,23 @@ public class MainMenu : MonoBehaviour
         if (GameMode.Current == GameMode.Mode.None || network.IsServer || clientId != network.LocalClientId)
             return; // already leaving, or the host / someone else
 
-        pendingMessage = string.IsNullOrEmpty(network.DisconnectReason) ? "DISCONNECTED" : network.DisconnectReason;
+        pendingMessage = ReasonText(network.DisconnectReason);
         GameMode.Restart(false);
+    }
+
+    private void SetLanguage(Lang.Language language)
+    {
+        Lang.Set(language); // fixed texts switch by themselves (LocalizedText)
+        statusText.text = "";
+        ShowLanguage();
+    }
+
+    // The language in use is bright, the other one dimmed.
+    private void ShowLanguage()
+    {
+        bool vietnamese = Lang.Current == Lang.Language.Vietnamese;
+        englishButton.GetComponentInChildren<Text>().color = vietnamese ? languageOffColor : languageOnColor;
+        vietnameseButton.GetComponentInChildren<Text>().color = vietnamese ? languageOnColor : languageOffColor;
     }
 
     // The lobby panel's "-" / "+" button: only the title bar, or everything.
@@ -227,8 +257,9 @@ public class MainMenu : MonoBehaviour
         menuPanel.SetActive(false);
         inLobby = true;
         lobbyInfoText.text = network.IsServer
-            ? "HOSTING - YOUR IP: " + LocalIp() + "\nFRIENDS JOIN WITH THIS IP"
-            : "WAITING FOR THE HOST TO START";
+            ? Lang.T("HOSTING - YOUR IP: ", "ĐANG LÀM CHỦ PHÒNG - IP CỦA BẠN: ") + LocalIp() +
+              Lang.T("\nFRIENDS JOIN WITH THIS IP", "\nBẠN BÈ VÀO BẰNG IP NÀY")
+            : Lang.T("WAITING FOR THE HOST TO START", "ĐANG CHỜ CHỦ PHÒNG BẮT ĐẦU");
         skinPanel.Show(); // the player appears in the lobby once it picked a skin
     }
 
@@ -246,15 +277,15 @@ public class MainMenu : MonoBehaviour
         startMatchButton.interactable = match != null && match.CanStart;
 
         var lines = new System.Text.StringBuilder();
-        lines.AppendLine("PLAYERS " + PlayerNetwork.All.Count + "/" + maxPlayers);
+        lines.AppendLine(Lang.T("PLAYERS ", "NGƯỜI CHƠI ") + PlayerNetwork.All.Count + "/" + maxPlayers);
         for (int slot = 0; slot < maxPlayers; slot++)
         {
             foreach (PlayerNetwork player in PlayerNetwork.All)
             {
                 if (player.Slot != slot)
                     continue;
-                string you = player == PlayerNetwork.Local ? "  (YOU)" : "";
-                string host = player.OwnerClientId == NetworkManager.ServerClientId ? "  HOST" : "";
+                string you = player == PlayerNetwork.Local ? Lang.T("  (YOU)", "  (BẠN)") : "";
+                string host = player.OwnerClientId == NetworkManager.ServerClientId ? Lang.T("  HOST", "  CHỦ PHÒNG") : "";
                 lines.AppendLine("<color=#" + ColorUtility.ToHtmlStringRGB(player.Color) + ">P" + (slot + 1) + "</color>" + host + you);
             }
         }

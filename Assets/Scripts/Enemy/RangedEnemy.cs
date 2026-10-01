@@ -70,7 +70,7 @@ public class RangedEnemy : MonoBehaviour
 
     private void Update()
     {
-        if (dummy.IsDying)
+        if (dummy.IsDying || player == null) // no player: the game is restarting
             return;
         float dt = Time.deltaTime * dummy.SpeedFactor; // slowed down → aims and shoots slower too
 

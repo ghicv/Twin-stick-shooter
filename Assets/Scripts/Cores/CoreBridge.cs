@@ -100,7 +100,7 @@ public class CoreBridge : MonoBehaviour
     // The machine that controls the player landed hard; the shockwave counts on the host.
     public void OnHardLanding(Vector2 feet)
     {
-        if (net.IsServer)
+        if (net.IsHostSide)
             singleCores.OnHardLanding(feet);
         else
             net.ReportHardLanding(feet);

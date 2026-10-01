@@ -126,7 +126,7 @@ public class SingleCores : MonoBehaviour
 
     private bool Has(CoreType type) => inventory.Has(type);
 
-    private bool OnHost => net.IsServer;
+    private bool OnHost => net.IsHostSide;
 
     private void OnAdded(CoreType type)
     {
@@ -267,7 +267,7 @@ public class SingleCores : MonoBehaviour
     private void ShowEffect(int effect, Vector2 position, float scale)
     {
         PlayEffect(effect, position, scale);
-        if (OnHost && net.IsSpawned)
+        if (OnHost)
             net.ShowEffect(effect, position, scale);
     }
 

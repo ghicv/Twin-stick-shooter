@@ -125,7 +125,7 @@ public class PlayerWeapon : MonoBehaviour
     private void Update()
     {
         UpdateShotFeedback();
-        if (net != null && !net.IsOwner)
+        if (net != null && !net.IsMine)
             return; // another machine's player: only its shot feedback plays here (PlayShotFeedback)
         if (GameMode.IsLan && (MatchManager.Instance == null || !MatchManager.Instance.InMatch))
         {

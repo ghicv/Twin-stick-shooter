@@ -17,6 +17,13 @@ public class CoreInventory : MonoBehaviour
         [TextArea(2, 4)]
         public string description;
 
+        [Header("Vietnamese")]
+        public string titleVi;
+        public string tagVi;
+
+        [TextArea(2, 4)]
+        public string descriptionVi;
+
         public Sprite icon;
 
         [Tooltip("Bullet cores stack with each other. Every card offer has at least one (while any is left).")]

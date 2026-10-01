@@ -22,13 +22,13 @@ public class GameOverScreen : MonoBehaviour
 
     public void Show()
     {
-        waveText.text = "WAVE " + waveManager.Wave;
-        scoreText.text = "SCORE " + waveManager.Score;
+        waveText.text = Lang.T("WAVE ", "ĐỢT ") + waveManager.Wave;
+        scoreText.text = Lang.T("SCORE ", "ĐIỂM ") + waveManager.Score;
         panel.SetActive(true);
     }
 
     private void PlayAgain()
     {
-        GameMode.Restart(true); // ends the local host, reloads, and the menu starts single player right away
+        GameMode.Restart(true); // reloads, and the menu starts single player right away
     }
 }

@@ -4,7 +4,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 // Which way the game is being played, chosen in the main menu.
-// Single: one player against the waves (runs as a local host nobody else can join).
+// Single: one player against the waves (no network: the NetworkManager is never started).
 // Lan: up to 4 players on the local network (host or client).
 public static class GameMode
 {

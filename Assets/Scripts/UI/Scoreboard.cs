@@ -49,7 +49,7 @@ public class Scoreboard : MonoBehaviour
 
             int wins = match != null ? match.Wins(slot) : 0;
             int cores = player.Cores.OwnedCount;
-            string you = player == PlayerNetwork.Local ? " (YOU)" : "";
+            string you = player == PlayerNetwork.Local ? Lang.T(" (YOU)", " (BẠN)") : "";
             string more = cores > maxIcons ? "  +" + (cores - maxIcons) : "";
             string dead = player.Dead ? "  <color=#FF5555>X</color>" : "";
             row.label.text = "<color=#" + ColorUtility.ToHtmlStringRGB(player.Color) + ">P" + (slot + 1) + "</color>" + you +

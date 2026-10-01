@@ -56,7 +56,7 @@ public class WaveManager : MonoBehaviour
     private readonly List<int> enemyScores = new List<int>();
     private bool dummiesRemoved;
 
-    // The player spawns over the network after this object wakes up, so it is looked up when needed.
+    // The player is made after this object wakes up, so it is looked up when needed.
     private Transform player => PlayerNetwork.Local.transform;
     private PlayerHealth playerHealth => PlayerNetwork.Local.GetComponent<PlayerHealth>();
     private PlayerRespawn playerRespawn => PlayerNetwork.Local.GetComponent<PlayerRespawn>();
@@ -79,7 +79,8 @@ public class WaveManager : MonoBehaviour
 
     private void OnDisable()
     {
-        startWaveButton.gameObject.SetActive(false); // not playing waves (menu, LAN)
+        if (startWaveButton != null) // already gone when the scene is unloading (Try Again)
+            startWaveButton.gameObject.SetActive(false); // not playing waves (menu, LAN)
     }
 
     public void StartWave()
@@ -130,7 +131,7 @@ public class WaveManager : MonoBehaviour
         if (enemies.Count == 0)
         {
             WaveRunning = false;
-            messageText.text = "WAVE " + Wave + " CLEAR!";
+            messageText.text = Lang.T("WAVE " + Wave + " CLEAR!", "XONG ĐỢT " + Wave + "!");
             if (playerHealth.IsDead)
                 return; // the run is over (Game Over screen): no health, no cards, no next wave
 

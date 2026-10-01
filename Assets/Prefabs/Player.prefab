@@ -679,228 +679,375 @@ MonoBehaviour:
     title: +1 BULLET
     tag: "BULLET \xB7 SPAWN"
     description: Every shot fires 2 bullets. Each deals 70%.
+    titleVi: "+1 VI\xCAN \u0110\u1EA0N"
+    tagVi: "\u0110\u1EA0N \xB7 B\u1EAEN RA"
+    descriptionVi: "M\u1ED7i ph\xE1t b\u1EAFn ra 2 vi\xEAn. M\u1ED7i vi\xEAn g\xE2y
+      70% s\xE1t th\u01B0\u01A1ng."
     icon: {fileID: 21300000, guid: 67fb37306dd527646b2b5de709632150, type: 3}
     bulletCore: 1
   - type: 1
     title: BACK SHOT
     tag: "BULLET \xB7 SPAWN"
     description: Every shot also fires backwards (60% damage).
+    titleVi: "B\u1EAEN NG\u01AF\u1EE2C"
+    tagVi: "\u0110\u1EA0N \xB7 B\u1EAEN RA"
+    descriptionVi: "M\u1ED7i ph\xE1t b\u1EAFn th\xEAm 1 vi\xEAn ra ph\xEDa sau (60%
+      s\xE1t th\u01B0\u01A1ng)."
     icon: {fileID: 21300000, guid: d83e44fb666966d468c827133c2a6305, type: 3}
     bulletCore: 1
   - type: 2
     title: LUCKY SHOT
     tag: "BULLET \xB7 SPAWN"
     description: '15% of bullets are critical: 2.5x damage.'
+    titleVi: "PH\xC1T MAY M\u1EAEN"
+    tagVi: "\u0110\u1EA0N \xB7 B\u1EAEN RA"
+    descriptionVi: "15% s\u1ED1 \u0111\u1EA1n l\xE0 ch\xED m\u1EA1ng: g\xE2y 2.5
+      l\u1EA7n s\xE1t th\u01B0\u01A1ng."
     icon: {fileID: 21300000, guid: 1573b851074da594c9f8ef48917bf985, type: 3}
     bulletCore: 1
   - type: 3
     title: NOVA
     tag: "BULLET \xB7 SPAWN"
     description: Every 6th shot also fires a ring of 8 bullets (50% damage).
+    titleVi: NOVA
+    tagVi: "\u0110\u1EA0N \xB7 B\u1EAEN RA"
+    descriptionVi: "C\u1EE9 ph\xE1t th\u1EE9 6 l\u1EA1i b\u1EAFn th\xEAm m\u1ED9t
+      v\xF2ng 8 vi\xEAn (50% s\xE1t th\u01B0\u01A1ng)."
     icon: {fileID: 21300000, guid: 773ff46c0c5c17343a1cc1a361df16ad, type: 3}
     bulletCore: 1
   - type: 4
     title: GIANT
     tag: "BULLET \xB7 SPAWN"
     description: 'Huge bullets: +30% damage, 20% slower.'
+    titleVi: "KH\u1ED4NG L\u1ED2"
+    tagVi: "\u0110\u1EA0N \xB7 B\u1EAEN RA"
+    descriptionVi: "\u0110\u1EA1n r\u1EA5t to: +30% s\xE1t th\u01B0\u01A1ng, ch\u1EADm
+      h\u01A1n 20%."
     icon: {fileID: 21300000, guid: 2259762fc27b77349956cb027eea5427, type: 3}
     bulletCore: 1
   - type: 5
     title: HOMING
     tag: "BULLET \xB7 FLY"
     description: Bullets steer toward enemies ahead. -20% damage.
+    titleVi: "T\u1EF0 D\u1EAAN"
+    tagVi: "\u0110\u1EA0N \xB7 BAY"
+    descriptionVi: "\u0110\u1EA1n t\u1EF1 l\xE1i v\u1EC1 ph\xEDa k\u1EBB \u0111\u1ECBch
+      ph\xEDa tr\u01B0\u1EDBc. -20% s\xE1t th\u01B0\u01A1ng."
     icon: {fileID: 21300000, guid: 1bb64d4aeb96904428be63a52b058eb1, type: 3}
     bulletCore: 1
   - type: 6
     title: BOUNCE
     tag: "BULLET \xB7 FLY"
     description: Bullets bounce off walls twice. -25% damage per bounce.
+    titleVi: "N\u1EA2Y"
+    tagVi: "\u0110\u1EA0N \xB7 BAY"
+    descriptionVi: "\u0110\u1EA1n n\u1EA3y kh\u1ECFi t\u01B0\u1EDDng 2 l\u1EA7n.
+      M\u1ED7i l\u1EA7n n\u1EA3y -25% s\xE1t th\u01B0\u01A1ng."
     icon: {fileID: 21300000, guid: 94b08abf1a71fd640b074b13401813fc, type: 3}
     bulletCore: 1
   - type: 7
     title: PIERCE
     tag: "BULLET \xB7 FLY"
     description: Bullets fly through 2 enemies. -30% damage per enemy.
+    titleVi: "XUY\xCAN"
+    tagVi: "\u0110\u1EA0N \xB7 BAY"
+    descriptionVi: "\u0110\u1EA1n bay xuy\xEAn qua 2 k\u1EBB \u0111\u1ECBch. M\u1ED7i
+      k\u1EBB \u0111\u1ECBch -30% s\xE1t th\u01B0\u01A1ng."
     icon: {fileID: 21300000, guid: efe8ed785d4d31746833f6dc76243cb7, type: 3}
     bulletCore: 1
   - type: 8
     title: LOB
     tag: "BULLET \xB7 FLY"
     description: Bullets fall in an arc. +25% damage.
+    titleVi: "B\u1EAEN V\xD2NG CUNG"
+    tagVi: "\u0110\u1EA0N \xB7 BAY"
+    descriptionVi: "\u0110\u1EA1n r\u01A1i theo \u0111\u01B0\u1EDDng v\xF2ng cung.
+      +25% s\xE1t th\u01B0\u01A1ng."
     icon: {fileID: 21300000, guid: b1ad3665f9c481b4cb29d20ac78bf7da, type: 3}
     bulletCore: 1
   - type: 9
     title: WAVE
     tag: "BULLET \xB7 FLY"
     description: Bullets wiggle up and down as they fly.
+    titleVi: "L\u01AF\u1EE2N S\xD3NG"
+    tagVi: "\u0110\u1EA0N \xB7 BAY"
+    descriptionVi: "\u0110\u1EA1n l\u01B0\u1EE3n l\xEAn xu\u1ED1ng khi bay."
     icon: {fileID: 21300000, guid: 870e377516ffb7f4da6375232288aff7, type: 3}
     bulletCore: 1
   - type: 10
     title: BOOMERANG
     tag: "BULLET \xB7 FLY"
     description: Bullets fly back to you and can hit on the way.
+    titleVi: BOOMERANG
+    tagVi: "\u0110\u1EA0N \xB7 BAY"
+    descriptionVi: "\u0110\u1EA1n bay ng\u01B0\u1EE3c v\u1EC1 ph\xEDa b\u1EA1n v\xE0
+      v\u1EABn tr\xFAng \u0111\u01B0\u1EE3c tr\xEAn \u0111\u01B0\u1EDDng v\u1EC1."
     icon: {fileID: 21300000, guid: 2e8a5313d3453ec47a15b4ca81f39a09, type: 3}
     bulletCore: 1
   - type: 11
     title: LONG SHOT
     tag: "BULLET \xB7 FLY"
     description: +6% damage per unit flown, up to 2x.
+    titleVi: "B\u1EAEN XA"
+    tagVi: "\u0110\u1EA0N \xB7 BAY"
+    descriptionVi: "+6% s\xE1t th\u01B0\u01A1ng cho m\u1ED7i \u0111\u01A1n v\u1ECB
+      \u0111\u01B0\u1EDDng bay, t\u1ED1i \u0111a 2 l\u1EA7n."
     icon: {fileID: 21300000, guid: 0e12832e58e50f3489308c8b40081a7d, type: 3}
     bulletCore: 1
   - type: 12
     title: DRILL
     tag: "BULLET \xB7 FLY"
     description: Bullets go through one wall. -20% damage.
+    titleVi: KHOAN
+    tagVi: "\u0110\u1EA0N \xB7 BAY"
+    descriptionVi: "\u0110\u1EA1n xuy\xEAn qua m\u1ED9t b\u1EE9c t\u01B0\u1EDDng.
+      -20% s\xE1t th\u01B0\u01A1ng."
     icon: {fileID: 21300000, guid: 99e55686d2b811f459d0b8704dba2d98, type: 3}
     bulletCore: 1
   - type: 13
     title: EXPLOSIVE
     tag: "BULLET \xB7 HIT"
     description: Bullets explode on every hit (6 damage around). -25% fire rate.
+    titleVi: "N\u1ED4"
+    tagVi: "\u0110\u1EA0N \xB7 TR\xDANG"
+    descriptionVi: "\u0110\u1EA1n ph\xE1t n\u1ED5 m\u1ED7i l\u1EA7n tr\xFAng (6 s\xE1t
+      th\u01B0\u01A1ng xung quanh). -25% t\u1ED1c \u0111\u1ED9 b\u1EAFn."
     icon: {fileID: 21300000, guid: 51b085a320a7f764583c7a6f35497a70, type: 3}
     bulletCore: 1
   - type: 14
     title: HAMMER
     tag: "BULLET \xB7 HIT"
     description: Hits, blasts and pulls knock enemies 2.5x harder.
+    titleVi: "B\xDAA"
+    tagVi: "\u0110\u1EA0N \xB7 TR\xDANG"
+    descriptionVi: "Ph\xE1t tr\xFAng, v\u1EE5 n\u1ED5 v\xE0 l\u1EF1c h\xFAt \u0111\u1EA9y
+      k\u1EBB \u0111\u1ECBch m\u1EA1nh g\u1EA5p 2.5 l\u1EA7n."
     icon: {fileID: 21300000, guid: b5a58ffa71dbe02489c99fabbd29847d, type: 3}
     bulletCore: 1
   - type: 15
     title: FORK
     tag: "BULLET \xB7 HIT"
     description: On the first enemy, bullets split in 2 (35% damage each).
+    titleVi: "CH\u1EBA \u0110\xD4I"
+    tagVi: "\u0110\u1EA0N \xB7 TR\xDANG"
+    descriptionVi: "Tr\xFAng k\u1EBB \u0111\u1ECBch \u0111\u1EA7u ti\xEAn, \u0111\u1EA1n
+      t\xE1ch l\xE0m 2 (m\u1ED7i vi\xEAn 35% s\xE1t th\u01B0\u01A1ng)."
     icon: {fileID: 21300000, guid: b593c1d27d5cddb40b2d7aad4807d997, type: 3}
     bulletCore: 1
   - type: 16
     title: CHAIN
     tag: "BULLET \xB7 HIT"
     description: Hits zap 2 nearby enemies for 40% damage.
+    titleVi: "CHU\u1ED6I \u0110I\u1EC6N"
+    tagVi: "\u0110\u1EA0N \xB7 TR\xDANG"
+    descriptionVi: "Ph\xE1t tr\xFAng gi\u1EADt \u0111i\u1EC7n 2 k\u1EBB \u0111\u1ECBch
+      g\u1EA7n \u0111\xF3, g\xE2y 40% s\xE1t th\u01B0\u01A1ng."
     icon: {fileID: 21300000, guid: ac2a8f83a18ec4246b7fb106f055c1df, type: 3}
     bulletCore: 1
   - type: 17
     title: CHILL
     tag: "BULLET \xB7 HIT"
     description: Hit enemies move and attack at half speed for 1.5s.
+    titleVi: "L\xC0M L\u1EA0NH"
+    tagVi: "\u0110\u1EA0N \xB7 TR\xDANG"
+    descriptionVi: "K\u1EBB \u0111\u1ECBch tr\xFAng \u0111\u1EA1n di chuy\u1EC3n
+      v\xE0 t\u1EA5n c\xF4ng ch\u1EADm m\u1ED9t n\u1EEDa trong 1.5 gi\xE2y."
     icon: {fileID: 21300000, guid: ed4cadbb64aeeab489ae1aa638907bc5, type: 3}
     bulletCore: 1
   - type: 18
     title: IGNITE
     tag: "BULLET \xB7 HIT"
     description: 'Hit enemies burn: 5 damage every 0.5s for 2s.'
+    titleVi: "THI\xCAU \u0110\u1ED0T"
+    tagVi: "\u0110\u1EA0N \xB7 TR\xDANG"
+    descriptionVi: "K\u1EBB \u0111\u1ECBch tr\xFAng \u0111\u1EA1n b\u1ECB ch\xE1y:
+      5 s\xE1t th\u01B0\u01A1ng m\u1ED7i 0.5 gi\xE2y trong 2 gi\xE2y."
     icon: {fileID: 21300000, guid: 350230875722f21499e612e71ed81dd1, type: 3}
     bulletCore: 1
   - type: 19
     title: VORTEX
     tag: "BULLET \xB7 HIT"
     description: Hits pull nearby enemies toward the hit.
+    titleVi: "XO\xC1Y"
+    tagVi: "\u0110\u1EA0N \xB7 TR\xDANG"
+    descriptionVi: "Ph\xE1t tr\xFAng h\xFAt c\xE1c k\u1EBB \u0111\u1ECBch g\u1EA7n
+      \u0111\xF3 v\u1EC1 ch\u1ED7 tr\xFAng."
     icon: {fileID: 21300000, guid: d1f5c5abe2e19d74a9fd078d84381e34, type: 3}
     bulletCore: 1
   - type: 20
     title: REAPER
     tag: "BULLET \xB7 HIT"
     description: Hits kill enemies at 15% health or less.
+    titleVi: "T\u1EEC TH\u1EA6N"
+    tagVi: "\u0110\u1EA0N \xB7 TR\xDANG"
+    descriptionVi: "Ph\xE1t tr\xFAng gi\u1EBFt ngay k\u1EBB \u0111\u1ECBch c\xF2n
+      t\u1EEB 15% m\xE1u tr\u1EDF xu\u1ED1ng."
     icon: {fileID: 21300000, guid: 03ff728ec01349e41af8a3d6854a3269, type: 3}
     bulletCore: 1
   - type: 21
     title: SHRAPNEL
     tag: "BULLET \xB7 END"
     description: Bullets burst into 3 shards when they stop (30% damage each).
+    titleVi: "M\u1EA2NH V\u1EE0"
+    tagVi: "\u0110\u1EA0N \xB7 K\u1EBET TH\xDAC"
+    descriptionVi: "\u0110\u1EA1n v\u1EE1 th\xE0nh 3 m\u1EA3nh khi d\u1EEBng l\u1EA1i
+      (m\u1ED7i m\u1EA3nh 30% s\xE1t th\u01B0\u01A1ng)."
     icon: {fileID: 21300000, guid: 80ef69c1e693b6f4f96c57cc190d684e, type: 3}
     bulletCore: 1
   - type: 22
     title: MINE
     tag: "BULLET \xB7 END"
     description: Bullets stopping on walls may leave a mine (15 damage blast).
+    titleVi: "M\xCCN"
+    tagVi: "\u0110\u1EA0N \xB7 K\u1EBET TH\xDAC"
+    descriptionVi: "\u0110\u1EA1n d\u1EEBng tr\xEAn t\u01B0\u1EDDng c\xF3 th\u1EC3
+      \u0111\u1EC3 l\u1EA1i m\u1ED9t qu\u1EA3 m\xECn (n\u1ED5 15 s\xE1t th\u01B0\u01A1ng)."
     icon: {fileID: 21300000, guid: b66e9789834be84418ec25db6030f40f, type: 3}
     bulletCore: 1
   - type: 23
     title: GROUND POUND
     tag: "SINGLE \xB7 PLAYER"
     description: Hard landings throw nearby enemies up (20 damage).
+    titleVi: "D\u1EACM \u0110\u1EA4T"
+    tagVi: "\u0110\u01A0N \xB7 NH\xC2N V\u1EACT"
+    descriptionVi: "Ti\u1EBFp \u0111\u1EA5t m\u1EA1nh h\u1EA5t tung k\u1EBB \u0111\u1ECBch
+      g\u1EA7n \u0111\xF3 (20 s\xE1t th\u01B0\u01A1ng)."
     icon: {fileID: 21300000, guid: 9de5e47fb1199554b9746dfbffeaab48, type: 3}
     bulletCore: 0
   - type: 24
     title: EXTRA JUMP
     tag: "SINGLE \xB7 PLAYER"
     description: One more jump in the air.
+    titleVi: "NH\u1EA2Y TH\xCAM"
+    tagVi: "\u0110\u01A0N \xB7 NH\xC2N V\u1EACT"
+    descriptionVi: "Th\xEAm m\u1ED9t l\u1EA7n nh\u1EA3y tr\xEAn kh\xF4ng."
     icon: {fileID: 21300000, guid: 7bab3bca3536ae74abddd19a63453671, type: 3}
     bulletCore: 0
   - type: 25
     title: DASH
     tag: "SINGLE \xB7 PLAYER"
     description: 'Shift: dash sideways. Can''t be hurt while dashing.'
+    titleVi: "L\u01AF\u1EDAT"
+    tagVi: "\u0110\u01A0N \xB7 NH\xC2N V\u1EACT"
+    descriptionVi: "Shift: l\u01B0\u1EDBt ngang. Kh\xF4ng b\u1ECB th\u01B0\u01A1ng
+      khi \u0111ang l\u01B0\u1EDBt."
     icon: {fileID: 21300000, guid: 49596c10611cea54faf3634022fadd1e, type: 3}
     bulletCore: 0
   - type: 26
     title: THICK SKIN
     tag: "SINGLE \xB7 PLAYER"
     description: +40 max health.
+    titleVi: "DA D\xC0Y"
+    tagVi: "\u0110\u01A0N \xB7 NH\xC2N V\u1EACT"
+    descriptionVi: "+40 m\xE1u t\u1ED1i \u0111a."
     icon: {fileID: 21300000, guid: 8ab8fa25d739a3740a22838eb1859781, type: 3}
     bulletCore: 0
   - type: 27
     title: EXTRA LIFE
     tag: "SINGLE \xB7 PLAYER"
     description: Once per run, come back after dying.
+    titleVi: "TH\xCAM M\u1EA0NG"
+    tagVi: "\u0110\u01A0N \xB7 NH\xC2N V\u1EACT"
+    descriptionVi: "M\u1ED7i l\u01B0\u1EE3t ch\u01A1i \u0111\u01B0\u1EE3c s\u1ED1ng
+      l\u1EA1i m\u1ED9t l\u1EA7n sau khi ch\u1EBFt."
     icon: {fileID: 21300000, guid: e4f168e551e65f4499040f69ad92bb7d, type: 3}
     bulletCore: 0
   - type: 28
     title: REGENERATION
     tag: "SINGLE \xB7 PLAYER"
     description: Heal 2 HP per second after 3s without getting hurt.
+    titleVi: "H\u1ED2I PH\u1EE4C"
+    tagVi: "\u0110\u01A0N \xB7 NH\xC2N V\u1EACT"
+    descriptionVi: "H\u1ED3i 2 HP m\u1ED7i gi\xE2y sau 3 gi\xE2y kh\xF4ng b\u1ECB
+      th\u01B0\u01A1ng."
     icon: {fileID: 21300000, guid: 462430940ce6d6d4d86c40be6a927c54, type: 3}
     bulletCore: 0
   - type: 29
     title: HOT BARREL
     tag: "SINGLE \xB7 GUN"
     description: Keep firing to shoot faster, up to 1.6x.
+    titleVi: "N\xD2NG N\xD3NG"
+    tagVi: "\u0110\u01A0N \xB7 S\xDANG"
+    descriptionVi: "B\u1EAFn li\xEAn t\u1EE5c \u0111\u1EC3 b\u1EAFn nhanh d\u1EA7n,
+      t\u1ED1i \u0111a 1.6 l\u1EA7n."
     icon: {fileID: 21300000, guid: 06941e8897aa4f148bcd139b6a1993d1, type: 3}
     bulletCore: 0
   - type: 30
     title: STEADY AIM
     tag: "SINGLE \xB7 GUN"
     description: 'Shots go almost straight: 80% less spread.'
+    titleVi: "NG\u1EAEM V\u1EEENG"
+    tagVi: "\u0110\u01A0N \xB7 S\xDANG"
+    descriptionVi: "\u0110\u1EA1n bay g\u1EA7n nh\u01B0 th\u1EB3ng: gi\u1EA3m 80%
+      \u0111\u1ED9 t\u1EA3n."
     icon: {fileID: 21300000, guid: e06ddfcf585b92c4594396980a795e91, type: 3}
     bulletCore: 0
   - type: 31
     title: AIR GUNNER
     tag: "SINGLE \xB7 GUN"
     description: +35% damage while in the air.
+    titleVi: "X\u1EA0 TH\u1EE6 BAY"
+    tagVi: "\u0110\u01A0N \xB7 S\xDANG"
+    descriptionVi: "+35% s\xE1t th\u01B0\u01A1ng khi \u0111ang \u1EDF tr\xEAn kh\xF4ng."
     icon: {fileID: 21300000, guid: 1a74af40d75042f4d8ac859398839ecc, type: 3}
     bulletCore: 0
   - type: 32
     title: ADRENALINE
     tag: "SINGLE \xB7 GUN"
     description: Below 35% health, fire 1.5x faster.
+    titleVi: ADRENALINE
+    tagVi: "\u0110\u01A0N \xB7 S\xDANG"
+    descriptionVi: "D\u01B0\u1EDBi 35% m\xE1u, b\u1EAFn nhanh g\u1EA5p 1.5 l\u1EA7n."
     icon: {fileID: 21300000, guid: 11df5dc03678cb14ca00173ee91d6e70, type: 3}
     bulletCore: 0
   - type: 33
     title: OPENER
     tag: "SINGLE \xB7 GUN"
     description: The first shot after a 0.5s pause deals 3x damage.
+    titleVi: "PH\xC1T M\u1EDE M\xC0N"
+    tagVi: "\u0110\u01A0N \xB7 S\xDANG"
+    descriptionVi: "Ph\xE1t b\u1EAFn \u0111\u1EA7u ti\xEAn sau 0.5 gi\xE2y ngh\u1EC9
+      g\xE2y 3 l\u1EA7n s\xE1t th\u01B0\u01A1ng."
     icon: {fileID: 21300000, guid: f9879dde66021d34eb50f3644d7d5cc9, type: 3}
     bulletCore: 0
   - type: 34
     title: VOID FEAST
     tag: "SINGLE \xB7 ENEMY"
     description: Enemies falling into the void heal you 10 HP.
+    titleVi: "NU\u1ED0T V\u1EF0C"
+    tagVi: "\u0110\u01A0N \xB7 K\u1EBA \u0110\u1ECACH"
+    descriptionVi: "K\u1EBB \u0111\u1ECBch r\u01A1i xu\u1ED1ng v\u1EF1c h\u1ED3i
+      cho b\u1EA1n 10 HP."
     icon: {fileID: 21300000, guid: d80bdaf9ebbb2174c9c21bde7858b073, type: 3}
     bulletCore: 0
   - type: 35
     title: DEATH BLAST
     tag: "SINGLE \xB7 ENEMY"
     description: Killed enemies explode for 20 damage around them.
+    titleVi: "N\u1ED4 KHI CH\u1EBET"
+    tagVi: "\u0110\u01A0N \xB7 K\u1EBA \u0110\u1ECACH"
+    descriptionVi: "K\u1EBB \u0111\u1ECBch b\u1ECB h\u1EA1 ph\xE1t n\u1ED5, g\xE2y
+      20 s\xE1t th\u01B0\u01A1ng xung quanh."
     icon: {fileID: 21300000, guid: 804c9633c209781479baaac76a4aa582, type: 3}
     bulletCore: 0
   - type: 36
     title: CRASH
     tag: "SINGLE \xB7 ENEMY"
     description: Enemies knocked into walls or each other take 12 damage.
+    titleVi: "VA \u0110\u1EACP"
+    tagVi: "\u0110\u01A0N \xB7 K\u1EBA \u0110\u1ECACH"
+    descriptionVi: "K\u1EBB \u0111\u1ECBch b\u1ECB \u0111\u1EA9y v\xE0o t\u01B0\u1EDDng
+      ho\u1EB7c v\xE0o nhau nh\u1EADn 12 s\xE1t th\u01B0\u01A1ng."
     icon: {fileID: 21300000, guid: 366416eaeb99e074b8ff0ff626724a9b, type: 3}
     bulletCore: 0
   - type: 37
     title: VAMPIRE
     tag: "SINGLE \xB7 ENEMY"
     description: Every kill heals you 3 HP.
+    titleVi: "MA C\xC0 R\u1ED2NG"
+    tagVi: "\u0110\u01A0N \xB7 K\u1EBA \u0110\u1ECACH"
+    descriptionVi: "M\u1ED7i l\u1EA7n h\u1EA1 \u0111\u1ECBch h\u1ED3i cho b\u1EA1n
+      3 HP."
     icon: {fileID: 21300000, guid: 20c221f3e0cbaac46ac6a41f93ccb850, type: 3}
     bulletCore: 0
 --- !u!114 &759047752990307770

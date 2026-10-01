@@ -135,7 +135,7 @@ public class PlayerRespawn : MonoBehaviour
     private void FixedUpdate()
     {
         fallReportTimer -= Time.fixedDeltaTime;
-        if (net.IsOwner && fallReportTimer <= 0f && rb.simulated && !IsDead && !traveling && rb.position.y < FallLimit)
+        if (net.IsMine && fallReportTimer <= 0f && rb.simulated && !IsDead && !traveling && rb.position.y < FallLimit)
         {
             fallReportTimer = fallReportInterval;
             Die(true);
@@ -147,9 +147,9 @@ public class PlayerRespawn : MonoBehaviour
     // On the host this kills the player; the owner only reports a fall to the host.
     public void Die(bool fellOff)
     {
-        if (net.IsServer)
+        if (net.IsHostSide)
             DieOnHost(fellOff);
-        else if (net.IsOwner)
+        else if (net.IsMine)
             net.ReportFell();
     }
 
@@ -192,10 +192,10 @@ public class PlayerRespawn : MonoBehaviour
     private IEnumerator DieRoutine(Vector2 point, DeathOutcome outcome, Vector2 spawn)
     {
         // The player explodes.
-        if (net.IsOwner)
+        if (net.IsMine)
             TakeControlAway();
         Vector3 deathPoint = CameraView.ClampInside(cam, point, screenMargin);
-        if (net.IsOwner)
+        if (net.IsMine)
             transform.position = deathPoint; // physics is off, so moving the transform is fine
         SetVisible(false);
         SpawnEffect(explosionEffect, deathPoint, Quaternion.Euler(0f, 0f, 90f), 1f); // burst points up, into the arena
@@ -205,7 +205,7 @@ public class PlayerRespawn : MonoBehaviour
 
         if (outcome == DeathOutcome.GameOver)
         {
-            if (net.IsOwner)
+            if (net.IsMine)
                 gameOverScreen.Show();
             yield break;
         }
@@ -213,7 +213,7 @@ public class PlayerRespawn : MonoBehaviour
         {
             // Out until the next round; the player picks a core while watching (with a time limit).
             MatchManager match = MatchManager.Instance;
-            if (net.IsOwner && !(cores != null && cores.OfferCardsNow(match != null ? match.CardTime : 10f)))
+            if (net.IsMine && !(cores != null && cores.OfferCardsNow(match != null ? match.CardTime : 10f)))
                 net.ReportPickSkipped();
             yield break;
         }
@@ -260,7 +260,7 @@ public class PlayerRespawn : MonoBehaviour
     {
         StopAllCoroutines(); // a death that is still playing
         traveling = true;
-        if (net.IsOwner)
+        if (net.IsMine)
             TakeControlAway();
     }
 
@@ -283,7 +283,7 @@ public class PlayerRespawn : MonoBehaviour
     // afterDeath = tell the host the player is back (full health, alive again).
     private IEnumerator Appear(Vector2 spawn, bool afterDeath)
     {
-        bool mine = net.IsOwner;
+        bool mine = net.IsMine;
         SetVisible(false);
         if (mine)
         {

@@ -122,7 +122,7 @@ public class PlayerHealth : MonoBehaviour
     // Lowers the health; false = the hit didn't count (dead, away, or can't be hurt right now).
     private bool Hurt(float amount, CoreBridge source)
     {
-        if (!net.IsServer || IsDead || respawn.IsTraveling || invulnerableTimer > 0f)
+        if (!net.IsHostSide || IsDead || respawn.IsTraveling || invulnerableTimer > 0f)
             return false;
         MatchManager match = MatchManager.Instance;
         if (GameMode.IsLan && match != null && match.InMatch && !match.RoundOn)
@@ -148,7 +148,7 @@ public class PlayerHealth : MonoBehaviour
     {
         flashTimer = hitFlashTime;
         blinkTimer = Mathf.Max(blinkTimer, blinkTime);
-        if (cameraShake != null && net.IsOwner)
+        if (cameraShake != null && net.IsMine)
             cameraShake.Shake(hitShakeStrength, hitShakeDuration);
         if (hurtSound != null)
         {
@@ -180,14 +180,14 @@ public class PlayerHealth : MonoBehaviour
     // Host only. Gives health back (never above Max Health). Nothing happens while dead.
     public void Heal(float amount)
     {
-        if (net.IsServer && !IsDead)
+        if (net.IsHostSide && !IsDead)
             net.Health = Mathf.Min(MaxHealth, Health + amount);
     }
 
     // Host only. Raises Max Health and gives that much health right away.
     public void AddMaxHealth(float amount)
     {
-        if (!net.IsServer)
+        if (!net.IsHostSide)
             return;
         net.MaxHealth += amount;
         Heal(amount);
@@ -196,7 +196,7 @@ public class PlayerHealth : MonoBehaviour
     // Can't be hurt for a moment (e.g. a dash). Never shortens a longer protection. Asks the host if needed.
     public void MakeInvulnerable(float duration)
     {
-        if (net.IsServer)
+        if (net.IsHostSide)
             SetInvulnerable(duration);
         else
             net.RequestInvulnerable(duration);
@@ -211,7 +211,7 @@ public class PlayerHealth : MonoBehaviour
     // Host only. Full health again, plus a short spawn protection (blinking on every machine).
     public void Refill()
     {
-        if (!net.IsServer)
+        if (!net.IsHostSide)
             return;
         net.Health = MaxHealth;
         invulnerableTimer = spawnProtectionTime;
@@ -227,7 +227,7 @@ public class PlayerHealth : MonoBehaviour
     // Owner: pushed into a wall right after a hit → the host tells the attacker's cores (Crash).
     private void OnCollisionEnter2D(Collision2D collision)
     {
-        if (!net.IsOwner || Time.time - pushTime > crashWindow)
+        if (!net.IsMine || Time.time - pushTime > crashWindow)
             return;
 
         ContactPoint2D contact = collision.GetContact(0);

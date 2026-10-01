@@ -55,7 +55,7 @@ public class SkinPanel : MonoBehaviour
     public void Refused()
     {
         waiting = false;
-        statusText.text = "THAT SKIN WAS JUST TAKEN";
+        statusText.text = Lang.T("THAT SKIN WAS JUST TAKEN", "SKIN NÀY VỪA CÓ NGƯỜI CHỌN");
     }
 
     private void Choose(int skin)
@@ -64,7 +64,7 @@ public class SkinPanel : MonoBehaviour
         if (waiting || match == null || !match.IsSpawned)
             return;
         waiting = true;
-        statusText.text = "JOINING...";
+        statusText.text = Lang.T("JOINING...", "ĐANG VÀO...");
         match.ChooseSkin(skin);
     }
 
@@ -87,7 +87,7 @@ public class SkinPanel : MonoBehaviour
                 continue;
             bool taken = PlayerNetwork.SkinTaken(i);
             buttons[i].button.interactable = ready && !taken && !waiting;
-            buttons[i].label.text = taken ? "TAKEN" : catalog.Get(i).name;
+            buttons[i].label.text = taken ? Lang.T("TAKEN", "ĐÃ CHỌN") : catalog.Get(i).name;
         }
     }
 }

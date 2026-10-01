@@ -112,7 +112,9 @@ public class MatchManager : NetworkBehaviour
         }
 
         bool showRound = GameMode.IsLan && InMatch && CurrentPhase != Phase.Results && round.Value > 0;
-        roundText.text = !showRound ? "" : tiebreak.Value ? "TIEBREAK ROUND" : "ROUND " + round.Value + " / " + rounds;
+        roundText.text = !showRound ? ""
+            : tiebreak.Value ? Lang.T("TIEBREAK ROUND", "VÒNG PHÂN ĐỊNH")
+            : Lang.T("ROUND ", "VÒNG ") + round.Value + " / " + rounds;
 
         if (IsServer && RoundOn && !busy)
             CheckRoundOver();
@@ -220,11 +222,12 @@ public class MatchManager : NetworkBehaviour
         if (winner != null)
         {
             wins[winner.Slot] = wins[winner.Slot] + 1;
-            BannerRpc("P" + (winner.Slot + 1) + " WINS THE ROUND!", winner.Slot, roundEndDelay + 1f);
+            string player = "P" + (winner.Slot + 1);
+            BannerRpc(player + " WINS THE ROUND!", player + " THẮNG VÒNG NÀY!", winner.Slot, roundEndDelay + 1f);
         }
         else
         {
-            BannerRpc("DRAW!", -1, roundEndDelay + 1f);
+            BannerRpc("DRAW!", "HÒA!", -1, roundEndDelay + 1f);
         }
         yield return new WaitForSecondsRealtime(roundEndDelay);
 
@@ -283,7 +286,10 @@ public class MatchManager : NetworkBehaviour
             yield return null;
         }
 
-        BannerRpc(tiebreak.Value ? "TIEBREAK!" : "ROUND " + round.Value, -1, 1.2f);
+        if (tiebreak.Value)
+            BannerRpc("TIEBREAK!", "PHÂN ĐỊNH!", -1, 1.2f);
+        else
+            BannerRpc("ROUND " + round.Value, "VÒNG " + round.Value, -1, 1.2f);
         phase.Value = (int)Phase.Round;
         busy = false;
     }
@@ -393,11 +399,11 @@ public class MatchManager : NetworkBehaviour
             yield return fade.FadeIn();
     }
 
-    // slot >= 0: the text takes that player's color.
+    // The text in both languages (each machine shows its own). slot >= 0: the text takes that player's color.
     [Rpc(SendTo.Everyone)]
-    private void BannerRpc(string text, int slot, float seconds)
+    private void BannerRpc(string english, string vietnamese, int slot, float seconds)
     {
-        bannerText.text = text;
+        bannerText.text = Lang.T(english, vietnamese);
         bannerText.color = slot >= 0 ? PlayerNetwork.SlotColor(slot) : Color.white;
         bannerTimer = seconds;
     }
@@ -407,7 +413,8 @@ public class MatchManager : NetworkBehaviour
     {
         bannerText.text = ""; // the results say it all
         bannerTimer = 0f;
-        resultsTitle.text = winnerSlot >= 0 ? "P" + (winnerSlot + 1) + " WINS THE MATCH!" : "IT'S A DRAW!";
+        resultsTitle.text = winnerSlot >= 0 ? "P" + (winnerSlot + 1) + Lang.T(" WINS THE MATCH!", " THẮNG CẢ TRẬN!")
+                                            : Lang.T("IT'S A DRAW!", "HÒA CẢ TRẬN!");
         resultsTitle.color = winnerSlot >= 0 ? PlayerNetwork.SlotColor(winnerSlot) : Color.white;
 
         // Ranking: most round wins first.
@@ -417,15 +424,15 @@ public class MatchManager : NetworkBehaviour
         for (int i = 0; i < players.Count; i++)
         {
             PlayerNetwork player = players[i];
-            string you = player == PlayerNetwork.Local ? "  (YOU)" : "";
+            string you = player == PlayerNetwork.Local ? Lang.T("  (YOU)", "  (BẠN)") : "";
             lines.AppendLine((i + 1) + ".  <color=#" + ColorUtility.ToHtmlStringRGB(player.Color) + ">P" + (player.Slot + 1) + "</color>   " +
-                             Wins(player.Slot) + " WINS   " + player.Cores.OwnedCount + " CORES" + you);
+                             Wins(player.Slot) + Lang.T(" WINS   ", " THẮNG   ") + player.Cores.OwnedCount + Lang.T(" CORES", " CORE") + you);
         }
         resultsList.text = lines.ToString();
 
         bool host = NetworkManager.Singleton.IsServer;
         lobbyButton.gameObject.SetActive(host);
-        resultsWaitText.text = host ? "" : "WAITING FOR THE HOST...";
+        resultsWaitText.text = host ? "" : Lang.T("WAITING FOR THE HOST...", "ĐANG CHỜ CHỦ PHÒNG...");
         resultsPanel.SetActive(true);
     }
 
