@@ -4,8 +4,10 @@ using UnityEngine.InputSystem;
 
 // Basic gun: hold Left Mouse to shoot projectiles from the fire point, limited by Fire Rate. Unlimited ammo.
 // Clicks on UI buttons don't shoot.
-// Cores (augments): with a CoreBridge in the scene, each shot is handed to it (it decides how many bullets and
-// what they do) and it can change the fire rate. Without one, the gun fires one plain bullet per shot.
+// Only the machine that controls this player reads the mouse; the shot feedback plays on every machine.
+// Cores (augments): with a CoreBridge on the player, each shot is handed to it (it decides how many bullets and
+// what they do, and sends the shot over the network) and it can change the fire rate and spread.
+// Without one, the gun fires one plain bullet per shot.
 // All projectile stats live here and are handed to each projectile when it is fired.
 //
 // Recoil: bullets leave at a random angle inside the current spread. Every shot opens the spread a bit
@@ -79,11 +81,14 @@ public class PlayerWeapon : MonoBehaviour
     [Range(0f, 0.3f)]
     [SerializeField] private float shootPitchVariation = 0.08f;
 
+    public Projectile ProjectilePrefab => projectilePrefab;
+
     private InputAction attackAction;
     private Rigidbody2D playerRigidbody;
     private AudioSource audioSource;
     private CameraShake cameraShake;
     private CoreBridge cores;
+    private PlayerNetwork net;
     private float holdTime; // seconds the fire button has been held without a break
     private Vector3 gunRestPosition;
     private Quaternion gunRestRotation;
@@ -97,7 +102,8 @@ public class PlayerWeapon : MonoBehaviour
         playerRigidbody = GetComponent<Rigidbody2D>();
         audioSource = GetComponent<AudioSource>();
         cameraShake = Camera.main.GetComponent<CameraShake>(); // null if the camera has none → no shake
-        cores = FindAnyObjectByType<CoreBridge>();              // null → plain gun
+        cores = GetComponent<CoreBridge>(); // this player's own cores (null → plain gun)
+        net = GetComponent<PlayerNetwork>();
         gunRestPosition = gunVisual.localPosition;
         gunRestRotation = gunVisual.localRotation;
         currentSpread = minSpread;
@@ -118,6 +124,10 @@ public class PlayerWeapon : MonoBehaviour
 
     private void Update()
     {
+        UpdateShotFeedback();
+        if (net != null && !net.IsOwner)
+            return; // another machine's player: only its shot feedback plays here (PlayShotFeedback)
+
         // New click: may fire right away, but never before the cooldown from the last shot is over.
         if (attackAction.WasPressedThisFrame())
             nextFireTime = Mathf.Max(nextFireTime, Time.time);
@@ -137,7 +147,6 @@ public class PlayerWeapon : MonoBehaviour
         }
 
         currentSpread = Mathf.MoveTowards(currentSpread, minSpread, spreadRecovery * Time.deltaTime);
-        UpdateShotFeedback();
     }
 
     private void Shoot()
@@ -158,13 +167,19 @@ public class PlayerWeapon : MonoBehaviour
             projectile.Launch(shotRotation * Vector3.right, projectileSpeed, projectileDamage, projectileLifetime, playerRigidbody);
         }
 
-        // Feedback
+        PlayShotFeedback(spreadAngle, true);
+    }
+
+    // Gun kick, muzzle flash and sound (also played for other machines' players when they shoot).
+    // shake = shake this screen (only for the player's own shots).
+    public void PlayShotFeedback(float spreadAngle, bool shake)
+    {
         gunVisual.localPosition = gunRestPosition - Vector3.right * gunKickDistance;           // gun's local -X = backwards
         gunVisual.localRotation = gunRestRotation * Quaternion.Euler(0f, 0f, spreadAngle);  // gun jerks toward where the bullet went
         muzzleFlash.SetActive(true);
         muzzleFlashTimer = muzzleFlashDuration;
 
-        if (cameraShake != null)
+        if (shake && cameraShake != null)
             cameraShake.Shake(cameraShakeStrength, cameraShakeDuration);
 
         if (shootSound != null)

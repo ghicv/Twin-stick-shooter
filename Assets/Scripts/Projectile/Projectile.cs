@@ -1,13 +1,16 @@
 using UnityEngine;
 
 // Flies straight. When it hits something solid it spawns an impact effect on the surface,
-// damages it if it's a Dummy/enemy or the player, and disappears. It also disappears quietly when its lifetime runs out.
-// Speed, damage and lifetime come from whoever fires it (PlayerWeapon, RangedEnemy).
-// Enemy bullets fly through other enemies. All bullets fly through level blocks set to Bullets Pass Through (LevelBlock).
+// damages it if it's a target (an enemy / dummy, or a player: HitTarget), and disappears. It also disappears quietly
+// when its lifetime runs out. Speed, damage and lifetime come from whoever fires it (PlayerWeapon, RangedEnemy).
+// Bullets never hit their own shooter; enemy bullets fly through other enemies; dead players are not hit.
+// All bullets fly through level blocks set to Bullets Pass Through (LevelBlock).
 //
 // The player's bullets get the cores (augments) attached (AttachCores): at each moment of its life
-// (flying, hitting an enemy, hitting a wall, disappearing) the bullet tells the CoreBridge, which may steer it,
+// (flying, hitting a target, hitting a wall, disappearing) the bullet tells the CoreBridge, which may steer it,
 // change its damage, keep it flying, etc. Bullets without cores (the enemies') never call it.
+// Look-alike bullets (LAN, made on the machines that are not the host, see PlayerNetwork) fly and stop the same
+// way but never deal damage: only the host's real bullets do.
 [RequireComponent(typeof(Rigidbody2D))]
 public class Projectile : MonoBehaviour
 {
@@ -30,10 +33,14 @@ public class Projectile : MonoBehaviour
     // The core system's own data about this bullet. Only the core system reads it.
     public object CoreData { get; private set; }
 
+    // A look-alike: shown, but never deals damage (LAN, machines other than the host).
+    public bool IsLookAlike { get; private set; }
+
     private Rigidbody2D rb;
     private Collider2D bulletCollider;
     private SpriteRenderer sprite;
     private Rigidbody2D shooter;
+    private HitTarget shooterTarget;
     private CoreBridge cores; // null = plain bullet
     private bool firedByEnemy;
     private float lifeTimer;
@@ -46,6 +53,7 @@ public class Projectile : MonoBehaviour
         sprite = GetComponent<SpriteRenderer>();
         Damage = damage;
         this.shooter = shooter;
+        shooterTarget = shooter != null ? shooter.GetComponent<HitTarget>() : null;
         firedByEnemy = shooter != null && shooter.GetComponent<Dummy>() != null; // remembered: the enemy may die first
         lifeTimer = lifetime;
         SetVelocity(direction.normalized * speed);
@@ -55,6 +63,11 @@ public class Projectile : MonoBehaviour
     {
         this.cores = cores;
         CoreData = coreData;
+    }
+
+    public void MakeLookAlike()
+    {
+        IsLookAlike = true;
     }
 
     public void ScaleDamage(float factor)
@@ -120,9 +133,9 @@ public class Projectile : MonoBehaviour
         if (block != null && block.BulletsPassThrough)
             return; // thin platform/wall: bullets fly through
 
-        Dummy dummy = other.GetComponentInParent<Dummy>();
-        if (firedByEnemy && dummy != null)
-            return; // enemies don't shoot each other
+        HitTarget target = other.GetComponentInParent<HitTarget>();
+        if (target != null && (target == shooterTarget || target.IsDying || (firedByEnemy && !target.IsPlayer)))
+            return; // never the shooter, not the dead, and enemies don't shoot each other
 
         // Hit point = the point of the surface closest to where the bullet was one physics step ago.
         // The direction from that point back to the bullet is the surface normal.
@@ -136,19 +149,15 @@ public class Projectile : MonoBehaviour
         Vector2 flightDirection = rb.linearVelocity.normalized;
         bool keepFlying = false;
 
-        PlayerHealth player = other.GetComponentInParent<PlayerHealth>();
-        if (dummy != null)
+        if (target != null)
         {
-            // The dummy shows its own blood + damage number.
-            dummy.TakeDamage(Damage, hitPoint, normal, cores != null ? cores.BulletKnockback : 1f);
+            // The target shows its own hit (blood, damage number, flash...). Only real bullets hurt.
+            if (!IsLookAlike)
+                target.TakeDamage(Damage, hitPoint, normal, cores != null ? cores.BulletKnockback : 1f, cores);
             if (cores != null)
-                keepFlying = cores.OnBulletHitEnemy(this, dummy, hitPoint, normal);
+                keepFlying = cores.OnBulletHitTarget(this, target, hitPoint, normal);
             if (keepFlying)
-                IgnoreCollider(other); // flies on through: don't hit this enemy again
-        }
-        else if (player != null)
-        {
-            player.TakeDamage(Damage, flightDirection); // pushed the way the bullet flies
+                IgnoreCollider(other); // flies on through: don't hit this target again
         }
         else
         {
@@ -158,9 +167,9 @@ public class Projectile : MonoBehaviour
                 keepFlying = cores.OnBulletHitWall(this, hitPoint, normal);
         }
 
-        // Stopped in an enemy: things fly on the way the bullet went. Stopped in a wall: out of the wall.
+        // Stopped in a target: things fly on the way the bullet went. Stopped in a wall: out of the wall.
         if (!keepFlying)
-            Disappear(dummy != null ? hitPoint : hitPoint + normal * 0.1f, dummy != null ? flightDirection : normal, other);
+            Disappear(target != null ? hitPoint : hitPoint + normal * 0.1f, target != null ? flightDirection : normal, other);
     }
 
     private void Disappear(Vector2 position, Vector2 direction, Collider2D stoppedBy)

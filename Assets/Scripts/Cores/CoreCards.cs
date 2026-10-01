@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // Card offer: shows up to 3 cores the player doesn't own yet, always at least one bullet core while any is left.
-// Clicking a card gives that core. CoreBridge opens the offer (between waves).
+// Clicking a card gives that core to the player. CoreBridge opens the offer (between waves, or after dying on LAN).
 [RequireComponent(typeof(AudioSource))]
 public class CoreCards : MonoBehaviour
 {
@@ -17,7 +17,8 @@ public class CoreCards : MonoBehaviour
         public Text description;
     }
 
-    [SerializeField] private CoreInventory inventory;
+    private CoreBridge cores; // the player who is choosing (this machine's)
+    private CoreInventory inventory;
 
     [Tooltip("Shown while choosing: dims the game and holds the cards.")]
     [SerializeField] private GameObject panel;
@@ -48,10 +49,12 @@ public class CoreCards : MonoBehaviour
         }
     }
 
-    // Opens the offer; onPicked runs once a card is clicked.
+    // Opens an offer for that player's cores; onPicked (optional) runs once a card is clicked.
     // Returns false (and never calls onPicked) when the player already owns every core.
-    public bool Show(System.Action onPicked)
+    public bool Show(CoreBridge cores, System.Action onPicked)
     {
+        this.cores = cores;
+        inventory = cores.Inventory;
         ChooseOffer();
         if (offered.Count == 0)
             return false;
@@ -116,7 +119,7 @@ public class CoreCards : MonoBehaviour
         if (!panel.activeSelf || index >= offered.Count)
             return;
 
-        inventory.Add(offered[index]);
+        cores.Pick(offered[index]); // the host adds it and tells every machine
         panel.SetActive(false);
         if (pickSound != null)
             audioSource.PlayOneShot(pickSound, pickVolume);

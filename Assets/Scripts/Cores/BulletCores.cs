@@ -2,13 +2,17 @@ using System.Collections.Generic;
 using UnityEngine;
 
 // What the bullet cores do, stage by stage in a bullet's life: SPAWN → FLY → HIT → END. Only CoreBridge calls this.
+// It lives on the player (each player has its own cores). Targets are HitTargets: enemies in single player,
+// the other players on LAN; a player's bullets and blasts never hurt that player.
 // The rules that make any mix of bullet cores work together without special combos:
 // 1. Every bullet (extra, back shot, nova, fork, shrapnel) carries all the bullet cores, but the small ones made
 //    from another bullet (fork, shrapnel = "shards") never make anything more (no fork, shrapnel or mines).
 // 2. FLY cores add up (homing keeps steering after a bounce, a lob still waves, ...).
 // 3. Every HIT core happens on every hit (a bullet that bounces or pierces explodes each time).
-// 4. A bullet only disappears when no core keeps it alive (Bounce/Drill on walls, Pierce on enemies).
+// 4. A bullet only disappears when no core keeps it alive (Bounce/Drill on walls, Pierce on targets).
 // 5. Each core has its own cost (less damage, slower fire rate, ...).
+// Networking: every random choice comes from the shot's seed, so the host's real bullets and the other machines'
+// look-alikes (LAN) behave the same. Look-alikes only show things (blasts, sparks, shards); they never hurt.
 [RequireComponent(typeof(CoreInventory))]
 public class BulletCores : MonoBehaviour
 {
@@ -21,11 +25,13 @@ public class BulletCores : MonoBehaviour
         public float damage;      // when it was fired, before any cost (shrapnel damage is based on it)
         public float size;
         public bool isShard;
+        public bool lookAlike;
+        public System.Random random; // this bullet's own random numbers (same on every machine)
         public int bouncesLeft;
         public int piercesLeft;
         public int drillsLeft;
         public bool forked;
-        public Dummy target;      // homing
+        public HitTarget target;  // homing
         public float age;
         public float distance;    // long shot
         public float longShotFactor = 1f;
@@ -35,7 +41,7 @@ public class BulletCores : MonoBehaviour
 
     private class Burn
     {
-        public Dummy dummy;
+        public HitTarget target;
         public float timeLeft;
         public float tickTimer;
     }
@@ -81,10 +87,10 @@ public class BulletCores : MonoBehaviour
     [SerializeField] private float giantSpeed = 0.8f;
 
     [Header("FLY · Homing")]
-    [Tooltip("Only enemies closer than this are chased (units).")]
+    [Tooltip("Only targets closer than this are chased (units).")]
     [SerializeField] private float homingRange = 5f;
 
-    [Tooltip("Only enemies within this angle of the flight direction can become the target (degrees, each side).")]
+    [Tooltip("Only targets within this angle of the flight direction can be chased (degrees, each side).")]
     [SerializeField] private float homingConeAngle = 60f;
 
     [Tooltip("How fast the bullet turns toward a target at the edge of Homing Range (degrees/sec).")]
@@ -108,11 +114,11 @@ public class BulletCores : MonoBehaviour
     [SerializeField] private float bounceDamage = 0.75f;
 
     [Header("FLY · Pierce")]
-    [Tooltip("Enemies a bullet flies through before it stops (it stops in the next one).")]
+    [Tooltip("Targets a bullet flies through before it stops (it stops in the next one).")]
     [Min(1)]
     [SerializeField] private int pierceCount = 2;
 
-    [Tooltip("The bullet keeps this share of its damage after each enemy it flies through.")]
+    [Tooltip("The bullet keeps this share of its damage after each target it flies through.")]
     [Range(0f, 1f)]
     [SerializeField] private float pierceDamage = 0.7f;
 
@@ -155,10 +161,10 @@ public class BulletCores : MonoBehaviour
     [SerializeField] private float drillDamage = 0.8f;
 
     [Header("HIT · Explosive")]
-    [Tooltip("Enemies within this distance of the blast take damage (units).")]
+    [Tooltip("Targets within this distance of the blast take damage (units).")]
     [SerializeField] private float explosionRadius = 1.2f;
 
-    [Tooltip("Blast damage to each enemy in range, except the one hit directly (it only takes the bullet's damage).")]
+    [Tooltip("Blast damage to each target in range, except the one hit directly (it only takes the bullet's damage).")]
     [SerializeField] private float explosionDamage = 6f;
 
     [Tooltip("The fire rate is multiplied by this while Explosive is owned (explosions cost fire rate).")]
@@ -173,7 +179,7 @@ public class BulletCores : MonoBehaviour
     [SerializeField] private float hammerKnockback = 2.5f;
 
     [Header("HIT · Fork")]
-    [Tooltip("On its first enemy the bullet splits into two that fly on at ± this angle (degrees).")]
+    [Tooltip("On its first target the bullet splits into two that fly on at ± this angle (degrees).")]
     [SerializeField] private float forkAngle = 25f;
 
     [Tooltip("Each fork deals this share of the bullet's damage at that moment.")]
@@ -184,7 +190,7 @@ public class BulletCores : MonoBehaviour
     [SerializeField] private float forkSize = 0.7f;
 
     [Header("HIT · Chain")]
-    [Tooltip("Enemies the lightning jumps to, one after another.")]
+    [Tooltip("Targets the lightning jumps to, one after another.")]
     [SerializeField] private int chainJumps = 2;
 
     [Tooltip("Longest jump (units).")]
@@ -200,7 +206,7 @@ public class BulletCores : MonoBehaviour
     [SerializeField] private Color zapColor = new Color(0.55f, 0.95f, 1f);
 
     [Header("HIT · Chill")]
-    [Tooltip("Hit enemies move and attack at this share of their speed.")]
+    [Tooltip("Hit targets move (and enemies attack) at this share of their speed.")]
     [Range(0.1f, 1f)]
     [SerializeField] private float chillSpeed = 0.5f;
 
@@ -213,18 +219,18 @@ public class BulletCores : MonoBehaviour
     [Tooltip("Seconds between burn ticks.")]
     [SerializeField] private float igniteTick = 0.5f;
 
-    [Tooltip("Seconds a burn lasts. Hitting a burning enemy starts it over (burns don't stack).")]
+    [Tooltip("Seconds a burn lasts. Hitting a burning target starts it over (burns don't stack).")]
     [SerializeField] private float igniteTime = 2f;
 
     [Header("HIT · Vortex")]
-    [Tooltip("Other enemies within this distance of the hit are pulled toward it (units).")]
+    [Tooltip("Other targets within this distance of the hit are pulled toward it (units).")]
     [SerializeField] private float vortexRadius = 2.5f;
 
     [Tooltip("Pull impulse (with mass 1 = speed).")]
     [SerializeField] private float vortexForce = 4f;
 
     [Header("HIT · Reaper")]
-    [Tooltip("A hit on an enemy at or below this share of its health kills it.")]
+    [Tooltip("A hit on a target at or below this share of its health kills it.")]
     [Range(0f, 1f)]
     [SerializeField] private float reaperThreshold = 0.15f;
 
@@ -256,7 +262,7 @@ public class BulletCores : MonoBehaviour
     [SerializeField] private float mineDamage = 15f;
     [SerializeField] private float mineRadius = 1.5f;
 
-    [Tooltip("An armed mine goes off when an enemy is this close (units).")]
+    [Tooltip("An armed mine goes off when a target is this close (units).")]
     [SerializeField] private float mineTriggerRadius = 0.8f;
 
     [SerializeField] private float mineArmTime = 0.3f;
@@ -267,8 +273,9 @@ public class BulletCores : MonoBehaviour
 
     private CoreInventory inventory;
     private CoreBridge bridge;
+    private HitTarget self; // this player (never hurt by its own bullets)
     private int shotCount;
-    private readonly List<Dummy> chainHits = new List<Dummy>();
+    private readonly List<HitTarget> chainHits = new List<HitTarget>();
     private readonly List<Burn> burns = new List<Burn>();
     private readonly List<CoreMine> mines = new List<CoreMine>();
 
@@ -276,6 +283,7 @@ public class BulletCores : MonoBehaviour
     {
         inventory = GetComponent<CoreInventory>();
         bridge = GetComponent<CoreBridge>();
+        self = GetComponent<HitTarget>();
     }
 
     private bool Has(CoreType type) => inventory.Has(type);
@@ -288,17 +296,19 @@ public class BulletCores : MonoBehaviour
 
     // One shot of the gun: one bullet (two with +1 Bullet), mirrored backwards with Back Shot,
     // plus a ring every few shots with Nova. size = bullet size multiplier from other cores (e.g. Opener).
+    // seed = the shot's random numbers; lookAlike = only show the bullets (never hurt).
     public void FireShot(Projectile prefab, Vector2 position, Quaternion aim, float speed, float damage, float lifetime,
-                         Rigidbody2D shooter, float size)
+                         Rigidbody2D shooter, float size, int seed, bool lookAlike)
     {
+        var random = new System.Random(seed);
         int count = Has(CoreType.ExtraBullet) ? 2 : 1;
         float damagePerBullet = damage * (1f + extraBulletDamage * (count - 1)) / count;
         for (int i = 0; i < count; i++)
         {
             Quaternion rotation = aim * Quaternion.Euler(0f, 0f, (i - (count - 1) * 0.5f) * extraBulletAngle);
-            Spawn(prefab, position, rotation * Vector3.right, speed, damagePerBullet, lifetime, shooter, false, null, size);
+            Spawn(prefab, position, rotation * Vector3.right, speed, damagePerBullet, lifetime, shooter, false, null, size, random.Next(), lookAlike);
             if (Has(CoreType.BackShot))
-                Spawn(prefab, position, rotation * Vector3.left, speed, damagePerBullet * backShotDamage, lifetime, shooter, false, null, size);
+                Spawn(prefab, position, rotation * Vector3.left, speed, damagePerBullet * backShotDamage, lifetime, shooter, false, null, size, random.Next(), lookAlike);
         }
 
         shotCount++;
@@ -307,14 +317,15 @@ public class BulletCores : MonoBehaviour
             for (int i = 0; i < novaCount; i++)
             {
                 Quaternion rotation = aim * Quaternion.Euler(0f, 0f, (i + 0.5f) * 360f / novaCount);
-                Spawn(prefab, position, rotation * Vector3.right, speed, damage * novaDamage, lifetime, shooter, false, null, size);
+                Spawn(prefab, position, rotation * Vector3.right, speed, damage * novaDamage, lifetime, shooter, false, null, size, random.Next(), lookAlike);
             }
         }
     }
 
     private void Spawn(Projectile prefab, Vector2 position, Vector2 direction, float speed, float damage, float lifetime,
-                       Rigidbody2D shooter, bool isShard, Collider2D ignore, float size)
+                       Rigidbody2D shooter, bool isShard, Collider2D ignore, float size, int seed, bool lookAlike)
     {
+        var random = new System.Random(seed);
         float baseDamage = damage;
         Color? tint = null;
         if (Has(CoreType.Giant))
@@ -323,7 +334,7 @@ public class BulletCores : MonoBehaviour
             damage *= giantDamage;
             speed *= giantSpeed;
         }
-        if (Has(CoreType.LuckyShot) && !isShard && Random.value < luckyChance)
+        if (Has(CoreType.LuckyShot) && !isShard && random.NextDouble() < luckyChance)
         {
             size *= luckySize;
             damage *= luckyDamage;
@@ -337,6 +348,8 @@ public class BulletCores : MonoBehaviour
         float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
         Projectile bullet = Instantiate(prefab, position, Quaternion.Euler(0f, 0f, angle));
         bullet.Launch(direction, speed, damage, lifetime, shooter);
+        if (lookAlike)
+            bullet.MakeLookAlike();
         if (size != 1f)
             bullet.SetSize(size);
         if (tint.HasValue)
@@ -353,6 +366,8 @@ public class BulletCores : MonoBehaviour
             damage = baseDamage,
             size = size,
             isShard = isShard,
+            lookAlike = lookAlike,
+            random = random,
             bouncesLeft = Has(CoreType.Bounce) ? bounceCount : 0,
             piercesLeft = Has(CoreType.Pierce) ? pierceCount : 0,
             drillsLeft = Has(CoreType.Drill) ? drillCount : 0,
@@ -426,24 +441,24 @@ public class BulletCores : MonoBehaviour
         bullet.SetVelocity(direction * rb.linearVelocity.magnitude);
     }
 
-    // Nearest enemy in range and in front of the bullet.
-    private Dummy FindTarget(Rigidbody2D rb)
+    // Nearest target (not this player) in range and in front of the bullet.
+    private HitTarget FindTarget(Rigidbody2D rb)
     {
-        Dummy nearest = null;
+        HitTarget nearest = null;
         float nearestDistance = homingRange;
-        foreach (Dummy dummy in Dummy.Active)
+        foreach (HitTarget target in HitTarget.Active)
         {
-            if (dummy.IsDying)
+            if (target == self || target.IsDying)
                 continue;
 
-            Vector2 toDummy = (Vector2)dummy.transform.position - rb.position;
-            if (Vector2.Angle(rb.linearVelocity, toDummy) > homingConeAngle)
+            Vector2 toTarget = (Vector2)target.transform.position - rb.position;
+            if (Vector2.Angle(rb.linearVelocity, toTarget) > homingConeAngle)
                 continue; // behind or off to the side: not a target
 
-            float distance = toDummy.magnitude;
+            float distance = toTarget.magnitude;
             if (distance < nearestDistance)
             {
-                nearest = dummy;
+                nearest = target;
                 nearestDistance = distance;
             }
         }
@@ -452,25 +467,26 @@ public class BulletCores : MonoBehaviour
 
     // ---------- HIT ----------
 
-    // The bullet has already damaged the enemy. True = it keeps flying (Pierce).
-    public bool OnHitEnemy(Projectile bullet, Dummy enemy, Vector2 point, Vector2 normal)
+    // The bullet has hit a target (a real bullet has already damaged it). True = it keeps flying (Pierce).
+    public bool OnHitTarget(Projectile bullet, HitTarget target, Vector2 point, Vector2 normal)
     {
         var state = (BulletState)bullet.CoreData;
+        bool real = !state.lookAlike;
 
-        if (Has(CoreType.Reaper) && !enemy.IsDying && enemy.HealthFraction <= reaperThreshold)
-            enemy.TakeTickDamage(enemy.HealthFraction * 10000f); // finished off
+        if (real && Has(CoreType.Reaper) && !target.IsDying && target.HealthFraction <= reaperThreshold)
+            target.TakeTickDamage(target.HealthFraction * 10000f, bridge); // finished off
         if (Has(CoreType.Explosive))
-            CoreEffects.Blast(explosionEffect, explosionRadius, point + normal * 0.1f, explosionRadius, explosionDamage, Knockback(), enemy);
-        if (Has(CoreType.Chill))
-            enemy.Slow(chillSpeed, chillTime);
-        if (Has(CoreType.Ignite))
-            SetOnFire(enemy);
+            CoreEffects.Blast(explosionEffect, explosionRadius, point + normal * 0.1f, explosionRadius, explosionDamage, Knockback(), bridge, real, target, self);
+        if (real && Has(CoreType.Chill))
+            target.Slow(chillSpeed, chillTime);
+        if (real && Has(CoreType.Ignite))
+            SetOnFire(target);
         if (Has(CoreType.Chain))
-            ChainLightning(enemy, bullet.Damage * chainDamage);
-        if (Has(CoreType.Vortex))
-            Pull(point, enemy);
+            ChainLightning(target, bullet.Damage * chainDamage, real);
+        if (real && Has(CoreType.Vortex))
+            Pull(point, target);
 
-        // Fork: on its first enemy a (full-size) bullet splits in two that fly on past it.
+        // Fork: on its first target a (full-size) bullet splits in two that fly on past it.
         if (Has(CoreType.Fork) && !state.isShard && !state.forked)
         {
             state.forked = true;
@@ -479,7 +495,7 @@ public class BulletCores : MonoBehaviour
             {
                 Vector2 forkDirection = Quaternion.Euler(0f, 0f, side * forkAngle) * direction;
                 Spawn(state.prefab, point, forkDirection, state.speed, bullet.Damage * forkDamage, forkLifetime,
-                      state.shooter, true, bullet.LastHit, state.size * forkSize);
+                      state.shooter, true, bullet.LastHit, state.size * forkSize, state.random.Next(), state.lookAlike);
             }
         }
 
@@ -498,7 +514,7 @@ public class BulletCores : MonoBehaviour
     {
         var state = (BulletState)bullet.CoreData;
         if (Has(CoreType.Explosive))
-            CoreEffects.Blast(explosionEffect, explosionRadius, point + normal * 0.1f, explosionRadius, explosionDamage, Knockback(), null);
+            CoreEffects.Blast(explosionEffect, explosionRadius, point + normal * 0.1f, explosionRadius, explosionDamage, Knockback(), bridge, !state.lookAlike, self);
 
         if (state.bouncesLeft > 0)
         {
@@ -519,23 +535,24 @@ public class BulletCores : MonoBehaviour
         return false;
     }
 
-    private void ChainLightning(Dummy first, float damage)
+    // Lightning jumps from the hit target to the nearest others (never this player). real = also hurt them.
+    private void ChainLightning(HitTarget first, float damage, bool real)
     {
         chainHits.Clear();
         chainHits.Add(first);
-        Dummy from = first;
+        HitTarget from = first;
         for (int i = 0; i < chainJumps; i++)
         {
-            Dummy next = null;
+            HitTarget next = null;
             float nearest = chainRange;
-            foreach (Dummy dummy in Dummy.Active)
+            foreach (HitTarget target in HitTarget.Active)
             {
-                if (dummy.IsDying || chainHits.Contains(dummy))
+                if (target == self || target.IsDying || chainHits.Contains(target))
                     continue;
-                float distance = Vector2.Distance(dummy.transform.position, from.transform.position);
+                float distance = Vector2.Distance(target.transform.position, from.transform.position);
                 if (distance < nearest)
                 {
-                    next = dummy;
+                    next = target;
                     nearest = distance;
                 }
             }
@@ -545,35 +562,36 @@ public class BulletCores : MonoBehaviour
             Vector2 a = from.transform.position;
             Vector2 b = next.transform.position;
             CoreEffects.Zap(zapMaterial, zapColor, a, b, 0.08f, 0.1f);
-            next.TakeDamage(damage, b, (a - b).normalized, 0.5f);
+            if (real)
+                next.TakeDamage(damage, b, (a - b).normalized, 0.5f, bridge);
             chainHits.Add(next);
             from = next;
         }
     }
 
-    private void Pull(Vector2 point, Dummy hit)
+    private void Pull(Vector2 point, HitTarget hit)
     {
-        foreach (Dummy dummy in Dummy.Active)
+        foreach (HitTarget target in HitTarget.Active)
         {
-            if (dummy == hit || dummy.IsDying)
+            if (target == hit || target == self || target.IsDying)
                 continue;
-            Vector2 toPoint = point - (Vector2)dummy.transform.position;
+            Vector2 toPoint = point - (Vector2)target.transform.position;
             if (toPoint.magnitude < vortexRadius)
-                dummy.Knock(toPoint.normalized * (vortexForce * Knockback()));
+                target.Knock(toPoint.normalized * (vortexForce * Knockback()), bridge);
         }
     }
 
-    private void SetOnFire(Dummy enemy)
+    private void SetOnFire(HitTarget target)
     {
         foreach (Burn burn in burns)
         {
-            if (burn.dummy == enemy)
+            if (burn.target == target)
             {
                 burn.timeLeft = igniteTime; // burns don't stack, they start over
                 return;
             }
         }
-        burns.Add(new Burn { dummy = enemy, timeLeft = igniteTime, tickTimer = igniteTick });
+        burns.Add(new Burn { target = target, timeLeft = igniteTime, tickTimer = igniteTick });
     }
 
     private void Update()
@@ -583,11 +601,11 @@ public class BulletCores : MonoBehaviour
             Burn burn = burns[i];
             burn.timeLeft -= Time.deltaTime;
             burn.tickTimer -= Time.deltaTime;
-            bool gone = burn.dummy == null || !burn.dummy.isActiveAndEnabled || burn.dummy.IsDying;
+            bool gone = burn.target == null || !burn.target.isActiveAndEnabled || burn.target.IsDying;
             if (!gone && burn.tickTimer <= 0f)
             {
                 burn.tickTimer += igniteTick;
-                burn.dummy.TakeTickDamage(igniteDamage);
+                burn.target.TakeTickDamage(igniteDamage, bridge);
             }
             if (gone || burn.timeLeft <= 0f)
                 burns.RemoveAt(i);
@@ -609,23 +627,23 @@ public class BulletCores : MonoBehaviour
             {
                 float t = shrapnelCount > 1 ? i / (shrapnelCount - 1f) : 0.5f;
                 Vector2 shardDirection = Quaternion.Euler(0f, 0f, Mathf.Lerp(-0.5f, 0.5f, t) * shrapnelSpread) * direction;
-                // Shards ignore whatever the bullet stopped in, so they don't all hit the same enemy again.
+                // Shards ignore whatever the bullet stopped in, so they don't all hit the same target again.
                 Spawn(state.prefab, position, shardDirection, state.speed * shrapnelSpeed, state.damage * shrapnelDamage,
-                      shrapnelLifetime, state.shooter, true, bullet.LastHit, state.size * shrapnelScale);
+                      shrapnelLifetime, state.shooter, true, bullet.LastHit, state.size * shrapnelScale, state.random.Next(), state.lookAlike);
             }
         }
 
         // Mine: only where the bullet stopped on a wall or the floor.
-        bool onWall = bullet.StoppedBy != null && bullet.StoppedBy.GetComponentInParent<Dummy>() == null;
-        if (Has(CoreType.Mine) && onWall && Random.value < mineChance)
+        bool onWall = bullet.StoppedBy != null && bullet.StoppedBy.GetComponentInParent<HitTarget>() == null;
+        if (Has(CoreType.Mine) && onWall && state.random.NextDouble() < mineChance)
         {
             mines.RemoveAll(mine => mine == null);
             if (mines.Count < maxMines)
-                mines.Add(PlaceMine(position));
+                mines.Add(PlaceMine(position, state.lookAlike));
         }
     }
 
-    private CoreMine PlaceMine(Vector2 position)
+    private CoreMine PlaceMine(Vector2 position, bool lookAlike)
     {
         var go = new GameObject("Mine");
         go.transform.position = position;
@@ -635,7 +653,7 @@ public class BulletCores : MonoBehaviour
         sprite.color = mineColor;
         sprite.sortingOrder = 5;
         var mine = go.AddComponent<CoreMine>();
-        mine.Setup(this, mineArmTime, mineLifetime, mineTriggerRadius);
+        mine.Setup(this, self, mineArmTime, mineLifetime, mineTriggerRadius, lookAlike);
         return mine;
     }
 
@@ -647,8 +665,8 @@ public class BulletCores : MonoBehaviour
         mines.Clear();
     }
 
-    public void MineBlast(Vector2 position)
+    public void MineBlast(Vector2 position, bool lookAlike)
     {
-        CoreEffects.Blast(explosionEffect, mineRadius, position, mineRadius, mineDamage, Knockback(), null);
+        CoreEffects.Blast(explosionEffect, mineRadius, position, mineRadius, mineDamage, Knockback(), bridge, !lookAlike, self);
     }
 }

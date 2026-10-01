@@ -6,7 +6,8 @@ using UnityEngine.InputSystem;
 // Horizontal speed eases toward the target speed every physics step: it reacts right away,
 // then settles gently at full speed or at a stop, so there are no hard corners in the motion.
 // Every jump (ground, wall and double jump) plays the jump sound; only hard landings play the landing sound.
-// Cores (CoreBridge, optional) can add air jumps, unlock a Shift dash and react to hard landings.
+// Cores (CoreBridge on the player, optional) can add air jumps, unlock a Shift dash and react to hard landings.
+// Only runs on the machine that controls this player (PlayerNetwork turns it off elsewhere).
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(AudioSource))]
 public class PlayerMovement : MonoBehaviour
@@ -159,6 +160,8 @@ public class PlayerMovement : MonoBehaviour
     private int airJumpsLeft;
     private bool canCutJump;        // true while rising from a jump
     private float lastVelocityY;    // vertical speed in the previous physics step (how hard we land)
+    private float slowTimer;        // > 0 while slowed down (e.g. a Chill core hit)
+    private float slowFactor = 1f;
 
     private int wallPush;               // touching a wall in the air right now: +1 = a wall jump pushes right (wall on the left), -1 = left, 0 = none
     private int lastWallPush;           // the last wall touched, used by wall coyote time
@@ -189,7 +192,7 @@ public class PlayerMovement : MonoBehaviour
         rb = GetComponent<Rigidbody2D>();
         bodyCollider = GetComponent<Collider2D>();
         audioSource = GetComponent<AudioSource>();
-        cores = FindAnyObjectByType<CoreBridge>(); // null → no cores
+        cores = GetComponent<CoreBridge>();        // this player's own cores (null → none)
         health = GetComponent<PlayerHealth>();     // null → a dash gives no protection
         baseGravityScale = rb.gravityScale;
 
@@ -246,6 +249,7 @@ public class PlayerMovement : MonoBehaviour
         }
 
         wallJumpTimer -= Time.fixedDeltaTime;
+        slowTimer -= Time.fixedDeltaTime;
         Run();
 
         // Wall slide: falling while holding toward a wall you touch → you brake down to Wall Slide Speed
@@ -397,7 +401,7 @@ public class PlayerMovement : MonoBehaviour
     private void Run()
     {
         float currentSpeed = rb.linearVelocity.x;
-        float targetSpeed = moveInput * moveSpeed;
+        float targetSpeed = moveInput * moveSpeed * (slowTimer > 0f ? slowFactor : 1f);
 
         float sharpness;
         if (moveInput == 0f)
@@ -449,6 +453,13 @@ public class PlayerMovement : MonoBehaviour
         }
 
         return false;
+    }
+
+    // Runs slower for a while (factor 0.5 = half speed), e.g. hit by a Chill bullet.
+    public void Slow(float factor, float duration)
+    {
+        slowFactor = factor;
+        slowTimer = Mathf.Max(slowTimer, duration);
     }
 
     private void StartDash()

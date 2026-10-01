@@ -1,9 +1,8 @@
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
-// End of the run (roguelite): shows the wave reached and the score. Play Again starts a new run by loading
-// the scene again, so everything (cores, score, waves) starts over. PlayerRespawn calls Show when the player dies.
+// End of the run (roguelite): shows the wave reached and the score. Play Again starts a new single-player run
+// by loading the scene again, so everything (cores, score, waves) starts over. PlayerRespawn calls Show when the player dies.
 public class GameOverScreen : MonoBehaviour
 {
     [SerializeField] private WaveManager waveManager;
@@ -30,7 +29,6 @@ public class GameOverScreen : MonoBehaviour
 
     private void PlayAgain()
     {
-        Time.timeScale = 1f; // the death left the game in slow motion (HitStop also resets it when it's destroyed)
-        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        GameMode.Restart(true); // ends the local host, reloads, and the menu starts single player right away
     }
 }

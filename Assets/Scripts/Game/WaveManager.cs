@@ -5,7 +5,7 @@ using UnityEngine.UI;
 // Waves (prototype, no level data yet). The Start Wave button removes the practice dummies (first time only)
 // and spawns a few random enemies (melee or ranged) at random spawn points away from the player.
 // Killing an enemy (or knocking it off the map) gives score. When all are gone the wave is over: the player gets
-// health back, travels to a new map (MapManager + PlayerRespawn, optional), the cores (CoreBridge, optional) may offer
+// health back, travels to a new map (MapManager + PlayerRespawn, optional), the player's cores may offer
 // cards, and then the button shows up again for the next one.
 public class WaveManager : MonoBehaviour
 {
@@ -34,9 +34,6 @@ public class WaveManager : MonoBehaviour
     [Tooltip("Health given back to the player when a wave is cleared (100 = full health).")]
     [SerializeField] private float healOnWaveClear = 100f;
 
-    [Tooltip("Cores (augments): card offers between waves. Optional.")]
-    [SerializeField] private CoreBridge cores;
-
     [Tooltip("Every cleared wave takes the player to another map. Optional (none = the same map all run).")]
     [SerializeField] private MapManager mapManager;
 
@@ -57,18 +54,18 @@ public class WaveManager : MonoBehaviour
 
     private readonly List<Dummy> enemies = new List<Dummy>();
     private readonly List<int> enemyScores = new List<int>();
-    private Transform player;
-    private PlayerHealth playerHealth;
-    private PlayerRespawn playerRespawn;
     private bool dummiesRemoved;
+
+    // The player spawns over the network after this object wakes up, so it is looked up when needed.
+    private Transform player => PlayerNetwork.Local.transform;
+    private PlayerHealth playerHealth => PlayerNetwork.Local.GetComponent<PlayerHealth>();
+    private PlayerRespawn playerRespawn => PlayerNetwork.Local.GetComponent<PlayerRespawn>();
+    private CoreBridge cores => PlayerNetwork.Local != null ? PlayerNetwork.Local.Cores : null; // card offers between waves
 
     private Transform[] CurrentSpawnPoints => mapManager != null ? mapManager.CurrentMap.SpawnPoints : spawnPoints;
 
     private void Awake()
     {
-        player = GameObject.FindWithTag("Player").transform;
-        playerHealth = player.GetComponent<PlayerHealth>();
-        playerRespawn = player.GetComponent<PlayerRespawn>();
         startWaveButton.onClick.AddListener(StartWave);
         messageText.text = "";
     }
@@ -76,8 +73,13 @@ public class WaveManager : MonoBehaviour
     private void Start()
     {
         // Card offers before the first wave (if any): the Start Wave button waits for them.
-        if (cores != null && cores.OfferCardsAtStart(ShowStartButton))
-            startWaveButton.gameObject.SetActive(false);
+        if (cores == null || !cores.OfferCardsAtStart(ShowStartButton))
+            ShowStartButton();
+    }
+
+    private void OnDisable()
+    {
+        startWaveButton.gameObject.SetActive(false); // not playing waves (menu, LAN)
     }
 
     public void StartWave()

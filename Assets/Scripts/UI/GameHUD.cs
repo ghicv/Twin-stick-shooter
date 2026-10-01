@@ -2,15 +2,12 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
-// On-screen info: the player's health (bar + number), the cores (augments) the player owns (icons),
-// the score and the wave. Reads the values every frame.
+// On-screen info: this machine's player's health (bar + number), the cores (augments) the player owns (icons),
+// and in single player the score and the wave. Reads the values every frame.
 public class GameHUD : MonoBehaviour
 {
-    [SerializeField] private PlayerHealth playerHealth;
+    [Tooltip("Score and wave are only shown while it is running (single player).")]
     [SerializeField] private WaveManager waveManager;
-
-    [Tooltip("Where the owned cores come from. Optional.")]
-    [SerializeField] private CoreBridge cores;
 
     [Header("UI")]
     [Tooltip("Image with Image Type = Filled (Horizontal): its fill shows the player's health.")]
@@ -44,20 +41,28 @@ public class GameHUD : MonoBehaviour
 
     private void Update()
     {
-        healthFill.fillAmount = playerHealth.Health / playerHealth.MaxHealth;
-        healthText.text = "HP " + Mathf.CeilToInt(playerHealth.Health);
+        // The player spawns over the network once a game starts.
+        PlayerNetwork local = PlayerNetwork.Local;
+        healthFill.transform.parent.gameObject.SetActive(local != null);
+        if (local != null)
+        {
+            PlayerHealth playerHealth = local.GetComponent<PlayerHealth>();
+            healthFill.fillAmount = playerHealth.Health / playerHealth.MaxHealth;
+            healthText.text = "HP " + Mathf.CeilToInt(playerHealth.Health);
+        }
 
-        if (cores != null)
-            UpdateCoreIcons();
+        if (local != null && local.Cores != null)
+            UpdateCoreIcons(local.Cores);
 
-        scoreText.text = "SCORE " + waveManager.Score;
-        waveText.text = waveManager.WaveRunning
-            ? "WAVE " + waveManager.Wave + "   ENEMIES " + waveManager.EnemiesLeft
+        bool waves = waveManager.isActiveAndEnabled;
+        scoreText.text = waves ? "SCORE " + waveManager.Score : "";
+        waveText.text = !waves ? ""
+            : waveManager.WaveRunning ? "WAVE " + waveManager.Wave + "   ENEMIES " + waveManager.EnemiesLeft
             : "WAVE " + waveManager.Wave;
     }
 
     // Cores are only ever added during a run, so only the missing icons are made.
-    private void UpdateCoreIcons()
+    private void UpdateCoreIcons(CoreBridge cores)
     {
         while (coreIcons.Count < cores.OwnedCount)
         {

@@ -2,19 +2,26 @@ using System.Collections.Generic;
 using UnityEngine;
 
 // What the single cores do. They stand alone (no stacking rules). Only CoreBridge calls this.
+// It lives on the player (each player has its own cores). "Enemies" are the targets: enemies in single player,
+// the other players on LAN. Health and damage only count on the host; the gun and movement cores work on the
+// machine that controls the player.
 [RequireComponent(typeof(CoreInventory))]
 public class SingleCores : MonoBehaviour
 {
+    // Effects the host shows on the other machines too (PlayerNetwork.ShowEffect).
+    public const int DustEffectId = 0;
+    public const int BlastEffectId = 1;
+
     [Header("PLAYER · Ground Pound")]
-    [Tooltip("Enemies within this distance of the player's feet are hit by a hard landing (units).")]
+    [Tooltip("Targets within this distance of the player's feet are hit by a hard landing (units).")]
     [SerializeField] private float groundPoundRadius = 2.5f;
 
     [SerializeField] private float groundPoundDamage = 20f;
 
-    [Tooltip("Knockback multiplier of the shockwave (enemies are thrown away and up).")]
+    [Tooltip("Knockback multiplier of the shockwave (targets are thrown away and up).")]
     [SerializeField] private float groundPoundKnockback = 3f;
 
-    [Tooltip("Spawned at the feet (Ground Pound) and where enemies crash (Crash), e.g. DustPuff. It should destroy itself.")]
+    [Tooltip("Spawned at the feet (Ground Pound) and where targets crash (Crash), e.g. DustPuff. It should destroy itself.")]
     [SerializeField] private ParticleSystem dustEffect;
 
     [SerializeField] private float groundPoundEffectScale = 2.5f;
@@ -69,11 +76,11 @@ public class SingleCores : MonoBehaviour
     [SerializeField] private float openerSize = 1.5f;
 
     [Header("ENEMY · Void Feast")]
-    [Tooltip("Health the player gets back for each enemy that falls into the void.")]
+    [Tooltip("Health the player gets back for each target it knocked into the void.")]
     [SerializeField] private float voidFeastHeal = 10f;
 
     [Header("ENEMY · Death Blast")]
-    [Tooltip("Killed enemies explode, hurting the enemies within this distance (units).")]
+    [Tooltip("Targets this player kills explode, hurting the targets within this distance (units).")]
     [SerializeField] private float deathBlastRadius = 2f;
 
     [SerializeField] private float deathBlastDamage = 20f;
@@ -83,46 +90,53 @@ public class SingleCores : MonoBehaviour
     [SerializeField] private ParticleSystem deathBlastEffect;
 
     [Header("ENEMY · Crash")]
-    [Tooltip("Damage to an enemy knocked into a wall or another enemy (both enemies get it).")]
+    [Tooltip("Damage to a target knocked into a wall or another enemy (both enemies get it).")]
     [SerializeField] private float crashDamage = 12f;
 
-    [Tooltip("The same enemy can't crash again for this long (seconds).")]
+    [Tooltip("The same target can't crash again for this long (seconds).")]
     [SerializeField] private float crashCooldown = 0.5f;
 
     [Header("ENEMY · Vampire")]
-    [Tooltip("Health the player gets back for each enemy killed (not fallen off).")]
+    [Tooltip("Health the player gets back for each target it kills (not fallen off).")]
     [SerializeField] private float vampireHeal = 3f;
 
     private CoreInventory inventory;
+    private CoreBridge bridge;
     private PlayerHealth playerHealth;
     private PlayerMovement playerMovement;
+    private PlayerNetwork net;
+    private HitTarget self;
     private CameraShake cameraShake;
     private float lastShotTime = -100f;
     private bool extraLifeUsed;
-    private readonly List<Dummy> poundHits = new List<Dummy>();
-    private readonly Dictionary<Dummy, float> lastCrash = new Dictionary<Dummy, float>();
+    private readonly List<HitTarget> poundHits = new List<HitTarget>();
+    private readonly Dictionary<HitTarget, float> lastCrash = new Dictionary<HitTarget, float>();
 
     private void Awake()
     {
         inventory = GetComponent<CoreInventory>();
-        GameObject player = GameObject.FindWithTag("Player");
-        playerHealth = player.GetComponent<PlayerHealth>();
-        playerMovement = player.GetComponent<PlayerMovement>();
+        bridge = GetComponent<CoreBridge>();
+        playerHealth = GetComponent<PlayerHealth>();
+        playerMovement = GetComponent<PlayerMovement>();
+        net = GetComponent<PlayerNetwork>();
+        self = GetComponent<HitTarget>();
         cameraShake = Camera.main.GetComponent<CameraShake>(); // null → no shake
         inventory.Added += OnAdded;
     }
 
     private bool Has(CoreType type) => inventory.Has(type);
 
+    private bool OnHost => net.IsServer;
+
     private void OnAdded(CoreType type)
     {
-        if (type == CoreType.ThickSkin)
+        if (type == CoreType.ThickSkin && OnHost)
             playerHealth.AddMaxHealth(thickSkinHealth);
     }
 
     private void Update()
     {
-        if (Has(CoreType.Regeneration) && Time.time - playerHealth.LastDamageTime >= regenerationDelay)
+        if (OnHost && Has(CoreType.Regeneration) && Time.time - playerHealth.LastDamageTime >= regenerationDelay)
             playerHealth.Heal(regenerationRate * Time.deltaTime);
     }
 
@@ -132,7 +146,7 @@ public class SingleCores : MonoBehaviour
 
     public bool DashUnlocked => Has(CoreType.Dash);
 
-    // Extra Life: true (once per run) = the player comes back instead of losing the run.
+    // Host: Extra Life → true (once per run) = the player comes back instead of losing the run.
     public bool TryUseExtraLife()
     {
         if (!Has(CoreType.ExtraLife) || extraLifeUsed)
@@ -141,33 +155,30 @@ public class SingleCores : MonoBehaviour
         return true;
     }
 
-    // Ground Pound: a hard landing throws the enemies around the feet away and up.
+    // Host: Ground Pound: a hard landing throws the targets around the feet away and up.
     public void OnHardLanding(Vector2 feet)
     {
         if (!Has(CoreType.GroundPound))
             return;
 
-        SpawnDust(feet, groundPoundEffectScale);
-        if (cameraShake != null)
-            cameraShake.Shake(groundPoundShakeStrength, groundPoundShakeDuration);
-
+        ShowEffect(DustEffectId, feet, groundPoundEffectScale);
         poundHits.Clear();
         foreach (Collider2D hit in Physics2D.OverlapCircleAll(feet, groundPoundRadius))
         {
-            Dummy dummy = hit.GetComponentInParent<Dummy>();
-            if (dummy == null || poundHits.Contains(dummy))
+            HitTarget target = hit.GetComponentInParent<HitTarget>();
+            if (target == null || target == self || target.IsDying || poundHits.Contains(target))
                 continue;
-            poundHits.Add(dummy);
+            poundHits.Add(target);
 
             // Away from the feet and up. TakeDamage pushes against the hit normal.
-            Vector2 away = (Vector2)dummy.transform.position - feet;
+            Vector2 away = (Vector2)target.transform.position - feet;
             away.y = Mathf.Max(away.y, 0f);
             Vector2 push = (away.normalized + Vector2.up).normalized;
-            dummy.TakeDamage(groundPoundDamage, hit.ClosestPoint(feet), -push, groundPoundKnockback);
+            target.TakeDamage(groundPoundDamage, hit.ClosestPoint(feet), -push, groundPoundKnockback, bridge);
         }
     }
 
-    // ---------- Gun ----------
+    // ---------- Gun (the machine that controls the player) ----------
 
     // holdTime = seconds the fire button has been held without a break.
     public float FireRateMultiplier(float holdTime)
@@ -198,12 +209,12 @@ public class SingleCores : MonoBehaviour
         return damage;
     }
 
-    // ---------- Enemies ----------
+    // ---------- Enemies (host) ----------
 
-    // An enemy exploded: killed, or fell into the void.
-    public void OnEnemyDied(Dummy enemy, Vector2 position)
+    // A target this player hurt last is gone: killed, or knocked into the void.
+    public void OnEnemyDied(HitTarget victim, Vector2 position, bool fellOff)
     {
-        if (enemy.FellOffMap)
+        if (fellOff)
         {
             if (Has(CoreType.VoidFeast))
                 playerHealth.Heal(voidFeastHeal);
@@ -213,43 +224,57 @@ public class SingleCores : MonoBehaviour
         if (Has(CoreType.Vampire))
             playerHealth.Heal(vampireHeal);
         if (Has(CoreType.DeathBlast))
-            CoreEffects.Blast(deathBlastEffect, deathBlastRadius, position, deathBlastRadius, deathBlastDamage, deathBlastKnockback, enemy);
+        {
+            ShowEffect(BlastEffectId, position, deathBlastRadius);
+            CoreEffects.Blast(null, 0f, position, deathBlastRadius, deathBlastDamage, deathBlastKnockback, bridge, true, victim, self);
+        }
     }
 
-    // An enemy was knocked into a wall (other = null) or into another enemy.
-    public void OnEnemyCrash(Dummy enemy, Dummy other, Vector2 point)
+    // A target this player hit was knocked into a wall (other = null) or into another enemy.
+    public void OnEnemyCrash(HitTarget victim, HitTarget other, Vector2 point)
     {
         if (!Has(CoreType.Crash))
             return;
 
-        bool hurt = Crash(enemy, point);
-        if (other != null)
+        bool hurt = Crash(victim, point);
+        if (other != null && other != self)
             hurt |= Crash(other, point);
         if (hurt)
-        {
-            SpawnDust(point, 1f);
-            if (cameraShake != null)
-                cameraShake.Shake(0.15f, 0.12f);
-        }
+            ShowEffect(DustEffectId, point, 1f);
     }
 
-    private bool Crash(Dummy enemy, Vector2 point)
+    private bool Crash(HitTarget target, Vector2 point)
     {
         float last;
-        if (enemy.IsDying || (lastCrash.TryGetValue(enemy, out last) && Time.time - last < crashCooldown))
+        if (target.IsDying || (lastCrash.TryGetValue(target, out last) && Time.time - last < crashCooldown))
             return false;
 
-        lastCrash[enemy] = Time.time;
-        Vector2 normal = (point - (Vector2)enemy.transform.position).normalized;
-        enemy.TakeDamage(crashDamage, point, normal, 0f); // no extra push, so it doesn't bounce back and forth
+        lastCrash[target] = Time.time;
+        Vector2 normal = (point - (Vector2)target.transform.position).normalized;
+        target.TakeDamage(crashDamage, point, normal, 0f, bridge); // no extra push, so it doesn't bounce back and forth
         return true;
     }
 
-    private void SpawnDust(Vector2 position, float scale)
+    // ---------- Effects ----------
+
+    // On this machine, and (from the host) on the other machines too.
+    private void ShowEffect(int effect, Vector2 position, float scale)
     {
-        if (dustEffect == null)
-            return;
-        ParticleSystem effect = Instantiate(dustEffect, position, Quaternion.identity);
-        effect.transform.localScale = Vector3.one * scale;
+        PlayEffect(effect, position, scale);
+        if (OnHost && net.IsSpawned)
+            net.ShowEffect(effect, position, scale);
+    }
+
+    public void PlayEffect(int effect, Vector2 position, float scale)
+    {
+        ParticleSystem prefab = effect == DustEffectId ? dustEffect : deathBlastEffect;
+        if (prefab != null)
+        {
+            ParticleSystem instance = Instantiate(prefab, position, Quaternion.identity);
+            instance.transform.localScale = Vector3.one * scale;
+        }
+        if (cameraShake != null)
+            cameraShake.Shake(effect == DustEffectId && scale > 1.5f ? groundPoundShakeStrength : 0.15f,
+                              effect == DustEffectId && scale > 1.5f ? groundPoundShakeDuration : 0.12f);
     }
 }

@@ -108,6 +108,15 @@ GameObject:
   - component: {fileID: 6780011380052750896}
   - component: {fileID: 4763005333442338900}
   - component: {fileID: 8892059692678184712}
+  - component: {fileID: 693889228183217943}
+  - component: {fileID: 1271891503256020445}
+  - component: {fileID: 6686758493075688442}
+  - component: {fileID: 4777377742760621415}
+  - component: {fileID: 5535949982438551314}
+  - component: {fileID: 8138423508658031241}
+  - component: {fileID: 759047752990307770}
+  - component: {fileID: 2299568239264722967}
+  - component: {fileID: 652163047813783592}
   m_Layer: 8
   m_Name: Player
   m_TagString: Player
@@ -226,6 +235,9 @@ MonoBehaviour:
   wallJumpPush: 7
   wallJumpControlTime: 0.25
   dropThroughTime: 0.25
+  dashSpeed: 22
+  dashTime: 0.15
+  dashCooldown: 0.8
   body: {fileID: 3557905451738706582}
   jumpStretch: {x: 0.9, y: 1.12}
   landSquash: {x: 1.15, y: 0.85}
@@ -297,6 +309,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerRespawn
   fallLimitY: -8
+  gameOverOnDeath: 1
   spawnPoints: []
   explosionEffect: {fileID: 743854954530274017, guid: 6bbb59183cfbfd54baf3a2462bee678b, type: 3}
   screenMargin: 1.4
@@ -430,14 +443,520 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerHealth
   maxHealth: 100
   invulnerableTime: 0.6
+  lanInvulnerableTime: 0
   spawnProtectionTime: 1
   body: {fileID: 7107644010471966630}
   knockback: {x: 6, y: 4}
+  lanKnockbackScale: 0.5
+  hitFlashColor: {r: 1, g: 1, b: 1, a: 1}
+  hitFlashTime: 0.06
   hitShakeStrength: 0.2
   hitShakeDuration: 0.15
   blinkInterval: 0.06
   hurtSound: {fileID: 8300000, guid: 336450b6703bcc6428a511794cc732fc, type: 3}
   hurtVolume: 0.7
+  crashSpeed: 5
+  crashWindow: 0.6
+--- !u!114 &693889228183217943
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3121727891143946174}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
+  GlobalObjectIdHash: 0
+  InScenePlacedSourceGlobalObjectIdHash: 0
+  m_InScenePlacedDisabledByDefault: 0
+  DeferredDespawnTick: 0
+  Ownership: 1
+  AlwaysReplicateAsRoot: 0
+  SynchronizeTransform: 1
+  m_InScenePlaced: 0
+  ActiveSceneSynchronization: 0
+  SceneMigrationSynchronization: 1
+  SpawnWithObservers: 1
+  DontDestroyWithOwner: 0
+  AutoObjectParentSync: 1
+  SyncOwnerTransformWhenParented: 1
+  AllowOwnerToParent: 0
+--- !u!114 &1271891503256020445
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3121727891143946174}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e96cb6065543e43c4a752faaa1468eb1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.Components.NetworkTransform
+  ShowTopMostFoldoutHeaderGroup: 1
+  NetworkTransformExpanded: 0
+  AutoOwnerAuthorityTickOffset: 1
+  PositionInterpolationType: 0
+  RotationInterpolationType: 0
+  ScaleInterpolationType: 0
+  PositionLerpSmoothing: 1
+  PositionMaxInterpolationTime: 0.1
+  RotationLerpSmoothing: 1
+  RotationMaxInterpolationTime: 0.1
+  ScaleLerpSmoothing: 1
+  ScaleMaxInterpolationTime: 0.1
+  AuthorityMode: 1
+  TickSyncChildren: 0
+  UseUnreliableDeltas: 0
+  SyncPositionX: 1
+  SyncPositionY: 1
+  SyncPositionZ: 0
+  SyncRotAngleX: 0
+  SyncRotAngleY: 0
+  SyncRotAngleZ: 0
+  SyncScaleX: 0
+  SyncScaleY: 0
+  SyncScaleZ: 0
+  PositionThreshold: 0.001
+  RotAngleThreshold: 0.01
+  ScaleThreshold: 0.01
+  UseQuaternionSynchronization: 0
+  UseQuaternionCompression: 0
+  UseHalfFloatPrecision: 0
+  InLocalSpace: 0
+  SwitchTransformSpaceWhenParented: 0
+  Interpolate: 1
+  SlerpPosition: 0
+--- !u!114 &6686758493075688442
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3121727891143946174}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 80d7c879794dfda4687da0e400131852, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.Components.NetworkRigidbody2D
+  ShowTopMostFoldoutHeaderGroup: 1
+  NetworkRigidbodyBaseExpanded: 0
+  UseRigidBodyForMotion: 0
+  AutoUpdateKinematicState: 1
+  AutoSetKinematicOnDespawn: 1
+--- !u!114 &4777377742760621415
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3121727891143946174}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1f6b6832fb450f04e87dda80d97bba4a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerNetwork
+  ShowTopMostFoldoutHeaderGroup: 1
+  slotColors:
+  - {r: 1, g: 0.42, b: 0.21, a: 1}
+  - {r: 0.31, g: 0.8, b: 0.77, a: 1}
+  - {r: 1, g: 0.9, b: 0.43, a: 1}
+  - {r: 0.78, g: 0.49, b: 1, a: 1}
+  gunPivot: {fileID: 429950332872637155}
+  aimSendThreshold: 0.5
+--- !u!114 &5535949982438551314
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3121727891143946174}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 147725ef142466b4aaa3add44fbaf9cc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HitTarget
+--- !u!114 &8138423508658031241
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3121727891143946174}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1657fa681f87db942b1ffa531e007f50, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CoreInventory
+  catalog:
+  - type: 0
+    title: +1 BULLET
+    tag: "BULLET \xB7 SPAWN"
+    description: Every shot fires 2 bullets. Each deals 70%.
+    icon: {fileID: 21300000, guid: 67fb37306dd527646b2b5de709632150, type: 3}
+    bulletCore: 1
+  - type: 1
+    title: BACK SHOT
+    tag: "BULLET \xB7 SPAWN"
+    description: Every shot also fires backwards (60% damage).
+    icon: {fileID: 21300000, guid: d83e44fb666966d468c827133c2a6305, type: 3}
+    bulletCore: 1
+  - type: 2
+    title: LUCKY SHOT
+    tag: "BULLET \xB7 SPAWN"
+    description: '15% of bullets are critical: 2.5x damage.'
+    icon: {fileID: 21300000, guid: 1573b851074da594c9f8ef48917bf985, type: 3}
+    bulletCore: 1
+  - type: 3
+    title: NOVA
+    tag: "BULLET \xB7 SPAWN"
+    description: Every 6th shot also fires a ring of 8 bullets (50% damage).
+    icon: {fileID: 21300000, guid: 773ff46c0c5c17343a1cc1a361df16ad, type: 3}
+    bulletCore: 1
+  - type: 4
+    title: GIANT
+    tag: "BULLET \xB7 SPAWN"
+    description: 'Huge bullets: +30% damage, 20% slower.'
+    icon: {fileID: 21300000, guid: 2259762fc27b77349956cb027eea5427, type: 3}
+    bulletCore: 1
+  - type: 5
+    title: HOMING
+    tag: "BULLET \xB7 FLY"
+    description: Bullets steer toward enemies ahead. -20% damage.
+    icon: {fileID: 21300000, guid: 1bb64d4aeb96904428be63a52b058eb1, type: 3}
+    bulletCore: 1
+  - type: 6
+    title: BOUNCE
+    tag: "BULLET \xB7 FLY"
+    description: Bullets bounce off walls twice. -25% damage per bounce.
+    icon: {fileID: 21300000, guid: 94b08abf1a71fd640b074b13401813fc, type: 3}
+    bulletCore: 1
+  - type: 7
+    title: PIERCE
+    tag: "BULLET \xB7 FLY"
+    description: Bullets fly through 2 enemies. -30% damage per enemy.
+    icon: {fileID: 21300000, guid: efe8ed785d4d31746833f6dc76243cb7, type: 3}
+    bulletCore: 1
+  - type: 8
+    title: LOB
+    tag: "BULLET \xB7 FLY"
+    description: Bullets fall in an arc. +25% damage.
+    icon: {fileID: 21300000, guid: b1ad3665f9c481b4cb29d20ac78bf7da, type: 3}
+    bulletCore: 1
+  - type: 9
+    title: WAVE
+    tag: "BULLET \xB7 FLY"
+    description: Bullets wiggle up and down as they fly.
+    icon: {fileID: 21300000, guid: 870e377516ffb7f4da6375232288aff7, type: 3}
+    bulletCore: 1
+  - type: 10
+    title: BOOMERANG
+    tag: "BULLET \xB7 FLY"
+    description: Bullets fly back to you and can hit on the way.
+    icon: {fileID: 21300000, guid: 2e8a5313d3453ec47a15b4ca81f39a09, type: 3}
+    bulletCore: 1
+  - type: 11
+    title: LONG SHOT
+    tag: "BULLET \xB7 FLY"
+    description: +6% damage per unit flown, up to 2x.
+    icon: {fileID: 21300000, guid: 0e12832e58e50f3489308c8b40081a7d, type: 3}
+    bulletCore: 1
+  - type: 12
+    title: DRILL
+    tag: "BULLET \xB7 FLY"
+    description: Bullets go through one wall. -20% damage.
+    icon: {fileID: 21300000, guid: 99e55686d2b811f459d0b8704dba2d98, type: 3}
+    bulletCore: 1
+  - type: 13
+    title: EXPLOSIVE
+    tag: "BULLET \xB7 HIT"
+    description: Bullets explode on every hit (6 damage around). -25% fire rate.
+    icon: {fileID: 21300000, guid: 51b085a320a7f764583c7a6f35497a70, type: 3}
+    bulletCore: 1
+  - type: 14
+    title: HAMMER
+    tag: "BULLET \xB7 HIT"
+    description: Hits, blasts and pulls knock enemies 2.5x harder.
+    icon: {fileID: 21300000, guid: b5a58ffa71dbe02489c99fabbd29847d, type: 3}
+    bulletCore: 1
+  - type: 15
+    title: FORK
+    tag: "BULLET \xB7 HIT"
+    description: On the first enemy, bullets split in 2 (35% damage each).
+    icon: {fileID: 21300000, guid: b593c1d27d5cddb40b2d7aad4807d997, type: 3}
+    bulletCore: 1
+  - type: 16
+    title: CHAIN
+    tag: "BULLET \xB7 HIT"
+    description: Hits zap 2 nearby enemies for 40% damage.
+    icon: {fileID: 21300000, guid: ac2a8f83a18ec4246b7fb106f055c1df, type: 3}
+    bulletCore: 1
+  - type: 17
+    title: CHILL
+    tag: "BULLET \xB7 HIT"
+    description: Hit enemies move and attack at half speed for 1.5s.
+    icon: {fileID: 21300000, guid: ed4cadbb64aeeab489ae1aa638907bc5, type: 3}
+    bulletCore: 1
+  - type: 18
+    title: IGNITE
+    tag: "BULLET \xB7 HIT"
+    description: 'Hit enemies burn: 5 damage every 0.5s for 2s.'
+    icon: {fileID: 21300000, guid: 350230875722f21499e612e71ed81dd1, type: 3}
+    bulletCore: 1
+  - type: 19
+    title: VORTEX
+    tag: "BULLET \xB7 HIT"
+    description: Hits pull nearby enemies toward the hit.
+    icon: {fileID: 21300000, guid: d1f5c5abe2e19d74a9fd078d84381e34, type: 3}
+    bulletCore: 1
+  - type: 20
+    title: REAPER
+    tag: "BULLET \xB7 HIT"
+    description: Hits kill enemies at 15% health or less.
+    icon: {fileID: 21300000, guid: 03ff728ec01349e41af8a3d6854a3269, type: 3}
+    bulletCore: 1
+  - type: 21
+    title: SHRAPNEL
+    tag: "BULLET \xB7 END"
+    description: Bullets burst into 3 shards when they stop (30% damage each).
+    icon: {fileID: 21300000, guid: 80ef69c1e693b6f4f96c57cc190d684e, type: 3}
+    bulletCore: 1
+  - type: 22
+    title: MINE
+    tag: "BULLET \xB7 END"
+    description: Bullets stopping on walls may leave a mine (15 damage blast).
+    icon: {fileID: 21300000, guid: b66e9789834be84418ec25db6030f40f, type: 3}
+    bulletCore: 1
+  - type: 23
+    title: GROUND POUND
+    tag: "SINGLE \xB7 PLAYER"
+    description: Hard landings throw nearby enemies up (20 damage).
+    icon: {fileID: 21300000, guid: 9de5e47fb1199554b9746dfbffeaab48, type: 3}
+    bulletCore: 0
+  - type: 24
+    title: EXTRA JUMP
+    tag: "SINGLE \xB7 PLAYER"
+    description: One more jump in the air.
+    icon: {fileID: 21300000, guid: 7bab3bca3536ae74abddd19a63453671, type: 3}
+    bulletCore: 0
+  - type: 25
+    title: DASH
+    tag: "SINGLE \xB7 PLAYER"
+    description: 'Shift: dash sideways. Can''t be hurt while dashing.'
+    icon: {fileID: 21300000, guid: 49596c10611cea54faf3634022fadd1e, type: 3}
+    bulletCore: 0
+  - type: 26
+    title: THICK SKIN
+    tag: "SINGLE \xB7 PLAYER"
+    description: +40 max health.
+    icon: {fileID: 21300000, guid: 8ab8fa25d739a3740a22838eb1859781, type: 3}
+    bulletCore: 0
+  - type: 27
+    title: EXTRA LIFE
+    tag: "SINGLE \xB7 PLAYER"
+    description: Once per run, come back after dying.
+    icon: {fileID: 21300000, guid: e4f168e551e65f4499040f69ad92bb7d, type: 3}
+    bulletCore: 0
+  - type: 28
+    title: REGENERATION
+    tag: "SINGLE \xB7 PLAYER"
+    description: Heal 2 HP per second after 3s without getting hurt.
+    icon: {fileID: 21300000, guid: 462430940ce6d6d4d86c40be6a927c54, type: 3}
+    bulletCore: 0
+  - type: 29
+    title: HOT BARREL
+    tag: "SINGLE \xB7 GUN"
+    description: Keep firing to shoot faster, up to 1.6x.
+    icon: {fileID: 21300000, guid: 06941e8897aa4f148bcd139b6a1993d1, type: 3}
+    bulletCore: 0
+  - type: 30
+    title: STEADY AIM
+    tag: "SINGLE \xB7 GUN"
+    description: 'Shots go almost straight: 80% less spread.'
+    icon: {fileID: 21300000, guid: e06ddfcf585b92c4594396980a795e91, type: 3}
+    bulletCore: 0
+  - type: 31
+    title: AIR GUNNER
+    tag: "SINGLE \xB7 GUN"
+    description: +35% damage while in the air.
+    icon: {fileID: 21300000, guid: 1a74af40d75042f4d8ac859398839ecc, type: 3}
+    bulletCore: 0
+  - type: 32
+    title: ADRENALINE
+    tag: "SINGLE \xB7 GUN"
+    description: Below 35% health, fire 1.5x faster.
+    icon: {fileID: 21300000, guid: 11df5dc03678cb14ca00173ee91d6e70, type: 3}
+    bulletCore: 0
+  - type: 33
+    title: OPENER
+    tag: "SINGLE \xB7 GUN"
+    description: The first shot after a 0.5s pause deals 3x damage.
+    icon: {fileID: 21300000, guid: f9879dde66021d34eb50f3644d7d5cc9, type: 3}
+    bulletCore: 0
+  - type: 34
+    title: VOID FEAST
+    tag: "SINGLE \xB7 ENEMY"
+    description: Enemies falling into the void heal you 10 HP.
+    icon: {fileID: 21300000, guid: d80bdaf9ebbb2174c9c21bde7858b073, type: 3}
+    bulletCore: 0
+  - type: 35
+    title: DEATH BLAST
+    tag: "SINGLE \xB7 ENEMY"
+    description: Killed enemies explode for 20 damage around them.
+    icon: {fileID: 21300000, guid: 804c9633c209781479baaac76a4aa582, type: 3}
+    bulletCore: 0
+  - type: 36
+    title: CRASH
+    tag: "SINGLE \xB7 ENEMY"
+    description: Enemies knocked into walls or each other take 12 damage.
+    icon: {fileID: 21300000, guid: 366416eaeb99e074b8ff0ff626724a9b, type: 3}
+    bulletCore: 0
+  - type: 37
+    title: VAMPIRE
+    tag: "SINGLE \xB7 ENEMY"
+    description: Every kill heals you 3 HP.
+    icon: {fileID: 21300000, guid: 20c221f3e0cbaac46ac6a41f93ccb850, type: 3}
+    bulletCore: 0
+--- !u!114 &759047752990307770
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3121727891143946174}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dce2ac72f73a4a04589d787f8d55e2f3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BulletCores
+  extraBulletAngle: 14
+  extraBulletDamage: 0.4
+  backShotDamage: 0.6
+  luckyChance: 0.15
+  luckyDamage: 2.5
+  luckySize: 1.4
+  luckyColor: {r: 1, g: 0.42, b: 0.21, a: 1}
+  novaEvery: 6
+  novaCount: 8
+  novaDamage: 0.5
+  giantSize: 1.8
+  giantDamage: 1.3
+  giantSpeed: 0.8
+  homingRange: 5
+  homingConeAngle: 60
+  homingTurnSpeed: 360
+  homingCloseBoost: 3
+  homingDamage: 0.8
+  bounceCount: 2
+  bounceDamage: 0.75
+  pierceCount: 2
+  pierceDamage: 0.7
+  lobGravity: 2.5
+  lobDamage: 1.25
+  waveAmplitude: 0.5
+  waveFrequency: 2.5
+  boomerangReturnTime: 0.3
+  boomerangTurnSpeed: 900
+  boomerangCatchRadius: 0.6
+  longShotPerUnit: 0.06
+  longShotMax: 2
+  drillCount: 1
+  drillDamage: 0.8
+  explosionRadius: 1.2
+  explosionDamage: 6
+  explosiveFireRate: 0.75
+  explosionEffect: {fileID: 1900384469608397415, guid: beb5acb5799f3c3458b596db4c7df869, type: 3}
+  hammerKnockback: 2.5
+  forkAngle: 25
+  forkDamage: 0.35
+  forkLifetime: 0.5
+  forkSize: 0.7
+  chainJumps: 2
+  chainRange: 3.5
+  chainDamage: 0.4
+  zapMaterial: {fileID: 2100000, guid: 9dfc825aed78fcd4ba02077103263b40, type: 2}
+  zapColor: {r: 0.55, g: 0.95, b: 1, a: 1}
+  chillSpeed: 0.5
+  chillTime: 1.5
+  igniteDamage: 5
+  igniteTick: 0.5
+  igniteTime: 2
+  vortexRadius: 2.5
+  vortexForce: 4
+  reaperThreshold: 0.15
+  shrapnelCount: 3
+  shrapnelSpread: 90
+  shrapnelDamage: 0.3
+  shrapnelSpeed: 0.8
+  shrapnelLifetime: 0.35
+  shrapnelScale: 0.6
+  mineChance: 0.25
+  maxMines: 4
+  mineDamage: 15
+  mineRadius: 1.5
+  mineTriggerRadius: 0.8
+  mineArmTime: 0.3
+  mineLifetime: 6
+  mineSprite: {fileID: 21300000, guid: a99fa6be700cfae45a56f4cb49841610, type: 3}
+  mineColor: {r: 1, g: 0.3, b: 0.3, a: 1}
+  mineScale: 1.6
+--- !u!114 &2299568239264722967
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3121727891143946174}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 645efb5029bf25048b7573f05ed1294d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SingleCores
+  groundPoundRadius: 2.5
+  groundPoundDamage: 20
+  groundPoundKnockback: 3
+  dustEffect: {fileID: 9081391445861028296, guid: 0b9ff28fd5193ae41b0c65a4e96e9881, type: 3}
+  groundPoundEffectScale: 2.5
+  groundPoundShakeStrength: 0.3
+  groundPoundShakeDuration: 0.2
+  extraJumps: 1
+  thickSkinHealth: 40
+  regenerationRate: 2
+  regenerationDelay: 3
+  hotBarrelMaxRate: 1.6
+  hotBarrelRampTime: 1.5
+  steadyAimSpread: 0.2
+  airGunnerDamage: 1.35
+  adrenalineHealth: 0.35
+  adrenalineRate: 1.5
+  openerPause: 0.5
+  openerDamage: 3
+  openerSize: 1.5
+  voidFeastHeal: 10
+  deathBlastRadius: 2
+  deathBlastDamage: 20
+  deathBlastKnockback: 2
+  deathBlastEffect: {fileID: 1900384469608397415, guid: beb5acb5799f3c3458b596db4c7df869, type: 3}
+  crashDamage: 12
+  crashCooldown: 0.5
+  vampireHeal: 3
+--- !u!114 &652163047813783592
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3121727891143946174}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 581825c9ea3bea2469163958fc39e619, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CoreBridge
+  cardEveryWaves: 1
+  cardsAtStart: 0
 --- !u!1 &4256841544112820263
 GameObject:
   m_ObjectHideFlags: 0

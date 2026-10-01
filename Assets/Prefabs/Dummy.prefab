@@ -104,6 +104,7 @@ GameObject:
   - component: {fileID: 9197871498676995197}
   - component: {fileID: 7327760675065930152}
   - component: {fileID: 393590725212661335}
+  - component: {fileID: 1485253568593180746}
   m_Layer: 9
   m_Name: Dummy
   m_TagString: Untagged
@@ -179,6 +180,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Dummy
   maxHealth: 100
   fallLimitY: -8
+  screenMargin: 0.8
   bodyRenderer: {fileID: 2181492334732711951}
   healthBarFill: {fileID: 5023836666636808229}
   healthBarChip: {fileID: 6612338053279740148}
@@ -198,6 +200,9 @@ MonoBehaviour:
   chipSpeed: 1.5
   fullHealthColor: {r: 0.4, g: 0.9, b: 0.4, a: 1}
   lowHealthColor: {r: 0.95, g: 0.3, b: 0.25, a: 1}
+  slowedColor: {r: 0.55, g: 0.8, b: 1, a: 1}
+  crashSpeed: 5
+  crashWindow: 0.6
   hitStopDuration: 0.06
   deathBlinkTime: 0.25
   deathBlinkInterval: 0.04
@@ -329,6 +334,18 @@ Rigidbody2D:
   m_SleepingMode: 1
   m_CollisionDetection: 1
   m_Constraints: 4
+--- !u!114 &1485253568593180746
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1333296449192571718}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 147725ef142466b4aaa3add44fbaf9cc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HitTarget
 --- !u!1 &1680461945552574527
 GameObject:
   m_ObjectHideFlags: 0
