@@ -151,6 +151,36 @@ public class MatchManager : NetworkBehaviour
         StartCoroutine(NextRound());
     }
 
+    // ---------- Skins (LAN players spawn once they picked one) ----------
+
+    // Any machine: asks the host to spawn this machine's player with that skin.
+    public void ChooseSkin(int skin) => ChooseSkinRpc(skin);
+
+    [Rpc(SendTo.Server)]
+    private void ChooseSkinRpc(int skin, RpcParams rpcParams = default)
+    {
+        ulong client = rpcParams.Receive.SenderClientId;
+        if (NetworkManager.ConnectedClients[client].PlayerObject != null)
+            return; // already playing
+        if (PlayerNetwork.SkinTaken(skin))
+        {
+            SkinRefusedRpc(RpcTarget.Single(client, RpcTargetUse.Temp));
+            return;
+        }
+
+        GameObject player = Instantiate(NetworkManager.NetworkConfig.PlayerPrefab);
+        player.GetComponent<PlayerNetwork>().SetSkinOnHost(skin);
+        player.GetComponent<NetworkObject>().SpawnAsPlayerObject(client);
+    }
+
+    [Rpc(SendTo.SpecifiedInParams)]
+    private void SkinRefusedRpc(RpcParams rpcParams)
+    {
+        SkinPanel panel = FindAnyObjectByType<SkinPanel>();
+        if (panel != null)
+            panel.Refused();
+    }
+
     // Host: a player died during a round. It stays out and picks a card (unless it owns every core).
     public void OnPlayerDiedInRound(PlayerNetwork player)
     {
@@ -304,8 +334,8 @@ public class MatchManager : NetworkBehaviour
         if (mapBag.Count == 0)
         {
             for (int i = 0; i < maps.Count; i++)
-                if (i != maps.LobbyMap)
-                    mapBag.Add(i); // the lobby is never a round's map
+                if (maps.IsRoundMap(i))
+                    mapBag.Add(i); // PvP maps only, never the lobby
             for (int i = mapBag.Count - 1; i > 0; i--)
             {
                 int j = Random.Range(0, i + 1);

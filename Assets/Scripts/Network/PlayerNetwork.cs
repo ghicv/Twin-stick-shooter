@@ -9,7 +9,8 @@ using UnityEngine;
 // - The host decides what counts: health, death, cores. They are sent to every machine.
 // - Shots: the host spawns the real bullets (they deal the damage); every other machine spawns look-alike
 //   bullets from the same random seed, so they fly the same way but never hurt anyone.
-// - The host gives every player a slot (0-3) that sets its color and where it appears.
+// - The host gives every player a slot (0-3) that sets where it appears (and its color in single player).
+//   On LAN the player has a skin (SkinCatalog): its color and a head accessory.
 public class PlayerNetwork : NetworkBehaviour
 {
     // Player colors by slot (P1-P4).
@@ -29,6 +30,9 @@ public class PlayerNetwork : NetworkBehaviour
     [Tooltip("The owner only sends a new aim when it turned at least this much (degrees).")]
     [SerializeField] private float aimSendThreshold = 0.5f;
 
+    [Tooltip("Shows the skin's accessory (a child of the body, so it squashes with it).")]
+    [SerializeField] private SpriteRenderer accessory;
+
     // The player this machine controls (null before it has spawned).
     public static PlayerNetwork Local { get; private set; }
 
@@ -42,6 +46,7 @@ public class PlayerNetwork : NetworkBehaviour
     private readonly NetworkVariable<float> maxHealth = new NetworkVariable<float>(100f);
     private readonly NetworkVariable<bool> dead = new NetworkVariable<bool>(false);
     private readonly NetworkVariable<bool> ready = new NetworkVariable<bool>(false);
+    private readonly NetworkVariable<int> skin = new NetworkVariable<int>(-1); // -1 = no skin (single player)
     private NetworkList<int> cores;
 
     private PlayerHealth playerHealth;
@@ -53,7 +58,8 @@ public class PlayerNetwork : NetworkBehaviour
     private bool placed;
 
     public int Slot => slot.Value;
-    public Color Color => slot.Value >= 0 ? SlotColor(slot.Value) : Color.white;
+    public Color Color => skin.Value >= 0 && SkinCatalog.Instance != null ? SkinCatalog.Instance.Get(skin.Value).color
+                        : slot.Value >= 0 ? SlotColor(slot.Value) : Color.white;
     public CoreBridge Cores => coreBridge;
     public PlayerRespawn Respawn => respawn;
 
@@ -89,6 +95,7 @@ public class PlayerNetwork : NetworkBehaviour
             health.Value = maxHealth.Value;
         }
         slot.OnValueChanged += OnSlotChanged;
+        skin.OnValueChanged += OnSkinChanged;
         ApplyColor();
 
         // Cores this player already has (joining late), then every new one.
@@ -113,6 +120,7 @@ public class PlayerNetwork : NetworkBehaviour
     {
         All.Remove(this);
         slot.OnValueChanged -= OnSlotChanged;
+        skin.OnValueChanged -= OnSkinChanged;
         cores.OnListChanged -= OnCoresChanged;
         if (Local == this)
             Local = null;
@@ -124,6 +132,8 @@ public class PlayerNetwork : NetworkBehaviour
         if (IsOwner)
             PlaceAtSpawnPoint();
     }
+
+    private void OnSkinChanged(int previous, int current) => ApplyColor();
 
     private void OnCoresChanged(NetworkListEvent<int> change)
     {
@@ -308,10 +318,28 @@ public class PlayerNetwork : NetworkBehaviour
         return 0;
     }
 
+    // Body color (the skin's, else the slot's) and the skin's accessory.
     private void ApplyColor()
     {
-        if (slot.Value >= 0)
+        if (slot.Value >= 0 || skin.Value >= 0)
             playerHealth.SetBodyColor(Color);
+        SkinCatalog.Skin chosen = SkinCatalog.Instance != null ? SkinCatalog.Instance.Get(skin.Value) : null;
+        accessory.sprite = chosen != null ? chosen.accessory : null;
+    }
+
+    // Host, before spawning the player: the skin it picked.
+    public void SetSkinOnHost(int value)
+    {
+        skin.Value = value;
+    }
+
+    // Somebody in the session already wears that skin.
+    public static bool SkinTaken(int value)
+    {
+        foreach (PlayerNetwork player in All)
+            if (player.skin.Value == value)
+                return true;
+        return false;
     }
 
     // Each slot starts at its own spawn point of the current map, spread over the list.

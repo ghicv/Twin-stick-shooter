@@ -6,7 +6,8 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // Main menu: SINGLE PLAYER (waves, a local host nobody can join), HOST LAN or JOIN LAN (by IP, up to 4 players).
-// After hosting or joining, a small lobby panel lists the players (between matches); the host starts the match
+// After hosting or joining, the player picks a skin (SkinPanel) and appears in the lobby map.
+// A small lobby panel lists the players (between matches); the host starts the match
 // (MatchManager). Nobody can join while a match is on. Losing the connection goes back to the menu.
 // Command line (for test builds): -autohost, -autojoin <ip>, -bot (NetTestBot plays by itself).
 public class MainMenu : MonoBehaviour
@@ -24,6 +25,9 @@ public class MainMenu : MonoBehaviour
 
     [Tooltip("Spawned by the host of a LAN game: runs the match (rounds, wins, results).")]
     [SerializeField] private NetworkObject matchManagerPrefab;
+
+    [Tooltip("LAN: shown after hosting or joining; the player spawns once a skin is picked.")]
+    [SerializeField] private SkinPanel skinPanel;
 
     [Tooltip("Single player runs a local host on this port, so it never clashes with a LAN game on the same PC.")]
     [SerializeField] private ushort singlePort = 7779;
@@ -186,7 +190,7 @@ public class MainMenu : MonoBehaviour
         bool playing = MatchManager.Instance != null && MatchManager.Instance.InMatch;
 
         response.Approved = hostItself || (!full && !single && !playing);
-        response.CreatePlayerObject = response.Approved;
+        response.CreatePlayerObject = response.Approved && single; // LAN players spawn after picking a skin
         response.Reason = single ? "THAT GAME IS SINGLE PLAYER"
                         : full ? "ROOM IS FULL (" + maxPlayers + " PLAYERS)"
                         : playing ? "A MATCH IS ALREADY ON - TRY AGAIN LATER" : "";
@@ -225,6 +229,7 @@ public class MainMenu : MonoBehaviour
         lobbyInfoText.text = network.IsServer
             ? "HOSTING - YOUR IP: " + LocalIp() + "\nFRIENDS JOIN WITH THIS IP"
             : "WAITING FOR THE HOST TO START";
+        skinPanel.Show(); // the player appears in the lobby once it picked a skin
     }
 
     private void Update()

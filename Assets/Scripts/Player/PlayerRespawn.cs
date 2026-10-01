@@ -26,7 +26,7 @@ public class PlayerRespawn : MonoBehaviour
     // (picks a card meanwhile). Out: LAN, died after the round was already decided: out until the next round, no card.
     public enum DeathOutcome { Revive = 0, GameOver = 1, Wait = 2, Out = 3 }
 
-    [Tooltip("Falling below this height (world Y) kills the player.")]
+    [Tooltip("Falling below this height (world Y) kills the player, when there is no MapManager (else the map's own).")]
     [SerializeField] private float fallLimitY = -8f;
 
     [Tooltip("While below Fall Limit Y and not dead yet, the fall is reported to the host again this often (seconds).")]
@@ -102,6 +102,8 @@ public class PlayerRespawn : MonoBehaviour
     private bool traveling;
     private float fallReportTimer;
 
+    private float FallLimit => maps != null ? maps.CurrentMap.FallLimitY : fallLimitY;
+
     // True from the moment of death until control is back (the host decides, every machine knows).
     public bool IsDead => net.Dead;
 
@@ -133,7 +135,7 @@ public class PlayerRespawn : MonoBehaviour
     private void FixedUpdate()
     {
         fallReportTimer -= Time.fixedDeltaTime;
-        if (net.IsOwner && fallReportTimer <= 0f && rb.simulated && !IsDead && !traveling && rb.position.y < fallLimitY)
+        if (net.IsOwner && fallReportTimer <= 0f && rb.simulated && !IsDead && !traveling && rb.position.y < FallLimit)
         {
             fallReportTimer = fallReportInterval;
             Die(true);

@@ -3,6 +3,7 @@ using UnityEngine;
 // Gently follows the players: the rig moves only part of the way toward them (Follow Amount), smoothly,
 // and never further than Max Offset from where it started, so the whole arena stays on screen.
 // With more than one player (LAN) the camera also zooms out so every player still in play is on screen.
+// A map can ask for a bigger picture (LevelMap.CameraSize): the big LAN maps are shown whole.
 // Put it on the CameraRig; the CameraShake on the camera inside keeps working on top of it.
 public class CameraFollow : MonoBehaviour
 {
@@ -29,6 +30,7 @@ public class CameraFollow : MonoBehaviour
     [SerializeField] private float zoomSmoothTime = 0.4f;
 
     private Camera cam;
+    private MapManager maps;
     private Vector3 startPosition;
     private float baseSize;
     private Vector3 velocity;
@@ -73,13 +75,17 @@ public class CameraFollow : MonoBehaviour
         // Real time, so the camera keeps following during slow motion (e.g. the respawn pull).
         transform.position = Vector3.SmoothDamp(transform.position, desired, ref velocity, smoothTime, Mathf.Infinity, Time.unscaledDeltaTime);
 
-        // Zoom out just enough to see everyone (single player keeps the normal size).
-        float size = baseSize;
+        // Never smaller than the map asks for (big LAN maps show whole); zoom out just enough to see everyone
+        // (single player keeps that size).
+        if (maps == null)
+            maps = FindAnyObjectByType<MapManager>();
+        float mapSize = maps != null ? Mathf.Max(baseSize, maps.CurrentMap.CameraSize) : baseSize;
+        float size = mapSize;
         if (count > 1)
         {
             float halfHeight = Mathf.Max(Mathf.Abs(max.y - desired.y), Mathf.Abs(min.y - desired.y)) + zoomMargin;
             float halfWidth = Mathf.Max(Mathf.Abs(max.x - desired.x), Mathf.Abs(min.x - desired.x)) + zoomMargin;
-            size = Mathf.Clamp(Mathf.Max(halfHeight, halfWidth / cam.aspect), baseSize, maxSize);
+            size = Mathf.Clamp(Mathf.Max(halfHeight, halfWidth / cam.aspect), mapSize, Mathf.Max(maxSize, mapSize));
         }
         cam.orthographicSize = Mathf.SmoothDamp(cam.orthographicSize, size, ref zoomVelocity, zoomSmoothTime, Mathf.Infinity, Time.unscaledDeltaTime);
     }

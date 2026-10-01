@@ -3,7 +3,8 @@ using UnityEngine.UI;
 
 // Test helper for LAN builds (command line -bot): drives this machine's player by itself (runs left and right,
 // jumps, shoots at the nearest other player, picks the first card when one is offered) and logs every player's
-// position and health once a second, so a session can be checked without anyone at the keyboard.
+// position and health once a second, so a session can be checked without anyone at the keyboard. On the host it
+// also starts the match as soon as it can.
 // MainMenu adds it.
 public class NetTestBot : MonoBehaviour
 {
@@ -12,9 +13,25 @@ public class NetTestBot : MonoBehaviour
 
     private void Update()
     {
+        // Host: start the match once everyone is ready.
+        MatchManager host = MatchManager.Instance;
+        if (host != null && host.IsServer && host.CurrentPhase == MatchManager.Phase.Lobby && host.CanStart)
+            host.StartMatch();
+
         PlayerNetwork local = PlayerNetwork.Local;
         if (local == null)
+        {
+            // LAN: pick the first free skin to get spawned.
+            GameObject skins = GameObject.Find("HUD/SkinPanel/Panel");
+            if (skins != null && skins.activeInHierarchy)
+                foreach (Button button in skins.GetComponentsInChildren<Button>())
+                    if (button.interactable)
+                    {
+                        button.onClick.Invoke();
+                        break;
+                    }
             return;
+        }
 
         var movement = local.GetComponent<PlayerMovement>();
         if (movement.enabled)

@@ -1,8 +1,8 @@
 using UnityEngine;
 
 // Holds every map of the scene and keeps exactly one of them on. Single player starts on Start Map (the waiting
-// screen) and after each cleared wave the WaveManager asks for a random new one. LAN starts on the Lobby Map, and
-// the MatchManager picks the map of every round (SetMap) on all machines.
+// screen) and after each cleared wave the WaveManager asks for a random new wave map. LAN starts on the Lobby Map,
+// and the MatchManager picks the map of every round (SetMap, a PvP map) on all machines.
 public class MapManager : MonoBehaviour
 {
     [Tooltip("Every map (each a LevelMap with its blocks and spawn points under it).")]
@@ -25,16 +25,26 @@ public class MapManager : MonoBehaviour
         SetMap(startMap);
     }
 
+    // Single player: any wave map but the current one (never the lobby or a LAN round map).
     public void ChangeToRandomMap()
     {
-        if (maps.Length < 2)
-            return;
+        var choices = new System.Collections.Generic.List<int>();
+        for (int i = 0; i < maps.Length; i++)
+            if (i != CurrentIndex && i != lobbyMap && !maps[i].Pvp)
+                choices.Add(i);
+        if (choices.Count > 0)
+            SetMap(choices[Random.Range(0, choices.Count)]);
+    }
 
-        int index;
-        do
-            index = Random.Range(0, maps.Length);
-        while (index == CurrentIndex || index == lobbyMap); // any map but the current one and the lobby
-        SetMap(index);
+    // A LAN round can be played on this map (a PvP map; or, if there are none, any map but the lobby).
+    public bool IsRoundMap(int index)
+    {
+        if (index == lobbyMap)
+            return false;
+        foreach (LevelMap map in maps)
+            if (map.Pvp)
+                return maps[index].Pvp;
+        return true;
     }
 
     public void SetMap(int index)
