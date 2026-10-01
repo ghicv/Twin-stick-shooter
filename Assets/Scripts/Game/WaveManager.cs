@@ -143,7 +143,7 @@ public class WaveManager : MonoBehaviour
         }
     }
 
-    // The map is cleared: after a moment the player is taken to a new one (the revive sequence plays on the way).
+    // The map is cleared: after a moment the player is taken to a new one (a fade to black and back).
     private System.Collections.IEnumerator ChangeMap()
     {
         yield return new WaitForSecondsRealtime(mapChangeDelay);

@@ -124,6 +124,9 @@ public class PlayerHealth : MonoBehaviour
     {
         if (!net.IsServer || IsDead || respawn.IsTraveling || invulnerableTimer > 0f)
             return false;
+        MatchManager match = MatchManager.Instance;
+        if (GameMode.IsLan && match != null && match.InMatch && !match.RoundOn)
+            return false; // LAN: nobody gets hurt once the round is decided (bullets still flying)
 
         net.Health = Mathf.Max(0f, Health - amount);
         invulnerableTimer = GameMode.IsLan ? lanInvulnerableTime : invulnerableTime;

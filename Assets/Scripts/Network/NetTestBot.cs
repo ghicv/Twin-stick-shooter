@@ -41,7 +41,8 @@ public class NetTestBot : MonoBehaviour
             Vector2 to = aimAt.transform.position - pivot.position;
             pivot.rotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(to.y, to.x) * Mathf.Rad2Deg);
             shootTimer -= Time.deltaTime;
-            if (shootTimer <= 0f && local.InPlay)
+            bool matchOn = MatchManager.Instance != null && MatchManager.Instance.InMatch; // no shooting in the lobby
+            if (shootTimer <= 0f && local.InPlay && matchOn)
             {
                 shootTimer = 0.25f;
                 Transform firePoint = pivot.Find("FirePoint");
@@ -63,7 +64,11 @@ public class NetTestBot : MonoBehaviour
         if (logTimer <= 0f)
         {
             logTimer = 1f;
-            var line = new System.Text.StringBuilder("[BOT] t=" + Time.time.ToString("F1") + " players=" + PlayerNetwork.All.Count);
+            MatchManager match = MatchManager.Instance;
+            MapManager maps = FindAnyObjectByType<MapManager>();
+            var line = new System.Text.StringBuilder("[BOT] t=" + Time.time.ToString("F1") + " players=" + PlayerNetwork.All.Count +
+                (match != null ? " phase=" + match.CurrentPhase + " round=" + match.Round : " no-match") +
+                " map=" + (maps != null ? maps.CurrentMap.DisplayName : "?"));
             foreach (PlayerNetwork player in PlayerNetwork.All)
                 line.Append(" | P" + (player.Slot + 1) + (player == local ? "(me)" : "") + " pos=" + player.transform.position.ToString("F1") +
                             " hp=" + player.Health.ToString("F0") + (player.Dead ? " DEAD" : "") + " cores=" + player.Cores.OwnedCount);

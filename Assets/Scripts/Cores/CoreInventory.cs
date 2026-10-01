@@ -44,6 +44,12 @@ public class CoreInventory : MonoBehaviour
         Added?.Invoke(type);
     }
 
+    // Loses every core (a new LAN match starts from scratch).
+    public void Clear()
+    {
+        owned.Clear();
+    }
+
     public CoreInfo Info(CoreType type)
     {
         foreach (CoreInfo info in catalog)

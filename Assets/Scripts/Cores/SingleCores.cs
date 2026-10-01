@@ -146,13 +146,19 @@ public class SingleCores : MonoBehaviour
 
     public bool DashUnlocked => Has(CoreType.Dash);
 
-    // Host: Extra Life → true (once per run) = the player comes back instead of losing the run.
+    // Host: Extra Life → true (once per run; on LAN once per round) = the player comes back right away.
     public bool TryUseExtraLife()
     {
         if (!Has(CoreType.ExtraLife) || extraLifeUsed)
             return false;
         extraLifeUsed = true;
         return true;
+    }
+
+    // LAN: a new round.
+    public void ResetForRound()
+    {
+        extraLifeUsed = false;
     }
 
     // Host: Ground Pound: a hard landing throws the targets around the feet away and up.

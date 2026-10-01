@@ -1,16 +1,24 @@
 using UnityEngine;
 
-// Holds every map of the scene and keeps exactly one of them on. The run starts on Start Map;
-// after each cleared wave the WaveManager asks for a new one (random, never the same one twice in a row).
+// Holds every map of the scene and keeps exactly one of them on. Single player starts on Start Map (the waiting
+// screen) and after each cleared wave the WaveManager asks for a random new one. LAN starts on the Lobby Map, and
+// the MatchManager picks the map of every round (SetMap) on all machines.
 public class MapManager : MonoBehaviour
 {
     [Tooltip("Every map (each a LevelMap with its blocks and spawn points under it).")]
     [SerializeField] private LevelMap[] maps;
 
-    [Tooltip("Index of the map the run starts on (the waiting screen with the practice dummies).")]
+    [Tooltip("Index of the map single player starts on (the waiting screen with the practice dummies).")]
     [SerializeField] private int startMap = 0;
 
+    [Tooltip("Index of the LAN lobby map (closed: nobody can fall out). Never used for waves or rounds. -1 = none.")]
+    [SerializeField] private int lobbyMap = -1;
+
     public LevelMap CurrentMap { get; private set; }
+    public int CurrentIndex { get; private set; }
+    public int Count => maps.Length;
+    public int StartMap => startMap;
+    public int LobbyMap => lobbyMap >= 0 ? lobbyMap : startMap;
 
     private void Awake()
     {
@@ -22,15 +30,25 @@ public class MapManager : MonoBehaviour
         if (maps.Length < 2)
             return;
 
-        int current = System.Array.IndexOf(maps, CurrentMap);
-        int index = (current + 1 + Random.Range(0, maps.Length - 1)) % maps.Length; // any map but the current one
+        int index;
+        do
+            index = Random.Range(0, maps.Length);
+        while (index == CurrentIndex || index == lobbyMap); // any map but the current one and the lobby
         SetMap(index);
     }
 
-    private void SetMap(int index)
+    public void SetMap(int index)
     {
         for (int i = 0; i < maps.Length; i++)
             maps[i].gameObject.SetActive(i == index);
         CurrentMap = maps[index];
+        CurrentIndex = index;
+    }
+
+    // Where the player in a slot (0-3) starts on a map: the spawn points spread between the slots.
+    public Vector2 SlotSpawn(int mapIndex, int slot)
+    {
+        Transform[] points = maps[mapIndex].SpawnPoints;
+        return points[(slot * points.Length / 4) % points.Length].position;
     }
 }

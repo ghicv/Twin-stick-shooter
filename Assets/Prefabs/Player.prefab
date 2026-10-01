@@ -309,29 +309,24 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerRespawn
   fallLimitY: -8
+  fallReportInterval: 0.5
   gameOverOnDeath: 1
   spawnPoints: []
   explosionEffect: {fileID: 743854954530274017, guid: 6bbb59183cfbfd54baf3a2462bee678b, type: 3}
   screenMargin: 1.4
   explosionShakeStrength: 0.4
   explosionShakeDuration: 0.35
-  freezeDelay: 0.5
-  slowMotionSpeed: 0.1
-  enterTime: 0.2
-  freezeTime: 0.3
-  crtScreen: {fileID: 0}
+  reviveDelay: 1
   reviveEffect: {fileID: 3666413085092708789, guid: 9371ff975f40649488738c249c823d39, type: 3}
-  reviveDelay: 0.5
-  pullTime: 0.6
-  recoverTime: 0.35
-  arriveEffect: {fileID: 9081391445861028296, guid: 0b9ff28fd5193ae41b0c65a4e96e9881, type: 3}
+  reviveEffectScale: 0.45
+  appearTime: 0.45
+  appearBlinks: 3
+  appearBlinkInterval: 0.06
   effectCleanupTime: 5
   explosionSound: {fileID: 8300000, guid: 46f35f2882f6e1541bf12e3395b964c0, type: 3}
-  timeFreezeSound: {fileID: 8300000, guid: df3be6b64ea65964c916b7c4edbd8e0d, type: 3}
-  gatherSound: {fileID: 8300000, guid: 4eeaccdc2afec9342a1e1738a040d6b9, type: 3}
-  pullSound: {fileID: 8300000, guid: 62422910c4d73f540b8e1fa97455a42f, type: 3}
+  explosionVolume: 0.9
   respawnSound: {fileID: 8300000, guid: 5d21aab0fb735c842a34045bdd67427e, type: 3}
-  soundVolume: 0.8
+  respawnVolume: 0.45
 --- !u!82 &4763005333442338900
 AudioSource:
   m_ObjectHideFlags: 0
@@ -560,11 +555,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerNetwork
   ShowTopMostFoldoutHeaderGroup: 1
-  slotColors:
-  - {r: 1, g: 0.42, b: 0.21, a: 1}
-  - {r: 0.31, g: 0.8, b: 0.77, a: 1}
-  - {r: 1, g: 0.9, b: 0.43, a: 1}
-  - {r: 0.78, g: 0.49, b: 1, a: 1}
   gunPivot: {fileID: 429950332872637155}
   aimSendThreshold: 0.5
 --- !u!114 &5535949982438551314

@@ -127,6 +127,11 @@ public class PlayerWeapon : MonoBehaviour
         UpdateShotFeedback();
         if (net != null && !net.IsOwner)
             return; // another machine's player: only its shot feedback plays here (PlayShotFeedback)
+        if (GameMode.IsLan && (MatchManager.Instance == null || !MatchManager.Instance.InMatch))
+        {
+            holdTime = 0f;
+            return; // no shooting in the LAN lobby
+        }
 
         // New click: may fire right away, but never before the cooldown from the last shot is over.
         if (attackAction.WasPressedThisFrame())

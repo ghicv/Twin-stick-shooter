@@ -3,7 +3,8 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // Card offer: shows up to 3 cores the player doesn't own yet, always at least one bullet core while any is left.
-// Clicking a card gives that core to the player. CoreBridge opens the offer (between waves, or after dying on LAN).
+// Clicking a card gives that core to the player. CoreBridge opens the offer (between waves, or after dying in a
+// LAN round, where a random card is taken when the time runs out).
 [RequireComponent(typeof(AudioSource))]
 public class CoreCards : MonoBehaviour
 {
@@ -35,12 +36,24 @@ public class CoreCards : MonoBehaviour
     [SerializeField] private float pickVolume = 0.6f;
 
     private readonly List<CoreType> offered = new List<CoreType>();
+    [Tooltip("Shows the seconds left when the offer has a time limit (LAN). Optional.")]
+    [SerializeField] private Text timerText;
+
+    [Tooltip("LAN: the panel's dim background is this see-through, so a dead player can watch the fight while choosing.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float lanDimAlpha = 0.35f;
+
     private AudioSource audioSource;
     private System.Action onPicked;
+    private Image dim;
+    private float dimAlpha;
+    private float timeLeft; // > 0: a random card is taken when it runs out
 
     private void Awake()
     {
         audioSource = GetComponent<AudioSource>();
+        dim = panel.GetComponent<Image>();
+        dimAlpha = dim != null ? dim.color.a : 1f;
         panel.SetActive(false);
         for (int i = 0; i < cards.Length; i++)
         {
@@ -51,8 +64,14 @@ public class CoreCards : MonoBehaviour
 
     // Opens an offer for that player's cores; onPicked (optional) runs once a card is clicked.
     // Returns false (and never calls onPicked) when the player already owns every core.
-    public bool Show(CoreBridge cores, System.Action onPicked)
+    // timeLimit > 0: after that many seconds a random card is taken.
+    public bool Show(CoreBridge cores, System.Action onPicked, float timeLimit = 0f)
     {
+        timeLeft = timeLimit;
+        if (timerText != null)
+            timerText.text = "";
+        if (dim != null)
+            dim.color = new Color(dim.color.r, dim.color.g, dim.color.b, GameMode.IsLan ? lanDimAlpha : dimAlpha);
         this.cores = cores;
         inventory = cores.Inventory;
         ChooseOffer();
@@ -114,6 +133,18 @@ public class CoreCards : MonoBehaviour
         }
     }
 
+    private void Update()
+    {
+        if (timeLeft <= 0f || !panel.activeSelf)
+            return;
+
+        timeLeft -= Time.unscaledDeltaTime;
+        if (timerText != null)
+            timerText.text = Mathf.CeilToInt(Mathf.Max(timeLeft, 0f)).ToString();
+        if (timeLeft <= 0f)
+            Pick(Random.Range(0, offered.Count)); // out of time: a random card
+    }
+
     private void Pick(int index)
     {
         if (!panel.activeSelf || index >= offered.Count)
@@ -121,6 +152,7 @@ public class CoreCards : MonoBehaviour
 
         cores.Pick(offered[index]); // the host adds it and tells every machine
         panel.SetActive(false);
+        timeLeft = 0f;
         if (pickSound != null)
             audioSource.PlayOneShot(pickSound, pickVolume);
 

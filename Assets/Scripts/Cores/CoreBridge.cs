@@ -127,12 +127,17 @@ public class CoreBridge : MonoBehaviour
     // Picks a core (asks the host, which tells every machine).
     public void Pick(CoreType type) => net.PickCore(type);
 
-    // LAN: a card offer right now (e.g. after dying). Nothing happens if this player already owns every core.
-    public void OfferCardsNow()
+    // LAN: a card offer right now (after dying in a round); after Time Limit seconds a random card is taken.
+    // False = nothing to offer (this player already owns every core).
+    public bool OfferCardsNow(float timeLimit)
     {
-        if (Cards != null)
-            Cards.Show(this, null);
+        return Cards != null && Cards.Show(this, null, timeLimit);
     }
+
+    public bool OwnsEverything => inventory.Owned.Count >= inventory.Catalog.Length;
+
+    // Host, LAN: a new round starts (once-per-round cores like Extra Life are ready again).
+    public void ResetForRound() => singleCores.ResetForRound();
 
     // Single player: card offers before the first wave. False = none (onDone is not called then).
     public bool OfferCardsAtStart(System.Action onDone) => OfferCards(cardsAtStart, onDone);

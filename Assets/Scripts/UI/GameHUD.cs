@@ -43,7 +43,10 @@ public class GameHUD : MonoBehaviour
     {
         // The player spawns over the network once a game starts.
         PlayerNetwork local = PlayerNetwork.Local;
-        healthFill.transform.parent.gameObject.SetActive(local != null);
+        // No health bar in the LAN lobby (nobody can get hurt there).
+        MatchManager match = MatchManager.Instance;
+        bool inLobby = GameMode.IsLan && (match == null || !match.InMatch);
+        healthFill.transform.parent.gameObject.SetActive(local != null && !inLobby);
         if (local != null)
         {
             PlayerHealth playerHealth = local.GetComponent<PlayerHealth>();
@@ -61,9 +64,16 @@ public class GameHUD : MonoBehaviour
             : "WAVE " + waveManager.Wave;
     }
 
-    // Cores are only ever added during a run, so only the missing icons are made.
+    // Cores are added one by one, so only the missing icons are made; when they were all lost (a new LAN match)
+    // the row starts over.
     private void UpdateCoreIcons(CoreBridge cores)
     {
+        if (coreIcons.Count > cores.OwnedCount)
+        {
+            foreach (Image old in coreIcons)
+                Destroy(old.gameObject);
+            coreIcons.Clear();
+        }
         while (coreIcons.Count < cores.OwnedCount)
         {
             Image icon = Instantiate(coreIconTemplate, coreIconRow);

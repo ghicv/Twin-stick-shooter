@@ -12,14 +12,16 @@ using UnityEngine;
 // - The host gives every player a slot (0-3) that sets its color and where it appears.
 public class PlayerNetwork : NetworkBehaviour
 {
-    [Tooltip("Player colors by slot (P1-P4).")]
-    [SerializeField] private Color[] slotColors =
+    // Player colors by slot (P1-P4).
+    private static readonly Color[] SlotColors =
     {
         new Color(1f, 0.42f, 0.21f),   // orange
         new Color(0.31f, 0.8f, 0.77f), // teal
         new Color(1f, 0.9f, 0.43f),    // yellow
         new Color(0.78f, 0.49f, 1f),   // purple
     };
+
+    public static Color SlotColor(int slot) => SlotColors[slot % SlotColors.Length];
 
     [Tooltip("Rotates toward the aim; its rotation is sent to the other machines.")]
     [SerializeField] private Transform gunPivot;
@@ -39,6 +41,7 @@ public class PlayerNetwork : NetworkBehaviour
     private readonly NetworkVariable<float> health = new NetworkVariable<float>(100f);
     private readonly NetworkVariable<float> maxHealth = new NetworkVariable<float>(100f);
     private readonly NetworkVariable<bool> dead = new NetworkVariable<bool>(false);
+    private readonly NetworkVariable<bool> ready = new NetworkVariable<bool>(false);
     private NetworkList<int> cores;
 
     private PlayerHealth playerHealth;
@@ -50,13 +53,17 @@ public class PlayerNetwork : NetworkBehaviour
     private bool placed;
 
     public int Slot => slot.Value;
-    public Color Color => slot.Value >= 0 ? slotColors[slot.Value % slotColors.Length] : Color.white;
+    public Color Color => slot.Value >= 0 ? SlotColor(slot.Value) : Color.white;
     public CoreBridge Cores => coreBridge;
+    public PlayerRespawn Respawn => respawn;
 
     // Health and death are written by the host only.
     public float Health { get => health.Value; set => health.Value = value; }
     public float MaxHealth { get => maxHealth.Value; set => maxHealth.Value = value; }
     public bool Dead { get => dead.Value; set => dead.Value = value; }
+
+    // Its machine has finished joining (it gets every message from now on). A match only starts when all are ready.
+    public bool Ready => ready.Value;
 
     // Alive and on screen (not exploded / waiting to come back / traveling).
     public bool InPlay => !dead.Value && !respawn.IsTraveling;
@@ -97,6 +104,7 @@ public class PlayerNetwork : NetworkBehaviour
         if (mine)
         {
             Local = this;
+            ReadyRpc(); // this machine is in sync now
             PlaceAtSpawnPoint();
         }
     }
@@ -121,6 +129,17 @@ public class PlayerNetwork : NetworkBehaviour
     {
         if (change.Type == NetworkListEvent<int>.EventType.Add)
             inventory.Add((CoreType)change.Value);
+        else if (change.Type == NetworkListEvent<int>.EventType.Clear)
+            inventory.Clear();
+    }
+
+    // Host: the player loses every core and its max health is back to normal (a new match).
+    public void ClearCoresOnHost()
+    {
+        cores.Clear();
+        inventory.Clear();
+        maxHealth.Value = playerHealth.StartMaxHealth;
+        health.Value = maxHealth.Value;
     }
 
     private void Update()
@@ -227,10 +246,25 @@ public class PlayerNetwork : NetworkBehaviour
     [Rpc(SendTo.Server)]
     private void PickCoreRpc(int type)
     {
+        if (MatchManager.Instance != null)
+            MatchManager.Instance.PickDone(this);
         if (inventory.Has((CoreType)type))
             return;
         inventory.Add((CoreType)type); // right away on the host (the list event adds it everywhere else)
         cores.Add(type);
+    }
+
+    // Owner: nothing to pick (owns every core already).
+    [Rpc(SendTo.Server)]
+    private void ReadyRpc() => ready.Value = true;
+
+    public void ReportPickSkipped() => PickSkippedRpc();
+
+    [Rpc(SendTo.Server)]
+    private void PickSkippedRpc()
+    {
+        if (MatchManager.Instance != null)
+            MatchManager.Instance.PickDone(this);
     }
 
     // ---------- Death (host → machines) ----------

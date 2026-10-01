@@ -6,7 +6,8 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // Main menu: SINGLE PLAYER (waves, a local host nobody can join), HOST LAN or JOIN LAN (by IP, up to 4 players).
-// After hosting or joining, a small lobby panel lists the players. Losing the connection goes back to the menu.
+// After hosting or joining, a small lobby panel lists the players (between matches); the host starts the match
+// (MatchManager). Nobody can join while a match is on. Losing the connection goes back to the menu.
 // Command line (for test builds): -autohost, -autojoin <ip>, -bot (NetTestBot plays by itself).
 public class MainMenu : MonoBehaviour
 {
@@ -18,6 +19,11 @@ public class MainMenu : MonoBehaviour
 
     [Tooltip("LAN games use this port (open it in the firewall).")]
     [SerializeField] private ushort port = 7777;
+
+    [SerializeField] private MapManager maps;
+
+    [Tooltip("Spawned by the host of a LAN game: runs the match (rounds, wins, results).")]
+    [SerializeField] private NetworkObject matchManagerPrefab;
 
     [Tooltip("Single player runs a local host on this port, so it never clashes with a LAN game on the same PC.")]
     [SerializeField] private ushort singlePort = 7779;
@@ -39,10 +45,25 @@ public class MainMenu : MonoBehaviour
     [SerializeField] private Text lobbyInfoText;
     [SerializeField] private Button leaveButton;
 
+    [Tooltip("Host only: starts the match (needs at least 2 players).")]
+    [SerializeField] private Button startMatchButton;
+
+    [Tooltip("Shrinks the lobby panel to its title bar (and back).")]
+    [SerializeField] private Button collapseButton;
+
+    [Tooltip("Everything under the title: hidden while the panel is collapsed.")]
+    [SerializeField] private GameObject lobbyBody;
+
+    [Tooltip("Panel height while collapsed (UI pixels).")]
+    [SerializeField] private float collapsedHeight = 76f;
+
     private const string LastIpKey = "LastJoinIp";
 
     // Shown on the menu after the scene was reloaded (e.g. why the connection was lost).
     private static string pendingMessage;
+
+    private bool inLobby; // connected on LAN (the lobby panel itself hides during a match)
+    private float lobbyPanelHeight;
 
     private void Awake()
     {
@@ -58,6 +79,9 @@ public class MainMenu : MonoBehaviour
         hostButton.onClick.AddListener(HostLan);
         joinButton.onClick.AddListener(() => JoinLan(ipInput.text.Trim()));
         leaveButton.onClick.AddListener(() => GameMode.Restart(false));
+        startMatchButton.onClick.AddListener(() => MatchManager.Instance.StartMatch());
+        collapseButton.onClick.AddListener(ToggleLobbyPanel);
+        lobbyPanelHeight = ((RectTransform)lobbyPanel.transform).sizeDelta.y;
 
         network.ConnectionApprovalCallback = ApproveConnection;
         network.OnClientConnectedCallback += OnClientConnected;
@@ -110,12 +134,14 @@ public class MainMenu : MonoBehaviour
     private void HostLan()
     {
         GameMode.Current = GameMode.Mode.Lan;
+        maps.SetMap(maps.LobbyMap); // LAN players arrive in the lobby
         transport.SetConnectionData("127.0.0.1", port, "0.0.0.0"); // listen on every network card
         if (!network.StartHost())
         {
             Fail("COULD NOT HOST (PORT " + port + " IN USE?)");
             return;
         }
+        Instantiate(matchManagerPrefab).Spawn(); // every machine (also the ones joining later) gets the match
         ShowLobby();
     }
 
@@ -126,6 +152,7 @@ public class MainMenu : MonoBehaviour
 
         PlayerPrefs.SetString(LastIpKey, ip);
         GameMode.Current = GameMode.Mode.Lan;
+        maps.SetMap(maps.LobbyMap); // LAN players arrive in the lobby
         transport.SetConnectionData(ip, port);
         if (!network.StartClient())
         {
@@ -156,10 +183,13 @@ public class MainMenu : MonoBehaviour
         bool hostItself = request.ClientNetworkId == NetworkManager.ServerClientId;
         bool full = network.ConnectedClientsIds.Count >= maxPlayers;
         bool single = GameMode.Current == GameMode.Mode.Single;
+        bool playing = MatchManager.Instance != null && MatchManager.Instance.InMatch;
 
-        response.Approved = hostItself || (!full && !single);
+        response.Approved = hostItself || (!full && !single && !playing);
         response.CreatePlayerObject = response.Approved;
-        response.Reason = single ? "THAT GAME IS SINGLE PLAYER" : full ? "ROOM IS FULL (" + maxPlayers + " PLAYERS)" : "";
+        response.Reason = single ? "THAT GAME IS SINGLE PLAYER"
+                        : full ? "ROOM IS FULL (" + maxPlayers + " PLAYERS)"
+                        : playing ? "A MATCH IS ALREADY ON - TRY AGAIN LATER" : "";
     }
 
     private void OnClientConnected(ulong clientId)
@@ -178,19 +208,37 @@ public class MainMenu : MonoBehaviour
         GameMode.Restart(false);
     }
 
+    // The lobby panel's "-" / "+" button: only the title bar, or everything.
+    private void ToggleLobbyPanel()
+    {
+        bool collapse = lobbyBody.activeSelf;
+        lobbyBody.SetActive(!collapse);
+        var rect = (RectTransform)lobbyPanel.transform;
+        rect.sizeDelta = new Vector2(rect.sizeDelta.x, collapse ? collapsedHeight : lobbyPanelHeight);
+        collapseButton.GetComponentInChildren<Text>().text = collapse ? "+" : "-";
+    }
+
     private void ShowLobby()
     {
         menuPanel.SetActive(false);
-        lobbyPanel.SetActive(true);
+        inLobby = true;
         lobbyInfoText.text = network.IsServer
             ? "HOSTING - YOUR IP: " + LocalIp() + "\nFRIENDS JOIN WITH THIS IP"
-            : "CONNECTED";
+            : "WAITING FOR THE HOST TO START";
     }
 
     private void Update()
     {
-        if (!lobbyPanel.activeSelf)
+        // The lobby panel is up between matches only.
+        MatchManager match = MatchManager.Instance;
+        bool show = inLobby && (match == null || !match.InMatch);
+        if (lobbyPanel.activeSelf != show)
+            lobbyPanel.SetActive(show);
+        if (!show)
             return;
+
+        startMatchButton.gameObject.SetActive(network.IsServer);
+        startMatchButton.interactable = match != null && match.CanStart;
 
         var lines = new System.Text.StringBuilder();
         lines.AppendLine("PLAYERS " + PlayerNetwork.All.Count + "/" + maxPlayers);

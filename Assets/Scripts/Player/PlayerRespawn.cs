@@ -1,23 +1,20 @@
 using System.Collections;
 using UnityEngine;
 
-// The player's two retro "teleport" sequences. Both share the same revive: pixels gather where the player is
-// (with a sound), the player reappears where they meet, waits a moment (Revive Delay), is pulled to a spawn point,
-// and then the picture, game speed and control come back.
+// Death and coming back, kept short and quiet.
+// Coming back ("appear"): a few pixels gather at the spawn point (with a soft sound), then the player blinks in
+// there and has control again.
 //
 // Death (falling off the map, or 0 health). The host decides (the owner only reports a fall), then every machine
-// plays it:
-// 1. The player explodes where it fell out of view.
-//    Single player with Game Over On Death: the Game Over screen shows up right away (unless an Extra Life core
-//    saves the run). On LAN the player gets a card offer right away.
-// 2. The game keeps running for a moment (Freeze Delay); then on the dead player's own screen time freezes
-//    (single player only) and the screen curves (CRT / fish-eye).
-// 3. The revive brings the player back.
+// plays it: the player explodes where it fell out of view, then
+// - single player with Game Over On Death: the Game Over screen shows up right away (unless an Extra Life core
+//   saves the run);
+// - LAN round: the player is out until the next round and picks a card meanwhile;
+// - otherwise it appears at a spawn point after Revive Delay.
 //
-// Map change (single player, WaveManager calls TravelToNewMap after a cleared wave):
-// 1. Time freezes and the CRT look comes on; the player bursts into pixels.
-// 2. The map is swapped behind the CRT picture.
-// 3. The revive brings the player back on the new map (at one of its spawn points).
+// Map change (single player: WaveManager calls TravelToNewMap after a cleared wave; LAN: MatchManager calls
+// BeginRoundTravel / ArriveForRound on every player at the start of a round): the screen fades to black, the map
+// is swapped, and the player appears at a spawn point of the new map while the screen fades back in.
 //
 // Meanwhile the player's physics, movement and gun are off. All timings are real seconds.
 [RequireComponent(typeof(Rigidbody2D))]
@@ -25,10 +22,15 @@ using UnityEngine;
 public class PlayerRespawn : MonoBehaviour
 {
     // What happens after a death (sent by the host to every machine).
-    public enum DeathOutcome { Revive = 0, GameOver = 1 }
+    // Revive: back after a moment. GameOver: single player run lost. Wait: LAN round, out until the next round
+    // (picks a card meanwhile). Out: LAN, died after the round was already decided: out until the next round, no card.
+    public enum DeathOutcome { Revive = 0, GameOver = 1, Wait = 2, Out = 3 }
 
     [Tooltip("Falling below this height (world Y) kills the player.")]
     [SerializeField] private float fallLimitY = -8f;
+
+    [Tooltip("While below Fall Limit Y and not dead yet, the fall is reported to the host again this often (seconds).")]
+    [SerializeField] private float fallReportInterval = 0.5f;
 
     [Tooltip("Single player: dying ends the run and the Game Over screen (GameOverScreen in the scene) shows up " +
              "right away. Off, or no Game Over screen in the scene: the player respawns.")]
@@ -38,71 +40,49 @@ public class PlayerRespawn : MonoBehaviour
     [SerializeField] private Transform[] spawnPoints;
 
     [Header("Death")]
-    [Tooltip("Pixel explosion spawned where the player died (and where it bursts on a map change). " +
-             "It is kept inside the screen so it can be seen.")]
+    [Tooltip("Pixel explosion spawned where the player died. It is kept inside the screen so it can be seen.")]
     [SerializeField] private ParticleSystem explosionEffect;
 
-    [Tooltip("How far inside the screen edge the explosion (and the reappearing player) is placed (units).")]
+    [Tooltip("How far inside the screen edge the explosion is placed (units).")]
     [SerializeField] private float screenMargin = 1.4f;
 
     [SerializeField] private float explosionShakeStrength = 0.4f;
     [SerializeField] private float explosionShakeDuration = 0.35f;
 
-    [Tooltip("Seconds after the explosion before time freezes. The game keeps running at normal speed until then.")]
-    [SerializeField] private float freezeDelay = 0.5f;
+    [Tooltip("Seconds between the explosion and the player appearing again (when it comes back).")]
+    [SerializeField] private float reviveDelay = 1f;
 
-    [Header("Time Freeze")]
-    [Tooltip("Game speed while time is frozen (1 = normal, single player only). Needs a HitStop on the main camera.")]
-    [Range(0.01f, 1f)]
-    [SerializeField] private float slowMotionSpeed = 0.1f;
-
-    [Tooltip("Seconds for the game to slow down and the CRT / fish-eye look to switch on.")]
-    [SerializeField] private float enterTime = 0.2f;
-
-    [Tooltip("Seconds the frozen moment lasts (explosion hanging in the air) before the pixels start to gather.")]
-    [SerializeField] private float freezeTime = 0.3f;
-
-    [Tooltip("CRT / fish-eye screen effect used while time is frozen. Empty = the one on the main camera.")]
-    [SerializeField] private CRTScreen crtScreen;
-
-    [Header("Revive")]
-    [Tooltip("Pixels that gather where the player exploded; the player reappears when they meet, i.e. after the " +
-             "particles' Start Lifetime. It should use Unscaled Time so it plays at full speed during the slow motion. Optional.")]
+    [Header("Appear")]
+    [Tooltip("Pixels gathering at the spawn point. It should use Unscaled Time. Optional.")]
     [SerializeField] private ParticleSystem reviveEffect;
 
-    [Tooltip("Seconds the player stays where it reappeared before it is pulled to the spawn point.")]
-    [SerializeField] private float reviveDelay = 0.5f;
+    [Tooltip("Size of that effect (1 = as made).")]
+    [SerializeField] private float reviveEffectScale = 0.45f;
 
-    [Tooltip("Seconds the player takes to travel from where it reappeared to the spawn point.")]
-    [SerializeField] private float pullTime = 0.6f;
+    [Tooltip("Seconds the pixels gather before the player shows up.")]
+    [SerializeField] private float appearTime = 0.35f;
 
-    [Tooltip("Seconds for the picture and the game speed to get back to normal after arriving. Then control is back.")]
-    [SerializeField] private float recoverTime = 0.35f;
+    [Tooltip("The player blinks this many times while it shows up.")]
+    [SerializeField] private int appearBlinks = 3;
 
-    [Tooltip("Spawned at the player when it arrives at the spawn point (e.g. DustPuff). Optional.")]
-    [SerializeField] private ParticleSystem arriveEffect;
+    [Tooltip("Seconds each blink (shown / hidden) lasts.")]
+    [SerializeField] private float appearBlinkInterval = 0.06f;
 
-    [Tooltip("Death effects are removed after this many seconds.")]
+    [Tooltip("Effects are removed after this many seconds.")]
     [SerializeField] private float effectCleanupTime = 5f;
 
     [Header("Sound")]
-    [Tooltip("Played when the player explodes (death only).")]
+    [Tooltip("Played when the player explodes.")]
     [SerializeField] private AudioClip explosionSound;
 
-    [Tooltip("Played when time starts to freeze.")]
-    [SerializeField] private AudioClip timeFreezeSound;
+    [Range(0f, 1f)]
+    [SerializeField] private float explosionVolume = 0.9f;
 
-    [Tooltip("Played while the pixels gather. Best ending on a blip right when the player reappears (as long as the gather effect).")]
-    [SerializeField] private AudioClip gatherSound;
-
-    [Tooltip("Played while the player is pulled to the spawn point (best about as long as Pull Time).")]
-    [SerializeField] private AudioClip pullSound;
-
-    [Tooltip("Played when the player arrives at the spawn point.")]
+    [Tooltip("Played softly when the player appears.")]
     [SerializeField] private AudioClip respawnSound;
 
     [Range(0f, 1f)]
-    [SerializeField] private float soundVolume = 0.9f;
+    [SerializeField] private float respawnVolume = 0.45f;
 
     private Rigidbody2D rb;
     private AudioSource audioSource;
@@ -115,14 +95,12 @@ public class PlayerRespawn : MonoBehaviour
     private SpriteRenderer[] sprites;
     private Camera cam;
     private CameraShake cameraShake;
-    private HitStop hitStop;
     private GameOverScreen gameOverScreen;
     private MapManager maps;
     private Vector2 startPosition;
     private Transform lastSpawnPoint;
-    private float gameSpeed = 1f;
     private bool traveling;
-    private bool fallReported;
+    private float fallReportTimer;
 
     // True from the moment of death until control is back (the host decides, every machine knows).
     public bool IsDead => net.Dead;
@@ -144,20 +122,20 @@ public class PlayerRespawn : MonoBehaviour
         startPosition = rb.position;
 
         cam = Camera.main;
-        cameraShake = cam.GetComponent<CameraShake>(); // null → no shake
-        hitStop = cam.GetComponent<HitStop>();         // null → no slow motion
-        if (crtScreen == null)
-            crtScreen = cam.GetComponent<CRTScreen>(); // null → no CRT look
+        cameraShake = cam.GetComponent<CameraShake>();          // null → no shake
         gameOverScreen = FindAnyObjectByType<GameOverScreen>(); // null → respawn instead
         maps = FindAnyObjectByType<MapManager>();               // null → Spawn Points above
     }
 
-    // The machine that moves this player watches for falls off the map.
+    // The machine that moves this player watches for falls off the map. It keeps reporting (every Fall Report
+    // Interval) until the host has handled it: the host ignores a report while it is busy with this player
+    // (e.g. a travel), and a single report would then be lost.
     private void FixedUpdate()
     {
-        if (net.IsOwner && !fallReported && !IsDead && !traveling && rb.position.y < fallLimitY)
+        fallReportTimer -= Time.fixedDeltaTime;
+        if (net.IsOwner && fallReportTimer <= 0f && rb.simulated && !IsDead && !traveling && rb.position.y < fallLimitY)
         {
-            fallReported = true;
+            fallReportTimer = fallReportInterval;
             Die(true);
         }
     }
@@ -186,8 +164,19 @@ public class PlayerRespawn : MonoBehaviour
             killer.OnEnemyDied(target, rb.position, fellOff);
 
         DeathOutcome outcome = DeathOutcome.Revive;
-        if (!GameMode.IsLan && gameOverOnDeath && gameOverScreen != null && !(cores != null && cores.TryUseExtraLife()))
+        MatchManager match = MatchManager.Instance;
+        bool extraLife = cores != null && cores.TryUseExtraLife();
+        if (!GameMode.IsLan && gameOverOnDeath && gameOverScreen != null && !extraLife)
             outcome = DeathOutcome.GameOver;
+        else if (GameMode.IsLan && match != null && match.RoundOn && !extraLife)
+        {
+            outcome = DeathOutcome.Wait; // out of this round (picks a card meanwhile)
+            match.OnPlayerDiedInRound(net);
+        }
+        else if (GameMode.IsLan && match != null && match.InMatch)
+        {
+            outcome = DeathOutcome.Out; // the round is already decided (e.g. fell off afterwards): no card
+        }
 
         net.PlayDeath(rb.position, (int)outcome, PickSpawnPoint());
     }
@@ -198,8 +187,45 @@ public class PlayerRespawn : MonoBehaviour
         StartCoroutine(DieRoutine(point, (DeathOutcome)outcome, spawn));
     }
 
-    // Single player: takes the player to another map: freeze, burst into pixels, changeMap() swaps the map behind
-    // the CRT picture, then the revive brings the player back there. onArrived runs once control is back.
+    private IEnumerator DieRoutine(Vector2 point, DeathOutcome outcome, Vector2 spawn)
+    {
+        // The player explodes.
+        if (net.IsOwner)
+            TakeControlAway();
+        Vector3 deathPoint = CameraView.ClampInside(cam, point, screenMargin);
+        if (net.IsOwner)
+            transform.position = deathPoint; // physics is off, so moving the transform is fine
+        SetVisible(false);
+        SpawnEffect(explosionEffect, deathPoint, Quaternion.Euler(0f, 0f, 90f), 1f); // burst points up, into the arena
+        if (cameraShake != null)
+            cameraShake.Shake(explosionShakeStrength, explosionShakeDuration);
+        PlaySound(explosionSound, explosionVolume);
+
+        if (outcome == DeathOutcome.GameOver)
+        {
+            if (net.IsOwner)
+                gameOverScreen.Show();
+            yield break;
+        }
+        if (outcome == DeathOutcome.Wait)
+        {
+            // Out until the next round; the player picks a core while watching (with a time limit).
+            MatchManager match = MatchManager.Instance;
+            if (net.IsOwner && !(cores != null && cores.OfferCardsNow(match != null ? match.CardTime : 10f)))
+                net.ReportPickSkipped();
+            yield break;
+        }
+        if (outcome == DeathOutcome.Out)
+            yield break; // back with everybody at the next round
+
+        yield return new WaitForSecondsRealtime(reviveDelay);
+        yield return Appear(spawn, true);
+    }
+
+    // ---------- Map changes ----------
+
+    // Single player: the screen fades to black, changeMap() swaps the map, and the player appears on it while the
+    // screen fades back in. onArrived runs once control is back.
     public void TravelToNewMap(System.Action changeMap, System.Action onArrived)
     {
         if (IsDead || traveling)
@@ -208,59 +234,81 @@ public class PlayerRespawn : MonoBehaviour
         StartCoroutine(TravelRoutine(changeMap, onArrived));
     }
 
-    private IEnumerator DieRoutine(Vector2 point, DeathOutcome outcome, Vector2 spawn)
-    {
-        // 1. The player explodes; the game keeps running for a moment.
-        if (net.IsOwner)
-            TakeControlAway();
-        Vector3 deathPoint = CameraView.ClampInside(cam, point, screenMargin);
-        if (net.IsOwner)
-            transform.position = deathPoint; // physics is off, so moving the transform is fine
-        SetVisible(false);
-        SpawnEffect(explosionEffect, deathPoint, Quaternion.Euler(0f, 0f, 90f)); // burst points up, into the arena
-        if (cameraShake != null)
-            cameraShake.Shake(explosionShakeStrength, explosionShakeDuration);
-        PlaySound(explosionSound);
-
-        // Single player: the run is over. The Game Over screen shows up right away (no screen effect).
-        if (outcome == DeathOutcome.GameOver)
-        {
-            if (net.IsOwner)
-                gameOverScreen.Show();
-            yield break;
-        }
-
-        // LAN: a dead player picks a core while it comes back.
-        if (net.IsOwner && GameMode.IsLan && cores != null)
-            cores.OfferCardsNow();
-
-        yield return new WaitForSecondsRealtime(freezeDelay);
-
-        // 2. Time freezes (single player) and the dead player's screen curves.
-        yield return FreezeTime(net.IsOwner);
-
-        // 3. The player comes back.
-        yield return Revive(spawn, true);
-    }
-
     private IEnumerator TravelRoutine(System.Action changeMap, System.Action onArrived)
     {
-        // 1. Time freezes; the player bursts into pixels.
         traveling = true;
         TakeControlAway();
-        Vector3 point = CameraView.ClampInside(cam, rb.position, screenMargin);
-        transform.position = point;
-        SetVisible(false);
-        SpawnEffect(explosionEffect, point, Quaternion.Euler(0f, 0f, 90f));
-        yield return FreezeTime(true);
+        ScreenFade fade = ScreenFade.Instance;
+        if (fade != null)
+            yield return fade.FadeOut();
 
-        // 2. New map, behind the CRT picture.
         changeMap?.Invoke();
+        Coroutine appear = StartCoroutine(Appear(PickSpawnPoint(), false));
+        if (fade != null)
+            yield return fade.FadeIn();
+        yield return appear;
 
-        // 3. The player comes back on it.
-        yield return Revive(PickSpawnPoint(), false);
         traveling = false;
         onArrived?.Invoke();
+    }
+
+    // LAN, start of a round, every machine for every player (MatchManager fades the screen and swaps the map
+    // in between): first the player stops where it is...
+    public void BeginRoundTravel()
+    {
+        StopAllCoroutines(); // a death that is still playing
+        traveling = true;
+        if (net.IsOwner)
+            TakeControlAway();
+    }
+
+    // ...then, on the new map, it appears at its spawn point with full health (the dead come back too).
+    public void ArriveForRound(Vector2 spawn)
+    {
+        StartCoroutine(ArriveRoutine(spawn));
+    }
+
+    private IEnumerator ArriveRoutine(Vector2 spawn)
+    {
+        yield return Appear(spawn, true);
+        traveling = false;
+    }
+
+    // ---------- Appear ----------
+
+    // The player (hidden) is put at the spawn point; pixels gather there, it blinks in and has control again
+    // (the owner moves it, the other machines follow through the network).
+    // afterDeath = tell the host the player is back (full health, alive again).
+    private IEnumerator Appear(Vector2 spawn, bool afterDeath)
+    {
+        bool mine = net.IsOwner;
+        SetVisible(false);
+        if (mine)
+        {
+            transform.position = spawn;
+            rb.position = spawn;
+            rb.linearVelocity = Vector2.zero;
+        }
+
+        SpawnEffect(reviveEffect, spawn, Quaternion.identity, reviveEffectScale);
+        PlaySound(respawnSound, respawnVolume);
+        yield return new WaitForSecondsRealtime(appearTime);
+
+        for (int i = 0; i < appearBlinks * 2; i++)
+        {
+            SetVisible(i % 2 == 0);
+            yield return new WaitForSecondsRealtime(appearBlinkInterval);
+        }
+        SetVisible(true);
+
+        if (mine)
+        {
+            rb.simulated = true;
+            movement.enabled = true;
+            weapon.enabled = true;
+            if (afterDeath)
+                net.ReportRevived();
+        }
     }
 
     // No physics, no input, no shooting.
@@ -270,82 +318,6 @@ public class PlayerRespawn : MonoBehaviour
         rb.linearVelocity = Vector2.zero;
         movement.enabled = false;
         weapon.enabled = false;
-    }
-
-    // The game slows almost to a stop (single player) and, on this player's own screen, curves (CRT / fish-eye);
-    // then the frozen moment lasts a bit.
-    private IEnumerator FreezeTime(bool ownScreen)
-    {
-        if (ownScreen)
-            PlaySound(timeFreezeSound);
-        float speedFrom = gameSpeed;
-        float crtFrom = crtScreen != null ? crtScreen.Intensity : 0f;
-        for (float t = 0f; t < enterTime; t += Time.unscaledDeltaTime)
-        {
-            SetSpeed(Mathf.Lerp(speedFrom, slowMotionSpeed, t / enterTime));
-            if (ownScreen)
-                SetCrt(Mathf.Lerp(crtFrom, 1f, t / enterTime));
-            yield return null;
-        }
-        SetSpeed(slowMotionSpeed);
-        if (ownScreen)
-            SetCrt(1f);
-        yield return new WaitForSecondsRealtime(freezeTime);
-    }
-
-    // Pixels gather where the player is; the player reappears, is pulled to the spawn point (the owner moves it,
-    // the other machines follow through the network), and everything goes back to normal.
-    // afterDeath = tell the host the player is back (full health, alive again).
-    private IEnumerator Revive(Vector2 spawn, bool afterDeath)
-    {
-        bool mine = net.IsOwner;
-        if (reviveEffect != null)
-        {
-            SpawnEffect(reviveEffect, transform.position, Quaternion.identity);
-            PlaySound(gatherSound);
-            yield return new WaitForSecondsRealtime(reviveEffect.main.startLifetime.constantMax);
-        }
-        SetVisible(true);
-        yield return new WaitForSecondsRealtime(reviveDelay);
-
-        // Pulled to the spawn point (eases in and out).
-        PlaySound(pullSound);
-        Vector3 from = transform.position;
-        Vector3 to = spawn;
-        for (float t = 0f; t < pullTime; t += Time.unscaledDeltaTime)
-        {
-            if (mine)
-                transform.position = Vector3.Lerp(from, to, Mathf.SmoothStep(0f, 1f, t / pullTime));
-            yield return null;
-        }
-        if (mine)
-        {
-            transform.position = to;
-            rb.position = to;
-            rb.linearVelocity = Vector2.zero;
-            rb.simulated = true;
-            fallReported = false;
-        }
-        SpawnEffect(arriveEffect, to, Quaternion.identity);
-        PlaySound(respawnSound);
-        if (afterDeath && mine)
-            net.ReportRevived();
-
-        // Picture and game speed ease back to normal, then control is back.
-        for (float t = 0f; t < recoverTime; t += Time.unscaledDeltaTime)
-        {
-            SetSpeed(Mathf.Lerp(slowMotionSpeed, 1f, t / recoverTime));
-            if (mine)
-                SetCrt(1f - t / recoverTime);
-            yield return null;
-        }
-        SetSpeed(1f);
-        if (mine)
-        {
-            SetCrt(0f);
-            movement.enabled = true;
-            weapon.enabled = true;
-        }
     }
 
     // A random spawn point (never the same one twice in a row). On LAN: the one farthest from the other players.
@@ -381,43 +353,28 @@ public class PlayerRespawn : MonoBehaviour
         return points[index].position;
     }
 
-    // Slow motion is for single player only: on LAN the game speed is shared by everybody on the host.
-    private void SetSpeed(float speed)
-    {
-        if (GameMode.IsLan)
-            return;
-        gameSpeed = speed;
-        if (hitStop != null)
-            hitStop.SetSlowMotion(speed);
-    }
-
-    private void SetCrt(float intensity)
-    {
-        if (crtScreen != null)
-            crtScreen.Intensity = intensity;
-    }
-
     private void SetVisible(bool visible)
     {
         foreach (SpriteRenderer sprite in sprites)
             sprite.enabled = visible;
     }
 
-    private void SpawnEffect(ParticleSystem prefab, Vector3 position, Quaternion rotation)
+    private void SpawnEffect(ParticleSystem prefab, Vector3 position, Quaternion rotation, float scale)
     {
         if (prefab == null)
             return;
 
         ParticleSystem effect = Instantiate(prefab, position, rotation);
+        effect.transform.localScale = Vector3.one * scale;
         Destroy(effect.gameObject, effectCleanupTime);
     }
 
-    private void PlaySound(AudioClip clip)
+    private void PlaySound(AudioClip clip, float volume)
     {
         if (clip == null)
             return;
 
         audioSource.pitch = 1f; // PlayerWeapon changes the pitch for every shot
-        audioSource.PlayOneShot(clip, soundVolume);
+        audioSource.PlayOneShot(clip, volume);
     }
 }
