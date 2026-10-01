@@ -6,6 +6,7 @@ using UnityEngine.InputSystem;
 // Horizontal speed eases toward the target speed every physics step: it reacts right away,
 // then settles gently at full speed or at a stop, so there are no hard corners in the motion.
 // Every jump (ground, wall and double jump) plays the jump sound; only hard landings play the landing sound.
+// Cores (CoreBridge, optional) can add air jumps, unlock a Shift dash and react to hard landings.
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(AudioSource))]
 public class PlayerMovement : MonoBehaviour
@@ -78,6 +79,16 @@ public class PlayerMovement : MonoBehaviour
              "Collision with that platform stays off at least this long, and until the player is out of it (seconds).")]
     [SerializeField] private float dropThroughTime = 0.25f;
 
+    [Header("Dash (only with the Dash core)")]
+    [Tooltip("Shift dashes this fast, straight sideways, toward A/D (or the way you last moved) (units/sec).")]
+    [SerializeField] private float dashSpeed = 22f;
+
+    [Tooltip("Seconds a dash lasts. The player can't be hurt meanwhile.")]
+    [SerializeField] private float dashTime = 0.15f;
+
+    [Tooltip("Seconds from one dash to the next.")]
+    [SerializeField] private float dashCooldown = 0.8f;
+
     [Header("Squash & Stretch")]
     [Tooltip("Body sprite that gets squashed and stretched (visual only, the collider doesn't change).")]
     [SerializeField] private Transform body;
@@ -128,8 +139,16 @@ public class PlayerMovement : MonoBehaviour
     private Rigidbody2D rb;
     private Collider2D bodyCollider;
     private AudioSource audioSource;
+    private CoreBridge cores;
+    private PlayerHealth health;
     private InputAction moveAction;
     private InputAction jumpAction;
+    private InputAction dashAction;
+    private bool dashRequested;
+    private float dashTimer;         // > 0 while dashing
+    private float dashCooldownTimer;
+    private int dashDirection;
+    private int facing = 1;          // the way the player last moved: 1 = right, -1 = left
     private float baseGravityScale;
 
     private float moveInput;        // -1 = left, 0 = none, 1 = right
@@ -162,16 +181,22 @@ public class PlayerMovement : MonoBehaviour
 
     private Vector2 FeetPosition => new Vector2(rb.position.x, bodyCollider.bounds.min.y);
 
+    // Air jumps per landing, plus the ones cores give.
+    private int TotalAirJumps => airJumps + (cores != null ? cores.ExtraAirJumps : 0);
+
     private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
         bodyCollider = GetComponent<Collider2D>();
         audioSource = GetComponent<AudioSource>();
+        cores = FindAnyObjectByType<CoreBridge>(); // null → no cores
+        health = GetComponent<PlayerHealth>();     // null → a dash gives no protection
         baseGravityScale = rb.gravityScale;
 
         // Actions come from the project-wide input asset: Assets/InputSystem_Actions.inputactions
         moveAction = InputSystem.actions.FindAction("Player/Move");
         jumpAction = InputSystem.actions.FindAction("Player/Jump");
+        dashAction = InputSystem.actions.FindAction("Player/Sprint"); // Left Shift
 
         groundFilter.SetNormalAngle(45f, 135f);
 
@@ -190,6 +215,10 @@ public class PlayerMovement : MonoBehaviour
 
         if (jumpAction.WasPressedThisFrame())
             jumpBufferTimer = jumpBufferTime;
+        if (dashAction != null && dashAction.WasPressedThisFrame())
+            dashRequested = true;
+        if (moveInput != 0f)
+            facing = moveInput > 0f ? 1 : -1;
 
         UpdateSquashStretch();
     }
@@ -198,6 +227,23 @@ public class PlayerMovement : MonoBehaviour
     {
         UpdateGrounded();
         UpdateWall();
+
+        // Dash (Dash core): straight sideways, no gravity, nothing else happens meanwhile.
+        dashCooldownTimer -= Time.fixedDeltaTime;
+        if (dashRequested)
+        {
+            dashRequested = false;
+            if (cores != null && cores.DashUnlocked && dashCooldownTimer <= 0f && dashTimer <= 0f)
+                StartDash();
+        }
+        if (dashTimer > 0f)
+        {
+            dashTimer -= Time.fixedDeltaTime;
+            rb.gravityScale = 0f;
+            rb.linearVelocity = new Vector2(dashDirection * dashSpeed, 0f);
+            lastVelocityY = 0f;
+            return;
+        }
 
         wallJumpTimer -= Time.fixedDeltaTime;
         Run();
@@ -259,7 +305,7 @@ public class PlayerMovement : MonoBehaviour
         if (IsGrounded)
         {
             coyoteTimer = coyoteTime;
-            airJumpsLeft = airJumps;
+            airJumpsLeft = TotalAirJumps;
 
             if (!wasGrounded)
             {
@@ -272,7 +318,11 @@ public class PlayerMovement : MonoBehaviour
 
                 // Sound only for hard landings (double jump, jumping down from above), louder the harder.
                 if (fallSpeed >= hardLandingSpeed)
+                {
                     PlaySound(landSound, landVolume * Mathf.Lerp(0.5f, 1f, Mathf.InverseLerp(hardLandingSpeed, hardLandingSpeed + 8f, fallSpeed)));
+                    if (cores != null)
+                        cores.OnHardLanding(FeetPosition);
+                }
             }
         }
         else
@@ -304,7 +354,7 @@ public class PlayerMovement : MonoBehaviour
             lastWallPush = wallPush;
             wallContactPoint = contact.point;
             wallCoyoteTimer = coyoteTime;
-            airJumpsLeft = airJumps;
+            airJumpsLeft = TotalAirJumps;
             return;
         }
     }
@@ -399,6 +449,19 @@ public class PlayerMovement : MonoBehaviour
         }
 
         return false;
+    }
+
+    private void StartDash()
+    {
+        dashDirection = moveInput != 0f ? (moveInput > 0f ? 1 : -1) : facing;
+        dashTimer = dashTime;
+        dashCooldownTimer = dashCooldown;
+        canCutJump = false;
+        bodyShape = new Vector2(1.25f, 0.8f); // stretched sideways
+        SpawnDust(FeetPosition, jumpDustScale);
+        PlaySound(jumpSound, jumpVolume);
+        if (health != null)
+            health.MakeInvulnerable(dashTime + 0.05f);
     }
 
     // Sets the velocity directly (impulse / mass for the upward part) so every jump has the same height,

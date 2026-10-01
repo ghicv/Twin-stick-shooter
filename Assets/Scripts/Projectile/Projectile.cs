@@ -5,10 +5,9 @@ using UnityEngine;
 // Speed, damage and lifetime come from whoever fires it (PlayerWeapon, RangedEnemy).
 // Enemy bullets fly through other enemies. All bullets fly through level blocks set to Bullets Pass Through (LevelBlock).
 //
-// Item upgrades (only on the player's bullets, see ApplyUpgrades):
-// - Homing: steers toward the nearest enemy in range and in front of it; deals less damage.
-// - Bounce: bounces off walls this many times before it stops; loses some damage per bounce.
-// - Explosive: explodes where it finally hits a wall or an enemy, hurting the other enemies in the blast.
+// The player's bullets get the cores (augments) attached (AttachCores): at each moment of its life
+// (flying, hitting an enemy, hitting a wall, disappearing) the bullet tells the CoreBridge, which may steer it,
+// change its damage, keep it flying, etc. Bullets without cores (the enemies') never call it.
 [RequireComponent(typeof(Rigidbody2D))]
 public class Projectile : MonoBehaviour
 {
@@ -19,124 +18,101 @@ public class Projectile : MonoBehaviour
              "It should destroy itself (Stop Action = Destroy).")]
     [SerializeField] private ParticleSystem impactEffect;
 
-    [Header("Upgrades")]
-    [Tooltip("Homing: only enemies closer than this are chased (units).")]
-    [SerializeField] private float homingRange = 5f;
-
-    [Tooltip("Homing: only enemies within this angle of the bullet's flight direction can become its target (degrees, each side).")]
-    [SerializeField] private float homingConeAngle = 60f;
-
-    [Tooltip("Homing: how fast the bullet turns toward a target at the edge of Homing Range (degrees/sec).")]
-    [SerializeField] private float homingTurnSpeed = 360f;
-
-    [Tooltip("Homing: the turn gets this many times faster as the target gets close (0 = no boost, 3 = 4x right next to it), " +
-             "so a bullet doesn't keep circling around a close target.")]
-    [SerializeField] private float homingCloseBoost = 3f;
-
-    [Tooltip("Homing: a homing bullet deals this share of its normal damage.")]
-    [Range(0f, 1f)]
-    [SerializeField] private float homingDamage = 0.8f;
-
-    [Tooltip("Explosive: enemies within this distance of the blast take damage (units).")]
-    [SerializeField] private float explosionRadius = 1f;
-
-    [Tooltip("Explosive: blast damage to each enemy in range, except the one hit directly (it only takes the bullet's damage).")]
-    [SerializeField] private float explosionDamage = 5f;
-
-    [Tooltip("Bounce: the bullet keeps this share of its damage after each bounce.")]
-    [Range(0f, 1f)]
-    [SerializeField] private float bounceDamage = 0.7f;
-
-    [Tooltip("Explosive: spawned at the blast. It should destroy itself (Stop Action = Destroy).")]
-    [SerializeField] private ParticleSystem explosionEffect;
-
     public float Damage { get; private set; }
+    public Rigidbody2D Body => rb;
+
+    // The last collider it hit (e.g. shards from it ignore that enemy).
+    public Collider2D LastHit { get; private set; }
+
+    // What it stopped in when it disappeared: an enemy's or a wall's collider, or null (time ran out / caught).
+    public Collider2D StoppedBy { get; private set; }
+
+    // The core system's own data about this bullet. Only the core system reads it.
+    public object CoreData { get; private set; }
 
     private Rigidbody2D rb;
+    private Collider2D bulletCollider;
+    private SpriteRenderer sprite;
     private Rigidbody2D shooter;
+    private CoreBridge cores; // null = plain bullet
     private bool firedByEnemy;
     private float lifeTimer;
-    private bool homing;
-    private bool explosive;
-    private int bouncesLeft;
-    private Dummy target;
-    private bool finished; // hit something: Destroy only happens at the end of the frame, so ignore any further overlaps
+    private bool finished; // gone: Destroy only happens at the end of the frame, so ignore any further overlaps
 
     public void Launch(Vector2 direction, float speed, float damage, float lifetime, Rigidbody2D shooter)
     {
         rb = GetComponent<Rigidbody2D>();
+        bulletCollider = GetComponent<Collider2D>();
+        sprite = GetComponent<SpriteRenderer>();
         Damage = damage;
         this.shooter = shooter;
         firedByEnemy = shooter != null && shooter.GetComponent<Dummy>() != null; // remembered: the enemy may die first
         lifeTimer = lifetime;
-        rb.linearVelocity = direction.normalized * speed;
+        SetVelocity(direction.normalized * speed);
     }
 
-    // Called by PlayerWeapon right after Launch, with the player's item upgrades.
-    public void ApplyUpgrades(bool homing, bool explosive, int bounces)
+    public void AttachCores(CoreBridge cores, object coreData)
     {
-        this.homing = homing;
-        this.explosive = explosive;
-        bouncesLeft = bounces;
-        if (homing)
-            Damage *= homingDamage;
+        this.cores = cores;
+        CoreData = coreData;
+    }
+
+    public void ScaleDamage(float factor)
+    {
+        Damage *= factor;
+    }
+
+    // Changes the flight (speed and direction); the bullet turns to face it.
+    public void SetVelocity(Vector2 velocity)
+    {
+        rb.linearVelocity = velocity;
+        rb.rotation = Mathf.Atan2(velocity.y, velocity.x) * Mathf.Rad2Deg;
+    }
+
+    // Bigger or smaller bullet (sprite, hit area and trail).
+    public void SetSize(float scale)
+    {
+        transform.localScale *= scale;
+        trail.widthMultiplier *= scale;
+    }
+
+    public void SetTint(Color color)
+    {
+        if (sprite != null)
+            sprite.color = color;
+        trail.startColor = color;
+    }
+
+    // This bullet will fly through that collider from now on.
+    public void IgnoreCollider(Collider2D other)
+    {
+        if (other != null)
+            Physics2D.IgnoreCollision(bulletCollider, other);
+    }
+
+    // Ends the bullet right now (e.g. a boomerang caught by the player).
+    public void Finish()
+    {
+        Disappear(rb.position, rb.linearVelocity.normalized, null);
     }
 
     private void Update()
     {
         lifeTimer -= Time.deltaTime;
         if (lifeTimer <= 0f)
-            Disappear();
+            Disappear(rb.position, rb.linearVelocity.normalized, null);
     }
 
-    // Homing: turns the flight direction toward the target a bit every physics step, keeping the speed.
     private void FixedUpdate()
     {
-        if (!homing)
-            return;
-
-        if (target == null || !target.isActiveAndEnabled || target.IsDying)
-            target = FindTarget();
-        if (target == null)
-            return;
-
-        // A fast bullet can't turn tight enough to hit a close target and would circle around it,
-        // so it turns faster the closer the target is.
-        Vector2 toTarget = (Vector2)target.transform.position - rb.position;
-        float closeness = 1f - Mathf.Clamp01(toTarget.magnitude / homingRange); // 0 = at the edge of the range, 1 = right there
-        float maxTurn = homingTurnSpeed * (1f + homingCloseBoost * closeness) * Mathf.Deg2Rad * Time.fixedDeltaTime;
-        Vector2 direction = Vector3.RotateTowards(rb.linearVelocity.normalized, toTarget.normalized, maxTurn, 0f);
-        rb.linearVelocity = direction * rb.linearVelocity.magnitude;
-        FaceVelocity();
-    }
-
-    private Dummy FindTarget()
-    {
-        Dummy nearest = null;
-        float nearestDistance = homingRange;
-        foreach (Dummy dummy in Dummy.Active)
-        {
-            if (dummy.IsDying)
-                continue;
-
-            Vector2 toDummy = (Vector2)dummy.transform.position - rb.position;
-            if (Vector2.Angle(rb.linearVelocity, toDummy) > homingConeAngle)
-                continue; // behind or off to the side: not a target
-
-            float distance = toDummy.magnitude;
-            if (distance < nearestDistance)
-            {
-                nearest = dummy;
-                nearestDistance = distance;
-            }
-        }
-        return nearest;
+        if (cores != null && !finished)
+            cores.OnBulletFly(this);
     }
 
     // The projectile's collider is a trigger, so this runs when it overlaps a block or a dummy.
     private void OnTriggerEnter2D(Collider2D other)
     {
-        // Ignore whoever fired it and other triggers (e.g. other bullets, items).
+        // Ignore whoever fired it and other triggers (e.g. other bullets, mines).
         if (finished || other.isTrigger || other.attachedRigidbody == shooter)
             return;
 
@@ -156,69 +132,46 @@ public class Projectile : MonoBehaviour
         if (normal == Vector2.zero)
             normal = -rb.linearVelocity.normalized; // bullet started inside the collider: face back the way it came
 
+        LastHit = other;
+        Vector2 flightDirection = rb.linearVelocity.normalized;
+        bool keepFlying = false;
+
         PlayerHealth player = other.GetComponentInParent<PlayerHealth>();
         if (dummy != null)
         {
-            dummy.TakeDamage(Damage, hitPoint, normal); // the dummy shows its own blood + damage number
+            // The dummy shows its own blood + damage number.
+            dummy.TakeDamage(Damage, hitPoint, normal, cores != null ? cores.BulletKnockback : 1f);
+            if (cores != null)
+                keepFlying = cores.OnBulletHitEnemy(this, dummy, hitPoint, normal);
+            if (keepFlying)
+                IgnoreCollider(other); // flies on through: don't hit this enemy again
         }
         else if (player != null)
         {
-            player.TakeDamage(Damage, rb.linearVelocity.normalized); // pushed the way the bullet flies
+            player.TakeDamage(Damage, flightDirection); // pushed the way the bullet flies
         }
         else
         {
             float normalAngle = Mathf.Atan2(normal.y, normal.x) * Mathf.Rad2Deg;
             Instantiate(impactEffect, hitPoint, Quaternion.Euler(0f, 0f, normalAngle)); // sparks off walls/floor
-
-            // Bounce: fly on, mirrored off the surface.
-            if (bouncesLeft > 0)
-            {
-                bouncesLeft--;
-                Damage *= bounceDamage;
-                rb.linearVelocity = Vector2.Reflect(rb.linearVelocity, normal);
-                rb.position = hitPoint + normal * 0.1f; // back out of the wall
-                FaceVelocity();
-                return;
-            }
+            if (cores != null)
+                keepFlying = cores.OnBulletHitWall(this, hitPoint, normal);
         }
 
-        if (explosive)
-            Explode(hitPoint + normal * 0.1f, dummy);
-        Disappear();
+        // Stopped in an enemy: things fly on the way the bullet went. Stopped in a wall: out of the wall.
+        if (!keepFlying)
+            Disappear(dummy != null ? hitPoint : hitPoint + normal * 0.1f, dummy != null ? flightDirection : normal, other);
     }
 
-    // Hurts every enemy within the blast radius (an enemy has one collider, so it's hit once) except the one
-    // the bullet hit directly, pushing them away from the blast.
-    private void Explode(Vector2 position, Dummy hitDirectly)
-    {
-        if (explosionEffect != null)
-            Instantiate(explosionEffect, position, Quaternion.identity);
-
-        foreach (Collider2D hit in Physics2D.OverlapCircleAll(position, explosionRadius))
-        {
-            Dummy dummy = hit.GetComponentInParent<Dummy>();
-            if (dummy == null || dummy == hitDirectly)
-                continue;
-
-            Vector2 closestPoint = hit.ClosestPoint(position);
-            Vector2 towardBlast = (position - closestPoint).normalized; // TakeDamage pushes the other way
-            if (towardBlast == Vector2.zero)
-                towardBlast = Vector2.up;
-            dummy.TakeDamage(explosionDamage, closestPoint, towardBlast);
-        }
-    }
-
-    private void FaceVelocity()
-    {
-        Vector2 velocity = rb.linearVelocity;
-        rb.rotation = Mathf.Atan2(velocity.y, velocity.x) * Mathf.Rad2Deg;
-    }
-
-    private void Disappear()
+    private void Disappear(Vector2 position, Vector2 direction, Collider2D stoppedBy)
     {
         if (finished)
             return;
         finished = true;
+        StoppedBy = stoppedBy;
+
+        if (cores != null)
+            cores.OnBulletEnd(this, position, direction);
 
         // Leave the trail behind so it fades out instead of vanishing with the bullet.
         trail.transform.SetParent(null);

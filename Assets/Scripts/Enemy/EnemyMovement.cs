@@ -90,7 +90,7 @@ public class EnemyMovement : MonoBehaviour
         if (dummy.IsDying || staggered)
             return; // let knockback / the death play out
 
-        float speedX = Mathf.Lerp(rb.linearVelocity.x, targetSpeed, 1f - Mathf.Exp(-acceleration * Time.fixedDeltaTime));
+        float speedX = Mathf.Lerp(rb.linearVelocity.x, targetSpeed * dummy.SpeedFactor, 1f - Mathf.Exp(-acceleration * Time.fixedDeltaTime));
         rb.linearVelocity = new Vector2(speedX, rb.linearVelocity.y);
     }
 }

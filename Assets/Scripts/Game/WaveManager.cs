@@ -2,11 +2,11 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
-// Waves (prototype, no level data yet). The Start Wave button removes the practice dummies (first time only),
-// clears the upgrade items on the map and the player's upgrades (every wave starts clean),
+// Waves (prototype, no level data yet). The Start Wave button removes the practice dummies (first time only)
 // and spawns a few random enemies (melee or ranged) at random spawn points away from the player.
-// Killing an enemy (or knocking it off the map) gives score; a killed enemy may drop an upgrade item
-// (ItemSpawner.TryDrop). When all are gone the wave is over and the button shows up again for the next one.
+// Killing an enemy (or knocking it off the map) gives score. When all are gone the wave is over: the player gets
+// health back, travels to a new map (MapManager + PlayerRespawn, optional), the cores (CoreBridge, optional) may offer
+// cards, and then the button shows up again for the next one.
 public class WaveManager : MonoBehaviour
 {
     [Header("Enemies")]
@@ -21,6 +21,7 @@ public class WaveManager : MonoBehaviour
     [SerializeField] private int rangedScore = 150;
 
     [Header("Spawning")]
+    [Tooltip("Where enemies appear when there is no Map Manager (with one, the current map's spawn points are used).")]
     [SerializeField] private Transform[] spawnPoints;
 
     [Tooltip("Enemies don't spawn closer to the player than this, as long as other spawn points are free (units).")]
@@ -29,8 +30,18 @@ public class WaveManager : MonoBehaviour
     [Tooltip("Played where each enemy appears (e.g. DustPuff). Optional.")]
     [SerializeField] private ParticleSystem spawnEffect;
 
-    [Tooltip("Killed enemies drop its items; its items are cleared when a wave starts. Optional.")]
-    [SerializeField] private ItemSpawner itemSpawner;
+    [Header("Between Waves")]
+    [Tooltip("Health given back to the player when a wave is cleared (100 = full health).")]
+    [SerializeField] private float healOnWaveClear = 100f;
+
+    [Tooltip("Cores (augments): card offers between waves. Optional.")]
+    [SerializeField] private CoreBridge cores;
+
+    [Tooltip("Every cleared wave takes the player to another map. Optional (none = the same map all run).")]
+    [SerializeField] private MapManager mapManager;
+
+    [Tooltip("Seconds the \"WAVE CLEAR!\" message stays before the player is taken to the next map (real time).")]
+    [SerializeField] private float mapChangeDelay = 1f;
 
     [Header("UI")]
     [Tooltip("Starts the next wave. Hidden while a wave is on. Its click is hooked up in Awake.")]
@@ -47,15 +58,26 @@ public class WaveManager : MonoBehaviour
     private readonly List<Dummy> enemies = new List<Dummy>();
     private readonly List<int> enemyScores = new List<int>();
     private Transform player;
-    private PlayerUpgrades playerUpgrades;
+    private PlayerHealth playerHealth;
+    private PlayerRespawn playerRespawn;
     private bool dummiesRemoved;
+
+    private Transform[] CurrentSpawnPoints => mapManager != null ? mapManager.CurrentMap.SpawnPoints : spawnPoints;
 
     private void Awake()
     {
         player = GameObject.FindWithTag("Player").transform;
-        playerUpgrades = player.GetComponent<PlayerUpgrades>(); // null → nothing to clear
+        playerHealth = player.GetComponent<PlayerHealth>();
+        playerRespawn = player.GetComponent<PlayerRespawn>();
         startWaveButton.onClick.AddListener(StartWave);
         messageText.text = "";
+    }
+
+    private void Start()
+    {
+        // Card offers before the first wave (if any): the Start Wave button waits for them.
+        if (cores != null && cores.OfferCardsAtStart(ShowStartButton))
+            startWaveButton.gameObject.SetActive(false);
     }
 
     public void StartWave()
@@ -69,12 +91,6 @@ public class WaveManager : MonoBehaviour
                 spawner.Stop();
             dummiesRemoved = true;
         }
-
-        // Every wave starts clean: no items lying around, no upgrades.
-        if (itemSpawner != null)
-            itemSpawner.ClearItems();
-        if (playerUpgrades != null)
-            playerUpgrades.Clear();
 
         Wave++;
         WaveRunning = true;
@@ -104,12 +120,7 @@ public class WaveManager : MonoBehaviour
 
             Score += enemyScores[i];
             if (enemies[i] != null)
-            {
-                // Killed on screen (not fallen into the void): it may drop an item where it died.
-                if (itemSpawner != null && !enemies[i].FellOffMap)
-                    itemSpawner.TryDrop(enemies[i].transform.position);
                 Destroy(enemies[i].gameObject);
-            }
             enemies.RemoveAt(i);
             enemyScores.RemoveAt(i);
         }
@@ -117,9 +128,48 @@ public class WaveManager : MonoBehaviour
         if (enemies.Count == 0)
         {
             WaveRunning = false;
-            startWaveButton.gameObject.SetActive(true);
             messageText.text = "WAVE " + Wave + " CLEAR!";
+            if (playerHealth.IsDead)
+                return; // the run is over (Game Over screen): no health, no cards, no next wave
+
+            playerHealth.Heal(healOnWaveClear);
+
+            if (mapManager != null && playerRespawn != null)
+                StartCoroutine(ChangeMap());
+            else
+                OfferCardsThenButton();
         }
+    }
+
+    // The map is cleared: after a moment the player is taken to a new one (the revive sequence plays on the way).
+    private System.Collections.IEnumerator ChangeMap()
+    {
+        yield return new WaitForSecondsRealtime(mapChangeDelay);
+        if (playerHealth.IsDead)
+            yield break; // died meanwhile (e.g. fell off): the run is over
+
+        playerRespawn.TravelToNewMap(() =>
+        {
+            mapManager.ChangeToRandomMap();
+            if (cores != null)
+                cores.OnMapChanged();
+        }, () =>
+        {
+            messageText.text = mapManager.CurrentMap.DisplayName;
+            OfferCardsThenButton();
+        });
+    }
+
+    // Every few waves the player picks a core first; the button comes back after the pick.
+    private void OfferCardsThenButton()
+    {
+        if (cores == null || !cores.OfferCardsAfterWave(Wave, ShowStartButton))
+            ShowStartButton();
+    }
+
+    private void ShowStartButton()
+    {
+        startWaveButton.gameObject.SetActive(true);
     }
 
     // Random spawn points, never the same one twice in a wave. Points near the player are only used
@@ -128,7 +178,7 @@ public class WaveManager : MonoBehaviour
     {
         var far = new List<Transform>();
         var near = new List<Transform>();
-        foreach (Transform point in spawnPoints)
+        foreach (Transform point in CurrentSpawnPoints)
             (Vector2.Distance(point.position, player.position) >= minDistanceFromPlayer ? far : near).Add(point);
 
         Shuffle(far);

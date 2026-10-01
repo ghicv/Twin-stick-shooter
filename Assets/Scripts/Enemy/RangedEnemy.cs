@@ -72,6 +72,7 @@ public class RangedEnemy : MonoBehaviour
     {
         if (dummy.IsDying)
             return;
+        float dt = Time.deltaTime * dummy.SpeedFactor; // slowed down → aims and shoots slower too
 
         // Gun always points at the player.
         Vector2 toPlayer = player.transform.position - gunPivot.position;
@@ -81,7 +82,7 @@ public class RangedEnemy : MonoBehaviour
         if (windupTimer > 0f)
         {
             movement.Move(0f, 0f);
-            windupTimer -= Time.deltaTime;
+            windupTimer -= dt;
             if (windupTimer <= 0f)
                 Shoot();
             return;
@@ -92,7 +93,7 @@ public class RangedEnemy : MonoBehaviour
             patrolDirection = -patrolDirection;
         movement.Move(patrolDirection, moveSpeed);
 
-        cooldownTimer -= Time.deltaTime;
+        cooldownTimer -= dt;
         if (cooldownTimer <= 0f && !player.IsDead && CanSeePlayer())
             windupTimer = windupTime;
     }

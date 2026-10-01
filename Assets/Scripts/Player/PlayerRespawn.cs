@@ -1,14 +1,22 @@
 using System.Collections;
 using UnityEngine;
 
-// Falling off the map or losing all health (PlayerHealth calls Die) = death. Retro death + respawn sequence:
+// The player's two retro "teleport" sequences. Both share the same revive: pixels gather where the player is
+// (with a sound), the player reappears where they meet, waits a moment (Revive Delay), is pulled to a random
+// spawn point, and then the picture, game speed and control come back.
+//
+// Death (falling off the map, or PlayerHealth calls Die at 0 health):
 // 1. The player explodes where it fell out of view. The game keeps running for a moment (Freeze Delay).
 // 2. Time freezes: the game slows almost to a stop and the screen curves into an old CRT / fish-eye look.
-// 3. Pixels gather where it exploded (with a sound) and the player reappears where they meet.
-// 4. After a short pause (Revive Delay) it is pulled to a random spawn point.
-// 5. Normal picture, normal speed, control back.
-// While dead, the player's physics, movement and gun are off. Dying loses all item upgrades (PlayerUpgrades).
-// All timings are real seconds.
+// 3. With Game Over On Death (roguelite: dying ends the run) the Game Over screen shows up and time stays frozen.
+//    Only an extra life (a core) or Game Over On Death off brings the player back with the revive.
+//
+// Map change (WaveManager calls TravelToNewMap after a cleared wave):
+// 1. Time freezes and the CRT look comes on; the player bursts into pixels.
+// 2. The map is swapped behind the CRT picture.
+// 3. The revive brings the player back on the new map (at one of its spawn points).
+//
+// Meanwhile the player's physics, movement and gun are off. All timings are real seconds.
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(AudioSource))]
 public class PlayerRespawn : MonoBehaviour
@@ -16,11 +24,17 @@ public class PlayerRespawn : MonoBehaviour
     [Tooltip("Falling below this height (world Y) kills the player.")]
     [SerializeField] private float fallLimitY = -8f;
 
-    [Tooltip("The player comes back at one of these, picked at random (never the same one twice in a row). Empty = where the player started.")]
+    [Tooltip("On: dying ends the run and the Game Over screen (GameOverScreen in the scene) shows up once time has frozen. " +
+             "Off, or no Game Over screen in the scene: the player respawns.")]
+    [SerializeField] private bool gameOverOnDeath = true;
+
+    [Tooltip("Used when there is no MapManager: the player comes back at one of these, picked at random " +
+             "(never the same one twice in a row). Empty = where the player started.")]
     [SerializeField] private Transform[] spawnPoints;
 
     [Header("Death")]
-    [Tooltip("Pixel explosion spawned where the player died. It is kept inside the screen so it can be seen.")]
+    [Tooltip("Pixel explosion spawned where the player died (and where it bursts on a map change). " +
+             "It is kept inside the screen so it can be seen.")]
     [SerializeField] private ParticleSystem explosionEffect;
 
     [Tooltip("How far inside the screen edge the explosion (and the reappearing player) is placed (units).")]
@@ -46,7 +60,7 @@ public class PlayerRespawn : MonoBehaviour
     [Tooltip("CRT / fish-eye screen effect used while time is frozen. Empty = the one on the main camera.")]
     [SerializeField] private CRTScreen crtScreen;
 
-    [Header("Respawn")]
+    [Header("Revive")]
     [Tooltip("Pixels that gather where the player exploded; the player reappears when they meet, i.e. after the " +
              "particles' Start Lifetime. It should use Unscaled Time so it plays at full speed during the slow motion. Optional.")]
     [SerializeField] private ParticleSystem reviveEffect;
@@ -54,7 +68,7 @@ public class PlayerRespawn : MonoBehaviour
     [Tooltip("Seconds the player stays where it reappeared before it is pulled to the spawn point.")]
     [SerializeField] private float reviveDelay = 0.5f;
 
-    [Tooltip("Seconds the player takes to travel from where it died to the spawn point.")]
+    [Tooltip("Seconds the player takes to travel from where it reappeared to the spawn point.")]
     [SerializeField] private float pullTime = 0.6f;
 
     [Tooltip("Seconds for the picture and the game speed to get back to normal after arriving. Then control is back.")]
@@ -67,7 +81,7 @@ public class PlayerRespawn : MonoBehaviour
     [SerializeField] private float effectCleanupTime = 5f;
 
     [Header("Sound")]
-    [Tooltip("Played when the player explodes.")]
+    [Tooltip("Played when the player explodes (death only).")]
     [SerializeField] private AudioClip explosionSound;
 
     [Tooltip("Played when time starts to freeze.")]
@@ -90,18 +104,24 @@ public class PlayerRespawn : MonoBehaviour
     private PlayerMovement movement;
     private PlayerWeapon weapon;
     private PlayerHealth health;
-    private PlayerUpgrades upgrades;
     private SpriteRenderer[] sprites;
     private Camera cam;
     private CameraShake cameraShake;
     private HitStop hitStop;
+    private GameOverScreen gameOverScreen;
+    private CoreBridge cores;
+    private MapManager maps;
     private Vector2 startPosition;
-    private int lastSpawnIndex = -1;
+    private Transform lastSpawnPoint;
     private float gameSpeed = 1f;
     private bool isDead;
+    private bool traveling;
 
     // True from the moment of death until control is back.
     public bool IsDead => isDead;
+
+    // True during a map change, until control is back.
+    public bool IsTraveling => traveling;
 
     private void Awake()
     {
@@ -110,7 +130,6 @@ public class PlayerRespawn : MonoBehaviour
         movement = GetComponent<PlayerMovement>();
         weapon = GetComponent<PlayerWeapon>();
         health = GetComponent<PlayerHealth>(); // null → nothing to refill
-        upgrades = GetComponent<PlayerUpgrades>(); // null → nothing to lose
         sprites = GetComponentsInChildren<SpriteRenderer>(true);
         startPosition = rb.position;
 
@@ -119,6 +138,9 @@ public class PlayerRespawn : MonoBehaviour
         hitStop = cam.GetComponent<HitStop>();         // null → no slow motion
         if (crtScreen == null)
             crtScreen = cam.GetComponent<CRTScreen>(); // null → no CRT look
+        gameOverScreen = FindAnyObjectByType<GameOverScreen>(); // null → respawn instead
+        cores = FindAnyObjectByType<CoreBridge>();              // null → no extra life
+        maps = FindAnyObjectByType<MapManager>();               // null → Spawn Points above
     }
 
     private void FixedUpdate()
@@ -129,22 +151,27 @@ public class PlayerRespawn : MonoBehaviour
 
     public void Die()
     {
-        if (isDead)
+        if (isDead || traveling)
             return;
 
-        StartCoroutine(DieAndRespawn());
+        StartCoroutine(DieRoutine());
     }
 
-    private IEnumerator DieAndRespawn()
+    // Takes the player to another map: freeze, burst into pixels, changeMap() swaps the map behind the CRT picture,
+    // then the revive brings the player back there. onArrived runs once control is back.
+    public void TravelToNewMap(System.Action changeMap, System.Action onArrived)
+    {
+        if (isDead || traveling)
+            return;
+
+        StartCoroutine(TravelRoutine(changeMap, onArrived));
+    }
+
+    private IEnumerator DieRoutine()
     {
         // 1. Death: no physics, no input, no shooting. The player explodes; the game keeps running for a moment.
         isDead = true;
-        rb.simulated = false;
-        rb.linearVelocity = Vector2.zero;
-        movement.enabled = false;
-        weapon.enabled = false;
-        if (upgrades != null)
-            upgrades.Clear(); // item upgrades are lost on death
+        TakeControlAway();
 
         Vector3 deathPoint = CameraView.ClampInside(cam, rb.position, screenMargin);
         transform.position = deathPoint; // physics is off, so moving the transform is fine
@@ -156,6 +183,52 @@ public class PlayerRespawn : MonoBehaviour
         yield return new WaitForSecondsRealtime(freezeDelay);
 
         // 2. Time freezes: the game slows almost to a stop and the screen curves.
+        yield return FreezeTime();
+
+        // 3. Roguelite: the run is over (unless a core gives one more life). Time stays frozen behind the Game Over screen.
+        bool extraLife = cores != null && cores.TryUseExtraLife();
+        if (gameOverOnDeath && gameOverScreen != null && !extraLife)
+        {
+            gameOverScreen.Show();
+            yield break;
+        }
+
+        yield return Revive(true);
+        isDead = false;
+    }
+
+    private IEnumerator TravelRoutine(System.Action changeMap, System.Action onArrived)
+    {
+        // 1. Time freezes; the player bursts into pixels.
+        traveling = true;
+        TakeControlAway();
+        Vector3 point = CameraView.ClampInside(cam, rb.position, screenMargin);
+        transform.position = point;
+        SetVisible(false);
+        SpawnEffect(explosionEffect, point, Quaternion.Euler(0f, 0f, 90f));
+        yield return FreezeTime();
+
+        // 2. New map, behind the CRT picture.
+        changeMap?.Invoke();
+
+        // 3. The player comes back on it.
+        yield return Revive(false);
+        traveling = false;
+        onArrived?.Invoke();
+    }
+
+    // No physics, no input, no shooting.
+    private void TakeControlAway()
+    {
+        rb.simulated = false;
+        rb.linearVelocity = Vector2.zero;
+        movement.enabled = false;
+        weapon.enabled = false;
+    }
+
+    // The game slows almost to a stop and the screen curves (CRT / fish-eye), then the frozen moment lasts a bit.
+    private IEnumerator FreezeTime()
+    {
         PlaySound(timeFreezeSound);
         float speedFrom = gameSpeed;
         float crtFrom = crtScreen != null ? crtScreen.Intensity : 0f;
@@ -168,8 +241,12 @@ public class PlayerRespawn : MonoBehaviour
         SetSpeed(slowMotionSpeed);
         SetCrt(1f);
         yield return new WaitForSecondsRealtime(freezeTime);
+    }
 
-        // 3. Pixels gather where the player exploded; when they meet, the player is back.
+    // Pixels gather where the player is; the player reappears, is pulled to a random spawn point,
+    // and everything goes back to normal. refill = full health on arrival (respawn after a death).
+    private IEnumerator Revive(bool refill)
+    {
         if (reviveEffect != null)
         {
             SpawnEffect(reviveEffect, transform.position, Quaternion.identity);
@@ -179,7 +256,7 @@ public class PlayerRespawn : MonoBehaviour
         SetVisible(true);
         yield return new WaitForSecondsRealtime(reviveDelay);
 
-        // 4. Pulled to a random spawn point (eases in and out).
+        // Pulled to a random spawn point (eases in and out).
         PlaySound(pullSound);
         Vector3 from = transform.position;
         Vector3 to = PickSpawnPoint();
@@ -189,14 +266,15 @@ public class PlayerRespawn : MonoBehaviour
             yield return null;
         }
         transform.position = to;
+        rb.position = to;
         rb.linearVelocity = Vector2.zero;
         rb.simulated = true;
-        if (health != null)
+        if (refill && health != null)
             health.Refill();
         SpawnEffect(arriveEffect, to, Quaternion.identity);
         PlaySound(respawnSound);
 
-        // 5. Picture and game speed ease back to normal, then control is back.
+        // Picture and game speed ease back to normal, then control is back.
         for (float t = 0f; t < recoverTime; t += Time.unscaledDeltaTime)
         {
             SetSpeed(Mathf.Lerp(slowMotionSpeed, 1f, t / recoverTime));
@@ -207,20 +285,20 @@ public class PlayerRespawn : MonoBehaviour
         SetCrt(0f);
         movement.enabled = true;
         weapon.enabled = true;
-        isDead = false;
     }
 
+    // Random, but never the same point twice in a row (when there is more than one).
     private Vector3 PickSpawnPoint()
     {
-        if (spawnPoints == null || spawnPoints.Length == 0)
+        Transform[] points = maps != null ? maps.CurrentMap.SpawnPoints : spawnPoints;
+        if (points == null || points.Length == 0)
             return startPosition;
 
-        // Random, but never the same point twice in a row (when there is more than one).
-        int index = Random.Range(0, spawnPoints.Length);
-        if (index == lastSpawnIndex && spawnPoints.Length > 1)
-            index = (index + 1 + Random.Range(0, spawnPoints.Length - 1)) % spawnPoints.Length;
-        lastSpawnIndex = index;
-        return spawnPoints[index].position;
+        int index = Random.Range(0, points.Length);
+        if (points[index] == lastSpawnPoint && points.Length > 1)
+            index = (index + 1 + Random.Range(0, points.Length - 1)) % points.Length;
+        lastSpawnPoint = points[index];
+        return points[index].position;
     }
 
     private void SetSpeed(float speed)

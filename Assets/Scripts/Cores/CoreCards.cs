@@ -1,0 +1,128 @@
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.UI;
+
+// Card offer: shows up to 3 cores the player doesn't own yet, always at least one bullet core while any is left.
+// Clicking a card gives that core. CoreBridge opens the offer (between waves).
+[RequireComponent(typeof(AudioSource))]
+public class CoreCards : MonoBehaviour
+{
+    [System.Serializable]
+    private class CardView
+    {
+        public Button button;
+        public Image icon;
+        public Text title;
+        public Text tag;
+        public Text description;
+    }
+
+    [SerializeField] private CoreInventory inventory;
+
+    [Tooltip("Shown while choosing: dims the game and holds the cards.")]
+    [SerializeField] private GameObject panel;
+
+    [Tooltip("One per card on screen (3).")]
+    [SerializeField] private CardView[] cards;
+
+    [SerializeField] private Color bulletTagColor = new Color(1f, 0.9f, 0.43f);
+    [SerializeField] private Color singleTagColor = new Color(0.31f, 0.8f, 0.77f);
+
+    [SerializeField] private AudioClip pickSound;
+
+    [Range(0f, 1f)]
+    [SerializeField] private float pickVolume = 0.6f;
+
+    private readonly List<CoreType> offered = new List<CoreType>();
+    private AudioSource audioSource;
+    private System.Action onPicked;
+
+    private void Awake()
+    {
+        audioSource = GetComponent<AudioSource>();
+        panel.SetActive(false);
+        for (int i = 0; i < cards.Length; i++)
+        {
+            int index = i; // captured by the click
+            cards[i].button.onClick.AddListener(() => Pick(index));
+        }
+    }
+
+    // Opens the offer; onPicked runs once a card is clicked.
+    // Returns false (and never calls onPicked) when the player already owns every core.
+    public bool Show(System.Action onPicked)
+    {
+        ChooseOffer();
+        if (offered.Count == 0)
+            return false;
+
+        this.onPicked = onPicked;
+        for (int i = 0; i < cards.Length; i++)
+        {
+            CardView card = cards[i];
+            card.button.gameObject.SetActive(i < offered.Count);
+            if (i >= offered.Count)
+                continue;
+
+            CoreInventory.CoreInfo info = inventory.Info(offered[i]);
+            card.icon.sprite = info.icon;
+            card.title.text = info.title;
+            card.tag.text = info.tag;
+            card.tag.color = info.bulletCore ? bulletTagColor : singleTagColor;
+            card.description.text = info.description;
+        }
+        panel.SetActive(true);
+        return true;
+    }
+
+    // Up to one card per view, never an owned core: one bullet core for sure, the rest from everything left.
+    private void ChooseOffer()
+    {
+        offered.Clear();
+        var bulletCores = new List<CoreType>();
+        var allCores = new List<CoreType>();
+        foreach (CoreInventory.CoreInfo info in inventory.Catalog)
+        {
+            if (inventory.Has(info.type))
+                continue;
+            allCores.Add(info.type);
+            if (info.bulletCore)
+                bulletCores.Add(info.type);
+        }
+
+        if (bulletCores.Count > 0)
+        {
+            CoreType sure = bulletCores[Random.Range(0, bulletCores.Count)];
+            offered.Add(sure);
+            allCores.Remove(sure);
+        }
+        while (offered.Count < cards.Length && allCores.Count > 0)
+        {
+            int index = Random.Range(0, allCores.Count);
+            offered.Add(allCores[index]);
+            allCores.RemoveAt(index);
+        }
+
+        // Shuffle, so the sure bullet core isn't always the first card.
+        for (int i = offered.Count - 1; i > 0; i--)
+        {
+            int j = Random.Range(0, i + 1);
+            (offered[i], offered[j]) = (offered[j], offered[i]);
+        }
+    }
+
+    private void Pick(int index)
+    {
+        if (!panel.activeSelf || index >= offered.Count)
+            return;
+
+        inventory.Add(offered[index]);
+        panel.SetActive(false);
+        if (pickSound != null)
+            audioSource.PlayOneShot(pickSound, pickVolume);
+
+        System.Action done = onPicked;
+        onPicked = null;
+        done?.Invoke();
+    }
+}

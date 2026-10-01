@@ -1,28 +1,16 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
-// On-screen info: the player's health (bar + number), the active item upgrades (icons), the score and the wave.
-// Reads the values every frame.
+// On-screen info: the player's health (bar + number), the cores (augments) the player owns (icons),
+// the score and the wave. Reads the values every frame.
 public class GameHUD : MonoBehaviour
 {
-    [System.Serializable]
-    private class UpgradeSlot
-    {
-        [Tooltip("The slot (icon + bar): moved along the row, hidden while the upgrade is off.")]
-        public RectTransform root;
-
-        public Image icon;
-
-        [Tooltip("Filled image (Horizontal): shrinks as the upgrade runs out.")]
-        public Image timeBar;
-
-        [Tooltip("Shows \"x2\" when the upgrade is stacked. Optional.")]
-        public Text stackText;
-    }
-
     [SerializeField] private PlayerHealth playerHealth;
-    [SerializeField] private PlayerUpgrades playerUpgrades;
     [SerializeField] private WaveManager waveManager;
+
+    [Tooltip("Where the owned cores come from. Optional.")]
+    [SerializeField] private CoreBridge cores;
 
     [Header("UI")]
     [Tooltip("Image with Image Type = Filled (Horizontal): its fill shows the player's health.")]
@@ -32,25 +20,35 @@ public class GameHUD : MonoBehaviour
     [SerializeField] private Text scoreText;
     [SerializeField] private Text waveText;
 
-    [Header("Upgrade Icons")]
-    [Tooltip("One slot per upgrade, in UpgradeType order: Extra Bullet, Homing, Explosive, Bounce. " +
-             "The active ones are lined up from the left.")]
-    [SerializeField] private UpgradeSlot[] upgradeSlots;
+    [Header("Core Icons")]
+    [Tooltip("The owned cores are lined up here, from the top left.")]
+    [SerializeField] private RectTransform coreIconRow;
 
-    [Tooltip("Distance between two icons in the row (UI pixels).")]
-    [SerializeField] private float slotSpacing = 60f;
+    [Tooltip("Copied once per owned core. Keep it disabled.")]
+    [SerializeField] private Image coreIconTemplate;
 
-    [Tooltip("An icon blinks during its upgrade's last seconds.")]
-    [SerializeField] private float blinkWhenSecondsLeft = 3f;
+    [Tooltip("Distance between two icons, sideways and between rows (UI pixels).")]
+    [SerializeField] private float coreIconSpacing = 44f;
 
-    [SerializeField] private float blinkInterval = 0.15f;
+    [Tooltip("Icons per row; more go on the next row down.")]
+    [Min(1)]
+    [SerializeField] private int coreIconsPerRow = 12;
+
+    private readonly List<Image> coreIcons = new List<Image>();
+
+    private void Awake()
+    {
+        if (coreIconTemplate != null)
+            coreIconTemplate.gameObject.SetActive(false);
+    }
 
     private void Update()
     {
         healthFill.fillAmount = playerHealth.Health / playerHealth.MaxHealth;
         healthText.text = "HP " + Mathf.CeilToInt(playerHealth.Health);
 
-        UpdateUpgradeIcons();
+        if (cores != null)
+            UpdateCoreIcons();
 
         scoreText.text = "SCORE " + waveManager.Score;
         waveText.text = waveManager.WaveRunning
@@ -58,31 +56,18 @@ public class GameHUD : MonoBehaviour
             : "WAVE " + waveManager.Wave;
     }
 
-    private void UpdateUpgradeIcons()
+    // Cores are only ever added during a run, so only the missing icons are made.
+    private void UpdateCoreIcons()
     {
-        float x = 0f;
-        for (int i = 0; i < upgradeSlots.Length; i++)
+        while (coreIcons.Count < cores.OwnedCount)
         {
-            UpgradeType type = (UpgradeType)i;
-            UpgradeSlot slot = upgradeSlots[i];
-            float secondsLeft = playerUpgrades.TimeLeft(type);
-
-            bool active = secondsLeft > 0f;
-            slot.root.gameObject.SetActive(active);
-            if (!active)
-                continue;
-
-            slot.root.anchoredPosition = new Vector2(x, 0f);
-            x += slotSpacing;
-
-            slot.timeBar.fillAmount = secondsLeft / playerUpgrades.Duration;
-            slot.icon.enabled = secondsLeft > blinkWhenSecondsLeft || Mathf.Repeat(Time.unscaledTime, blinkInterval * 2f) < blinkInterval;
-
-            int stacks = type == UpgradeType.ExtraBullet ? playerUpgrades.ExtraBullets
-                       : type == UpgradeType.Bounce ? playerUpgrades.Bounces
-                       : 1;
-            if (slot.stackText != null)
-                slot.stackText.text = stacks > 1 ? "x" + stacks : "";
+            Image icon = Instantiate(coreIconTemplate, coreIconRow);
+            icon.sprite = cores.OwnedIcon(coreIcons.Count);
+            int column = coreIcons.Count % coreIconsPerRow;
+            int row = coreIcons.Count / coreIconsPerRow;
+            icon.rectTransform.anchoredPosition = new Vector2(column * coreIconSpacing, -row * coreIconSpacing);
+            icon.gameObject.SetActive(true);
+            coreIcons.Add(icon);
         }
     }
 }

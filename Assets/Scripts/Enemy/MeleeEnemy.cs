@@ -48,8 +48,9 @@ public class MeleeEnemy : MonoBehaviour
 
     private void Update()
     {
-        cooldownTimer -= Time.deltaTime;
-        jumpTimer -= Time.deltaTime;
+        float dt = Time.deltaTime * dummy.SpeedFactor; // slowed down → attacks come slower too
+        cooldownTimer -= dt;
+        jumpTimer -= dt;
         if (dummy.IsDying)
             return;
 
@@ -60,7 +61,7 @@ public class MeleeEnemy : MonoBehaviour
         if (windupTimer > 0f)
         {
             movement.Move(0f, 0f);
-            windupTimer -= Time.deltaTime;
+            windupTimer -= dt;
             if (windupTimer <= 0f)
                 Strike(toPlayer, direction);
             return;

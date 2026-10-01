@@ -38,6 +38,9 @@ public class PlayerHealth : MonoBehaviour
     public float MaxHealth => maxHealth;
     public bool IsDead => respawn.IsDead;
 
+    // Time.time of the last hit that hurt.
+    public float LastDamageTime { get; private set; } = -100f;
+
     private Rigidbody2D rb;
     private AudioSource audioSource;
     private PlayerRespawn respawn;
@@ -58,11 +61,12 @@ public class PlayerHealth : MonoBehaviour
     // direction = the way the hit travels (from the attacker toward the player).
     public void TakeDamage(float amount, Vector2 direction)
     {
-        if (IsDead || invulnerableTimer > 0f)
+        if (IsDead || respawn.IsTraveling || invulnerableTimer > 0f)
             return;
 
         Health = Mathf.Max(0f, Health - amount);
         invulnerableTimer = invulnerableTime;
+        LastDamageTime = Time.time;
 
         if (cameraShake != null)
             cameraShake.Shake(hitShakeStrength, hitShakeDuration);
@@ -79,6 +83,26 @@ public class PlayerHealth : MonoBehaviour
         }
 
         rb.linearVelocity = new Vector2(Mathf.Sign(direction.x) * knockback.x, knockback.y);
+    }
+
+    // Gives health back (never above Max Health). Nothing happens while dead.
+    public void Heal(float amount)
+    {
+        if (!IsDead)
+            Health = Mathf.Min(maxHealth, Health + amount);
+    }
+
+    // Raises Max Health and gives that much health right away.
+    public void AddMaxHealth(float amount)
+    {
+        maxHealth += amount;
+        Heal(amount);
+    }
+
+    // Can't be hurt for a moment (e.g. a dash). Never shortens a longer protection.
+    public void MakeInvulnerable(float duration)
+    {
+        invulnerableTimer = Mathf.Max(invulnerableTimer, duration);
     }
 
     // Full health again, plus a short spawn protection. Called by PlayerRespawn.

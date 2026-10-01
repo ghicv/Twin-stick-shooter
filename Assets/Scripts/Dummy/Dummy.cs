@@ -8,6 +8,8 @@ using UnityEngine;
 // Killing blow (retro style): a freeze frame, then the dummy blinks white for a moment, explodes into pixels
 // and disables itself; its DummySpawner then spawns a fresh one.
 // Falling off the map: it explodes right away, where it left the screen (like the player).
+// Cores (CoreBridge, optional) hear about its death and about it crashing into walls/enemies; they can also
+// slow it down, push it and hurt it over time (TakeTickDamage).
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(AudioSource))]
 public class Dummy : MonoBehaviour
@@ -74,6 +76,17 @@ public class Dummy : MonoBehaviour
     [SerializeField] private Color fullHealthColor = new Color(0.4f, 0.9f, 0.4f);
     [SerializeField] private Color lowHealthColor = new Color(0.95f, 0.3f, 0.25f);
 
+    [Tooltip("Body color while slowed down (Slow).")]
+    [SerializeField] private Color slowedColor = new Color(0.55f, 0.8f, 1f);
+
+    [Header("Crash")]
+    [Tooltip("Hitting a wall or another enemy at least this fast, shortly after being hit, counts as a crash " +
+             "(cores can react to it) (units/sec).")]
+    [SerializeField] private float crashSpeed = 5f;
+
+    [Tooltip("Only crashes this soon after a hit count, so walking and jumping into things never do (seconds).")]
+    [SerializeField] private float crashWindow = 0.6f;
+
     [Header("Death")]
     [Tooltip("Freeze frame on the killing blow (real-time seconds). Needs a HitStop on the main camera.")]
     [SerializeField] private float hitStopDuration = 0.06f;
@@ -110,6 +123,9 @@ public class Dummy : MonoBehaviour
     private CameraShake cameraShake;
     private HitStop hitStop;
     private AudioSource audioSource;
+    private CoreBridge cores;
+    private float slowTimer;
+    private float slowFactor = 1f;
 
     // Every dummy/enemy currently in the game (homing bullets pick their target from here).
     public static readonly List<Dummy> Active = new List<Dummy>();
@@ -118,8 +134,13 @@ public class Dummy : MonoBehaviour
     public bool IsDying => health <= 0f;
     public float LastHitTime { get; private set; } = -100f;
 
-    // True when it left the game by falling off the map rather than being killed (the WaveManager drops no item then).
+    // True when it left the game by falling off the map rather than being killed.
     public bool FellOffMap { get; private set; }
+
+    public float HealthFraction => health / maxHealth;
+
+    // Movement and attack speed (1 = normal, lower while slowed). Read by the enemy scripts.
+    public float SpeedFactor => slowTimer > 0f ? slowFactor : 1f;
 
     private void OnEnable()
     {
@@ -138,6 +159,7 @@ public class Dummy : MonoBehaviour
         cam = Camera.main;
         cameraShake = cam.GetComponent<CameraShake>(); // null → no shake
         hitStop = cam.GetComponent<HitStop>();         // null → no freeze frame
+        cores = FindAnyObjectByType<CoreBridge>();     // null → no cores
 
         health = maxHealth;
         bodyColor = bodyRenderer.color;
@@ -153,7 +175,8 @@ public class Dummy : MonoBehaviour
     }
 
     // hitNormal points out of the dummy's surface at the hit point (back toward the shooter).
-    public void TakeDamage(float amount, Vector2 hitPoint, Vector2 hitNormal)
+    // knockbackMultiplier scales the push (e.g. the Hammer core).
+    public void TakeDamage(float amount, Vector2 hitPoint, Vector2 hitNormal, float knockbackMultiplier = 1f)
     {
         if (IsDying)
             return;
@@ -171,7 +194,7 @@ public class Dummy : MonoBehaviour
         number.Show(amount);
 
         // Knockback: pushed away from the shooter (the normal points back toward them).
-        rb.AddForce(-hitNormal * knockbackForce, ForceMode2D.Impulse);
+        rb.AddForce(-hitNormal * (knockbackForce * knockbackMultiplier), ForceMode2D.Impulse);
 
         PlaySound(hitSound);
         flashTimer = hitFlashDuration;
@@ -180,12 +203,62 @@ public class Dummy : MonoBehaviour
             cameraShake.Shake(hitShakeStrength, hitShakeDuration);
 
         if (IsDying)
-        {
-            // Killing blow: freeze frame, then blink for a moment before exploding (see Update).
-            dyingTimer = deathBlinkTime;
-            if (hitStop != null)
-                hitStop.Freeze(hitStopDuration);
-        }
+            StartDying();
+    }
+
+    // Damage without a hit reaction (no push, sound, shake or stagger), e.g. burning. Shows a damage number.
+    public void TakeTickDamage(float amount)
+    {
+        if (IsDying)
+            return;
+
+        health = Mathf.Max(0f, health - amount);
+        chipTimer = chipDelay;
+        UpdateHealthBar();
+        DamageNumber number = Instantiate(damageNumberPrefab, bodyRenderer.bounds.center + Vector3.up * damageNumberOffset, Quaternion.identity);
+        number.Show(amount);
+        flashTimer = hitFlashDuration;
+
+        if (IsDying)
+            StartDying();
+    }
+
+    // A push (impulse). It lets go of the controls for a moment, like after a hit, so the push isn't cancelled.
+    public void Knock(Vector2 impulse)
+    {
+        if (IsDying)
+            return;
+
+        LastHitTime = Time.time;
+        rb.AddForce(impulse, ForceMode2D.Impulse);
+    }
+
+    // Moves and attacks slower (factor 0.5 = half speed) for a while.
+    public void Slow(float factor, float duration)
+    {
+        slowFactor = factor;
+        slowTimer = Mathf.Max(slowTimer, duration);
+    }
+
+    // Killing blow: freeze frame, then blink for a moment before exploding (see Update).
+    private void StartDying()
+    {
+        dyingTimer = deathBlinkTime;
+        if (hitStop != null)
+            hitStop.Freeze(hitStopDuration);
+    }
+
+    // Knocked into a wall (a surface facing sideways) or into another enemy, fast, right after a hit.
+    private void OnCollisionEnter2D(Collision2D collision)
+    {
+        if (cores == null || IsDying || Time.time - LastHitTime > crashWindow)
+            return;
+
+        Dummy other = collision.collider.GetComponentInParent<Dummy>();
+        ContactPoint2D contact = collision.GetContact(0);
+        bool wall = Mathf.Abs(contact.normal.x) > 0.5f;
+        if ((other != null || wall) && collision.relativeVelocity.magnitude >= crashSpeed)
+            cores.OnEnemyCrash(this, other, contact.point);
     }
 
     private void Explode(Vector2 position)
@@ -193,6 +266,8 @@ public class Dummy : MonoBehaviour
         SpawnEffect(explosionEffect, position, Vector2.up);
         if (cameraShake != null)
             cameraShake.Shake(explosionShakeStrength, explosionShakeDuration);
+        if (cores != null)
+            cores.OnEnemyDied(this, position);
 
         gameObject.SetActive(false); // gone; the DummySpawner replaces it with a new one
     }
@@ -237,9 +312,11 @@ public class Dummy : MonoBehaviour
             return;
         }
 
+        if (slowTimer > 0f)
+            slowTimer -= dt;
         if (flashTimer > 0f)
             flashTimer -= dt;
-        bodyRenderer.color = flashTimer > 0f ? hitFlashColor : bodyColor;
+        bodyRenderer.color = flashTimer > 0f ? hitFlashColor : slowTimer > 0f ? slowedColor : bodyColor;
     }
 
     private void SpawnEffect(ParticleSystem prefab, Vector2 position, Vector2 direction)
