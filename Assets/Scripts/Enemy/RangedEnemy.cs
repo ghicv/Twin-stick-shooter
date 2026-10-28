@@ -51,7 +51,6 @@ public class RangedEnemy : MonoBehaviour
     private EnemyMovement movement;
     private Dummy dummy;
     private Rigidbody2D rb;
-    private AudioSource audioSource;
     private PlayerHealth player;
     private int patrolDirection = 1;
     private float cooldownTimer;
@@ -62,7 +61,6 @@ public class RangedEnemy : MonoBehaviour
         movement = GetComponent<EnemyMovement>();
         dummy = GetComponent<Dummy>();
         rb = GetComponent<Rigidbody2D>();
-        audioSource = GetComponent<AudioSource>();
         player = GameObject.FindWithTag("Player").GetComponent<PlayerHealth>();
         patrolDirection = Random.value < 0.5f ? -1 : 1;
         cooldownTimer = Random.Range(0.5f, attackCooldown); // first shot comes at a random moment
@@ -127,10 +125,6 @@ public class RangedEnemy : MonoBehaviour
         Projectile projectile = Instantiate(projectilePrefab, firePoint.position, Quaternion.Euler(0f, 0f, angle));
         projectile.Launch(direction, projectileSpeed, projectileDamage, projectileLifetime, rb);
 
-        if (shootSound != null)
-        {
-            audioSource.pitch = shootPitch;
-            audioSource.PlayOneShot(shootSound, shootVolume);
-        }
+        GameAudio.PlayAt(shootSound, transform.position, shootVolume, 0.05f, shootPitch);
     }
 }

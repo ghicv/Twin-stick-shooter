@@ -104,6 +104,8 @@ public class MainMenu : MonoBehaviour
 
     private void Awake()
     {
+        // A loaded scene always starts on the menu (in the editor the last play's mode would stay otherwise).
+        GameMode.Current = GameMode.Mode.None;
         PlayerNetwork.All.Clear();
         singleModeRoot.SetActive(false);
         createPanel.SetActive(false);

@@ -1,0 +1,4 @@
+Music: "Chiptune Adventures" by Juhani Junkala (https://juhanijunkala.com/)
+Source: https://opengameart.org/content/4-chiptunes-adventure
+License: CC0 1.0 (public domain) - http://creativecommons.org/publicdomain/zero/1.0/
+Files: StageSelect.ogg (main menu), Stage1.ogg, Stage2.ogg, BossFight.ogg

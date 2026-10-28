@@ -9,7 +9,6 @@ using UnityEngine.InputSystem;
 // Cores (CoreBridge on the player, optional) can add air jumps, unlock a Shift dash and react to hard landings.
 // Only runs on the machine that controls this player (PlayerNetwork turns it off elsewhere).
 [RequireComponent(typeof(Rigidbody2D))]
-[RequireComponent(typeof(AudioSource))]
 public class PlayerMovement : MonoBehaviour
 {
     [Header("Run")]
@@ -139,7 +138,6 @@ public class PlayerMovement : MonoBehaviour
 
     private Rigidbody2D rb;
     private Collider2D bodyCollider;
-    private AudioSource audioSource;
     private CoreBridge cores;
     private PlayerHealth health;
     private InputAction moveAction;
@@ -191,7 +189,6 @@ public class PlayerMovement : MonoBehaviour
     {
         rb = GetComponent<Rigidbody2D>();
         bodyCollider = GetComponent<Collider2D>();
-        audioSource = GetComponent<AudioSource>();
         cores = GetComponent<CoreBridge>();        // this player's own cores (null → none)
         health = GetComponent<PlayerHealth>();     // null → a dash gives no protection
         baseGravityScale = rb.gravityScale;
@@ -488,11 +485,7 @@ public class PlayerMovement : MonoBehaviour
 
     private void PlaySound(AudioClip clip, float volume)
     {
-        if (clip == null)
-            return;
-
-        audioSource.pitch = 1f + Random.Range(-pitchVariation, pitchVariation);
-        audioSource.PlayOneShot(clip, volume);
+        GameAudio.Play(clip, volume, pitchVariation); // only the machine that controls this player plays its steps
     }
 
     private void SpawnDust(Vector2 position, float scale)

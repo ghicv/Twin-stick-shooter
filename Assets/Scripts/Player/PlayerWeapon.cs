@@ -14,7 +14,6 @@ using UnityEngine.InputSystem;
 // (up to Max Spread) and it closes again over time, so tapping is accurate and spraying is not.
 // Each shot also plays a sound, kicks the gun sprite, flashes the muzzle and shakes the camera a little.
 [RequireComponent(typeof(Rigidbody2D))]
-[RequireComponent(typeof(AudioSource))]
 public class PlayerWeapon : MonoBehaviour
 {
     [Header("References")]
@@ -75,7 +74,17 @@ public class PlayerWeapon : MonoBehaviour
     [SerializeField] private AudioClip shootSound;
 
     [Range(0f, 1f)]
-    [SerializeField] private float shootVolume = 0.7f;
+    [SerializeField] private float shootVolume = 0.35f;
+
+    [Tooltip("Other players' shots play at this part of Shoot Volume.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float otherShotsVolume = 0.5f;
+
+    [Tooltip("This player's bullet hit another player: a short tick, so a hit is felt.")]
+    [SerializeField] private AudioClip hitConfirmSound;
+
+    [Range(0f, 1f)]
+    [SerializeField] private float hitConfirmVolume = 0.5f;
 
     [Tooltip("Random pitch change per shot, so rapid fire doesn't sound identical.")]
     [Range(0f, 0.3f)]
@@ -85,7 +94,6 @@ public class PlayerWeapon : MonoBehaviour
 
     private InputAction attackAction;
     private Rigidbody2D playerRigidbody;
-    private AudioSource audioSource;
     private CameraShake cameraShake;
     private CoreBridge cores;
     private PlayerNetwork net;
@@ -100,7 +108,6 @@ public class PlayerWeapon : MonoBehaviour
     {
         attackAction = InputSystem.actions.FindAction("Player/Attack");
         playerRigidbody = GetComponent<Rigidbody2D>();
-        audioSource = GetComponent<AudioSource>();
         cameraShake = Camera.main.GetComponent<CameraShake>(); // null if the camera has none → no shake
         cores = GetComponent<CoreBridge>(); // this player's own cores (null → plain gun)
         net = GetComponent<PlayerNetwork>();
@@ -177,6 +184,9 @@ public class PlayerWeapon : MonoBehaviour
 
     // Gun kick, muzzle flash and sound (also played for other machines' players when they shoot).
     // shake = shake this screen (only for the player's own shots).
+    // This player's bullet hit another player (the host tells this player's machine).
+    public void PlayHitConfirm() => GameAudio.Play(hitConfirmSound, hitConfirmVolume, 0.05f);
+
     public void PlayShotFeedback(float spreadAngle, bool shake)
     {
         gunVisual.localPosition = gunRestPosition - Vector3.right * gunKickDistance;           // gun's local -X = backwards
@@ -187,11 +197,9 @@ public class PlayerWeapon : MonoBehaviour
         if (shake && cameraShake != null)
             cameraShake.Shake(cameraShakeStrength, cameraShakeDuration);
 
-        if (shootSound != null)
-        {
-            audioSource.pitch = 1f + Random.Range(-shootPitchVariation, shootPitchVariation);
-            audioSource.PlayOneShot(shootSound, shootVolume);
-        }
+        // Other players' shots are quieter than this player's own.
+        bool mine = net == null || net.IsMine;
+        GameAudio.PlayAt(shootSound, muzzleFlash.transform.position, shootVolume * (mine ? 1f : otherShotsVolume), shootPitchVariation);
     }
 
     // The gun eases back to rest; the muzzle flash hides after a moment.

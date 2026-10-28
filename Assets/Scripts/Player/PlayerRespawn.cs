@@ -18,7 +18,6 @@ using UnityEngine;
 //
 // Meanwhile the player's physics, movement and gun are off. All timings are real seconds.
 [RequireComponent(typeof(Rigidbody2D))]
-[RequireComponent(typeof(AudioSource))]
 public class PlayerRespawn : MonoBehaviour
 {
     // What happens after a death (sent by the host to every machine).
@@ -76,7 +75,7 @@ public class PlayerRespawn : MonoBehaviour
     [SerializeField] private AudioClip explosionSound;
 
     [Range(0f, 1f)]
-    [SerializeField] private float explosionVolume = 0.9f;
+    [SerializeField] private float explosionVolume = 0.6f;
 
     [Tooltip("Played softly when the player appears.")]
     [SerializeField] private AudioClip respawnSound;
@@ -85,7 +84,6 @@ public class PlayerRespawn : MonoBehaviour
     [SerializeField] private float respawnVolume = 0.45f;
 
     private Rigidbody2D rb;
-    private AudioSource audioSource;
     private PlayerMovement movement;
     private PlayerWeapon weapon;
     private PlayerHealth health;
@@ -113,7 +111,6 @@ public class PlayerRespawn : MonoBehaviour
     private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
-        audioSource = GetComponent<AudioSource>();
         movement = GetComponent<PlayerMovement>();
         weapon = GetComponent<PlayerWeapon>();
         health = GetComponent<PlayerHealth>();
@@ -373,10 +370,6 @@ public class PlayerRespawn : MonoBehaviour
 
     private void PlaySound(AudioClip clip, float volume)
     {
-        if (clip == null)
-            return;
-
-        audioSource.pitch = 1f; // PlayerWeapon changes the pitch for every shot
-        audioSource.PlayOneShot(clip, volume);
+        GameAudio.PlayAt(clip, transform.position, volume);
     }
 }

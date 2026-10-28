@@ -5,7 +5,6 @@ using UnityEngine.UI;
 // Card offer: shows up to 3 cores the player doesn't own yet, always at least one bullet core while any is left.
 // Clicking a card gives that core to the player. CoreBridge opens the offer (between waves, or after dying in a
 // LAN round, where a random card is taken when the time runs out).
-[RequireComponent(typeof(AudioSource))]
 public class CoreCards : MonoBehaviour
 {
     [System.Serializable]
@@ -43,7 +42,6 @@ public class CoreCards : MonoBehaviour
     [Range(0f, 1f)]
     [SerializeField] private float lanDimAlpha = 0.35f;
 
-    private AudioSource audioSource;
     private System.Action onPicked;
     private Image dim;
     private float dimAlpha;
@@ -51,7 +49,6 @@ public class CoreCards : MonoBehaviour
 
     private void Awake()
     {
-        audioSource = GetComponent<AudioSource>();
         dim = panel.GetComponent<Image>();
         dimAlpha = dim != null ? dim.color.a : 1f;
         panel.SetActive(false);
@@ -153,8 +150,7 @@ public class CoreCards : MonoBehaviour
         cores.Pick(offered[index]); // the host adds it and tells every machine
         panel.SetActive(false);
         timeLeft = 0f;
-        if (pickSound != null)
-            audioSource.PlayOneShot(pickSound, pickVolume);
+        GameAudio.Play(pickSound, pickVolume);
 
         System.Action done = onPicked;
         onPicked = null;

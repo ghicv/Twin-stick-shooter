@@ -6,7 +6,6 @@ using UnityEngine;
 // Single player: after a hit the player can't be hurt for a moment and blinks.
 // LAN: no such pause (it would make most bullets useless), just a white flash, and smaller pushes.
 [RequireComponent(typeof(Rigidbody2D))]
-[RequireComponent(typeof(AudioSource))]
 [RequireComponent(typeof(PlayerRespawn))]
 [RequireComponent(typeof(PlayerNetwork))]
 [RequireComponent(typeof(HitTarget))]
@@ -42,10 +41,15 @@ public class PlayerHealth : MonoBehaviour
     [Tooltip("Seconds each blink (visible / faded) lasts.")]
     [SerializeField] private float blinkInterval = 0.06f;
 
+    [Tooltip("A low thud: loud for the hurt player, soft (and where it happened) for the others.")]
     [SerializeField] private AudioClip hurtSound;
 
     [Range(0f, 1f)]
-    [SerializeField] private float hurtVolume = 0.7f;
+    [SerializeField] private float hurtVolume = 0.55f;
+
+    [Tooltip("The other players hear a hit at this part of Hurt Volume.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float othersHurtVolume = 0.35f;
 
     [Header("Crash")]
     [Tooltip("Pushed into a wall at least this fast, shortly after a hit, counts as a crash (cores can react) (units/sec).")]
@@ -63,7 +67,6 @@ public class PlayerHealth : MonoBehaviour
     public CoreBridge LastAttacker { get; private set; }
 
     private Rigidbody2D rb;
-    private AudioSource audioSource;
     private PlayerRespawn respawn;
     private PlayerNetwork net;
     private PlayerMovement movement;
@@ -77,7 +80,6 @@ public class PlayerHealth : MonoBehaviour
     private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
-        audioSource = GetComponent<AudioSource>();
         respawn = GetComponent<PlayerRespawn>();
         net = GetComponent<PlayerNetwork>();
         movement = GetComponent<PlayerMovement>();
@@ -130,6 +132,7 @@ public class PlayerHealth : MonoBehaviour
         if (GameMode.IsLan && match != null && !match.InMatch)
         {
             net.PlayHurt(0f);
+            ConfirmHit(source);
             return true; // LAN lobby: shooting each other is just for fun: hits push and flash, no health is lost
         }
 
@@ -139,6 +142,7 @@ public class PlayerHealth : MonoBehaviour
         if (source != null)
             LastAttacker = source;
         net.PlayHurt(invulnerableTimer);
+        ConfirmHit(source);
 
         if (Health <= 0f)
         {
@@ -148,6 +152,14 @@ public class PlayerHealth : MonoBehaviour
         return true;
     }
 
+    // Host: the player whose bullet or core hit this one hears a short tick on its own machine.
+    private void ConfirmHit(CoreBridge source)
+    {
+        PlayerNetwork attacker = source != null ? source.GetComponent<PlayerNetwork>() : null;
+        if (attacker != null && attacker != net)
+            attacker.ConfirmHit();
+    }
+
     // Every machine: sound, flash, blink (and a shake on the hurt player's own screen).
     public void PlayHurt(float blinkTime)
     {
@@ -155,11 +167,10 @@ public class PlayerHealth : MonoBehaviour
         blinkTimer = Mathf.Max(blinkTimer, blinkTime);
         if (cameraShake != null && net.IsMine)
             cameraShake.Shake(hitShakeStrength, hitShakeDuration);
-        if (hurtSound != null)
-        {
-            audioSource.pitch = 1f;
-            audioSource.PlayOneShot(hurtSound, hurtVolume);
-        }
+        if (net.IsMine)
+            GameAudio.Play(hurtSound, hurtVolume, 0.06f);
+        else
+            GameAudio.PlayAt(hurtSound, transform.position, hurtVolume * othersHurtVolume, 0.06f);
     }
 
     // Owner: pushed by a hit or a pull. set = replace the speed (hit), otherwise add to it.

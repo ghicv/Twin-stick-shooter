@@ -12,7 +12,6 @@ using UnityEngine;
 // cores can also slow it down, push it and hurt it over time (TakeTickDamage). Bullets and cores reach it
 // through its HitTarget.
 [RequireComponent(typeof(Rigidbody2D))]
-[RequireComponent(typeof(AudioSource))]
 [RequireComponent(typeof(HitTarget))]
 public class Dummy : MonoBehaviour
 {
@@ -105,6 +104,9 @@ public class Dummy : MonoBehaviour
     [Header("Sound")]
     [SerializeField] private AudioClip hitSound;
 
+    [Range(0f, 1f)]
+    [SerializeField] private float hitVolume = 0.6f;
+
     [Tooltip("Random pitch change per hit, so repeated hits don't sound identical.")]
     [Range(0f, 0.3f)]
     [SerializeField] private float pitchVariation = 0.1f;
@@ -124,7 +126,6 @@ public class Dummy : MonoBehaviour
     private Camera cam;
     private CameraShake cameraShake;
     private HitStop hitStop;
-    private AudioSource audioSource;
     private HitTarget target;
 
     // The cores of whoever hit it last (gets the credit when it dies or crashes). Null = not hit by a player.
@@ -160,7 +161,6 @@ public class Dummy : MonoBehaviour
     private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
-        audioSource = GetComponent<AudioSource>();
         cam = Camera.main;
         cameraShake = cam.GetComponent<CameraShake>(); // null → no shake
         hitStop = cam.GetComponent<HitStop>();         // null → no freeze frame
@@ -339,11 +339,7 @@ public class Dummy : MonoBehaviour
 
     private void PlaySound(AudioClip clip)
     {
-        if (clip == null)
-            return;
-
-        audioSource.pitch = 1f + Random.Range(-pitchVariation, pitchVariation);
-        audioSource.PlayOneShot(clip);
+        GameAudio.PlayAt(clip, transform.position, hitVolume, pitchVariation);
     }
 
     private void UpdateHealthBar()

@@ -328,6 +328,18 @@ public class PlayerNetwork : NetworkBehaviour
     [Rpc(SendTo.Everyone)]
     private void BlinkRpc(float blinkTime) => playerHealth.PlayBlink(blinkTime);
 
+    // This player hit another one: its own machine plays the hit tick.
+    public void ConfirmHit()
+    {
+        if (Offline)
+            weapon.PlayHitConfirm();
+        else
+            HitConfirmRpc();
+    }
+
+    [Rpc(SendTo.Owner)]
+    private void HitConfirmRpc() => weapon.PlayHitConfirm();
+
     public void PushOwner(Vector2 velocity, bool set)
     {
         if (Offline)

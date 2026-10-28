@@ -546,9 +546,6 @@ public static class UiBuilder
     {
         var go = new GameObject("UiAudio", typeof(RectTransform));
         go.transform.SetParent(hud, false);
-        var source = go.AddComponent<AudioSource>();
-        source.playOnAwake = false;
-        source.spatialBlend = 0f;
         var audio = go.AddComponent<UiAudio>();
         UiKit.Wire(audio, "hover", AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/UI/Hover.wav"));
         UiKit.Wire(audio, "click", AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/UI/Click.wav"));
@@ -565,28 +562,37 @@ public static class UiBuilder
         UiKit.Clear(settings);
         RectTransform panel = UiKit.Stretch(settings, "Panel");
         UiKit.Dim(panel, "Backdrop", 0.7f).raycastTarget = true;
-        Transform card = UiKit.Panel(panel, "Card", C, Vector2.zero, new Vector2(700, 820)).transform;
+        Transform card = UiKit.Panel(panel, "Card", C, Vector2.zero, new Vector2(700, 900)).transform;
         UiKit.Label(card, "Title", "SETTINGS", "CÀI ĐẶT", 60, UiKit.Orange, Mid, Top, new Vector2(0, -70), new Vector2(640, 80), true);
         Button resume = UiKit.Button(card, "ResumeButton", "RESUME", null, Top, new Vector2(0, -175), new Vector2(520, 88), K.Primary, 32);
-        UiKit.Label(card, "VolumeLabel", "VOLUME", "ÂM LƯỢNG", 40, Color.white, MidLeft, Top, new Vector2(-60, -265), new Vector2(400, 50));
-        Text volumeValue = UiKit.Label(card, "VolumeValue", "100%", null, 40, UiKit.Gold, MidRight, Top, new Vector2(160, -265), new Vector2(200, 50));
-        Slider slider = PixelSlider(card, new Vector2(0, -320), new Vector2(520, 28));
-        Button fullScreen = UiKit.Button(card, "FullScreenButton", "FULL SCREEN: ON", null, Top, new Vector2(0, -420), new Vector2(520, 80), K.Normal, 28);
-        UiKit.Label(card, "LanguageLabel", "LANGUAGE", "NGÔN NGỮ", 40, Color.white, MidLeft, Top, new Vector2(-60, -500), new Vector2(400, 50));
-        LanguageRow(card, Top, new Vector2(0, -565), 254, 24);
+        Slider music = VolumeRow(card, "Music", "MUSIC", "NHẠC", -262, out Text musicValue);
+        Slider sfx = VolumeRow(card, "Sfx", "SOUND EFFECTS", "HIỆU ỨNG", -372, out Text sfxValue);
+        Button fullScreen = UiKit.Button(card, "FullScreenButton", "FULL SCREEN: ON", null, Top, new Vector2(0, -510), new Vector2(520, 80), K.Normal, 28);
+        UiKit.Label(card, "LanguageLabel", "LANGUAGE", "NGÔN NGỮ", 40, Color.white, MidLeft, Top, new Vector2(-60, -595), new Vector2(400, 50));
+        LanguageRow(card, Top, new Vector2(0, -660), 254, 24);
         Button leave = UiKit.Button(card, "LeaveButton", "LEAVE ROOM", null, Bottom, new Vector2(0, 80), new Vector2(520, 84), K.Danger, 28);
         UiKit.Wire(menu, "panel", panel.gameObject);
         UiKit.Wire(menu, "resumeButton", resume);
-        UiKit.Wire(menu, "volumeSlider", slider);
-        UiKit.Wire(menu, "volumeValueText", volumeValue);
+        UiKit.Wire(menu, "musicSlider", music);
+        UiKit.Wire(menu, "musicValueText", musicValue);
+        UiKit.Wire(menu, "sfxSlider", sfx);
+        UiKit.Wire(menu, "sfxValueText", sfxValue);
         UiKit.Wire(menu, "fullScreenButton", fullScreen);
         UiKit.Wire(menu, "leaveButton", leave);
         panel.gameObject.SetActive(false);
     }
 
-    private static Slider PixelSlider(Transform parent, Vector2 position, Vector2 size)
+    // "MUSIC        60%" over its slider.
+    private static Slider VolumeRow(Transform card, string name, string english, string vietnamese, float y, out Text value)
     {
-        RectTransform root = UiKit.Rect(parent, "VolumeSlider", Top, position, size);
+        UiKit.Label(card, name + "Label", english, vietnamese, 40, Color.white, MidLeft, Top, new Vector2(-60, y), new Vector2(400, 50));
+        value = UiKit.Label(card, name + "Value", "100%", null, 40, UiKit.Gold, MidRight, Top, new Vector2(160, y), new Vector2(200, 50));
+        return PixelSlider(card, name + "Slider", new Vector2(0, y - 52), new Vector2(520, 28));
+    }
+
+    private static Slider PixelSlider(Transform parent, string name, Vector2 position, Vector2 size)
+    {
+        RectTransform root = UiKit.Rect(parent, name, Top, position, size);
         Image back = UiKit.Panel(root, "Background", C, Vector2.zero, size);
         var backRect = (RectTransform)back.transform;
         backRect.anchorMin = Vector2.zero;

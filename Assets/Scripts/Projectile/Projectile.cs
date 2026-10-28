@@ -21,6 +21,12 @@ public class Projectile : MonoBehaviour
              "It should destroy itself (Stop Action = Destroy).")]
     [SerializeField] private ParticleSystem impactEffect;
 
+    [Tooltip("A soft tick when it hits a wall (quiet: many bullets hit walls).")]
+    [SerializeField] private AudioClip wallHitSound;
+
+    [Range(0f, 1f)]
+    [SerializeField] private float wallHitVolume = 0.15f;
+
     public float Damage { get; private set; }
     public Rigidbody2D Body => rb;
 
@@ -163,6 +169,7 @@ public class Projectile : MonoBehaviour
         {
             float normalAngle = Mathf.Atan2(normal.y, normal.x) * Mathf.Rad2Deg;
             Instantiate(impactEffect, hitPoint, Quaternion.Euler(0f, 0f, normalAngle)); // sparks off walls/floor
+            GameAudio.PlayAt(wallHitSound, hitPoint, wallHitVolume, 0.1f);
             if (cores != null)
                 keepFlying = cores.OnBulletHitWall(this, hitPoint, normal);
         }
