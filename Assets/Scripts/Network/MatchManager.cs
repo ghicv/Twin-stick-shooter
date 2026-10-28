@@ -431,7 +431,10 @@ public class MatchManager : NetworkBehaviour
         phase.Value = (int)Phase.BetweenRounds;
         round.Value++;
         foreach (PlayerNetwork player in PlayerNetwork.All)
+        {
             player.Cores.ResetForRound();
+            player.ClearGun(); // special guns don't carry over
+        }
 
         // A card milestone: everybody picks a card before the round.
         if (System.Array.IndexOf(cardRounds, round.Value) >= 0 && !tiebreak.Value)

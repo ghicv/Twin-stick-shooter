@@ -13,9 +13,44 @@ using UnityEngine.InputSystem;
 // Recoil: bullets leave at a random angle inside the current spread. Every shot opens the spread a bit
 // (up to Max Spread) and it closes again over time, so tapping is accurate and spraying is not.
 // Each shot also plays a sound, kicks the gun sprite, flashes the muzzle and shakes the camera a little.
+//
+// Special guns (LAN, from weapon crates): while one is held (PlayerNetwork.Gun) its own fire rate, damage, bullets
+// and spread are used, with limited ammo (kept by the owner); when it runs out, the normal gun is back. Cores still
+// work on its shots.
 [RequireComponent(typeof(Rigidbody2D))]
 public class PlayerWeapon : MonoBehaviour
 {
+    [System.Serializable]
+    public class SpecialGun
+    {
+        public string name = "GUN";
+
+        [Tooltip("Shots per second.")]
+        [Min(0.1f)]
+        public float fireRate = 2f;
+
+        public float damage = 10f;
+        public float speed = 30f;
+
+        [Tooltip("Seconds a bullet flies (short = short range).")]
+        public float lifetime = 2f;
+
+        [Tooltip("Bullets per shot, fanned out over Spread.")]
+        [Min(1)]
+        public int pellets = 1;
+
+        [Tooltip("Degrees to each side (one bullet: a random angle inside it).")]
+        public float spread;
+
+        [Tooltip("Shots before it is used up.")]
+        [Min(1)]
+        public int ammo = 10;
+
+        [Tooltip("How the gun sprite looks while it is held.")]
+        public Vector2 gunScale = Vector2.one;
+        public Color gunColor = Color.white;
+    }
+
     [Header("References")]
     [SerializeField] private Projectile projectilePrefab;
 
@@ -90,7 +125,23 @@ public class PlayerWeapon : MonoBehaviour
     [Range(0f, 0.3f)]
     [SerializeField] private float shootPitchVariation = 0.08f;
 
+    [Header("Special guns")]
+    [SerializeField] private SpecialGun[] specialGuns =
+    {
+        new SpecialGun { name = "SHOTGUN", fireRate = 1.4f, damage = 8f, speed = 26f, lifetime = 0.35f, pellets = 6, spread = 14f,
+                         ammo = 6, gunScale = new Vector2(1.25f, 1.4f), gunColor = new Color(0.75f, 0.5f, 0.25f) },
+        new SpecialGun { name = "SNIPER", fireRate = 0.9f, damage = 40f, speed = 60f, lifetime = 2f, pellets = 1, spread = 0f,
+                         ammo = 4, gunScale = new Vector2(1.7f, 1f), gunColor = new Color(0.4f, 0.65f, 0.4f) },
+        new SpecialGun { name = "MINIGUN", fireRate = 14f, damage = 5f, speed = 32f, lifetime = 1.2f, pellets = 1, spread = 6f,
+                         ammo = 50, gunScale = new Vector2(1.4f, 1.5f), gunColor = new Color(0.65f, 0.68f, 0.75f) },
+    };
+
     public Projectile ProjectilePrefab => projectilePrefab;
+    public int SpecialGunCount => specialGuns.Length;
+
+    // The owner's special gun and its shots left (null / 0 = the normal gun).
+    public SpecialGun HeldGun => net != null && net.Gun > 0 && net.Gun <= specialGuns.Length && ammo > 0 ? specialGuns[net.Gun - 1] : null;
+    public int Ammo => ammo;
 
     private InputAction attackAction;
     private Rigidbody2D playerRigidbody;
@@ -103,6 +154,11 @@ public class PlayerWeapon : MonoBehaviour
     private float currentSpread;
     private float nextFireTime;
     private float muzzleFlashTimer;
+    private int ammo;
+    private int shownGun = -1;
+    private Vector3 gunBaseScale;
+    private SpriteRenderer gunSprite;
+    private Color gunBaseColor;
 
     private void Awake()
     {
@@ -113,7 +169,32 @@ public class PlayerWeapon : MonoBehaviour
         net = GetComponent<PlayerNetwork>();
         gunRestPosition = gunVisual.localPosition;
         gunRestRotation = gunVisual.localRotation;
+        gunBaseScale = gunVisual.localScale;
+        gunSprite = gunVisual.GetComponentInChildren<SpriteRenderer>();
+        gunBaseColor = gunSprite != null ? gunSprite.color : Color.white;
         currentSpread = minSpread;
+    }
+
+    // Owner: a special gun was handed over (PlayerNetwork, from a weapon crate).
+    public void EquipSpecial(int type)
+    {
+        if (type > 0 && type <= specialGuns.Length)
+            ammo = specialGuns[type - 1].ammo;
+    }
+
+    // Every machine: the gun looks like the one held.
+    private void ShowHeldGun()
+    {
+        int held = net != null ? net.Gun : 0;
+        if (held == shownGun)
+            return;
+        shownGun = held;
+        SpecialGun special = held > 0 && held <= specialGuns.Length ? specialGuns[held - 1] : null;
+        gunVisual.localScale = special != null ? Vector3.Scale(gunBaseScale, new Vector3(special.gunScale.x, special.gunScale.y, 1f)) : gunBaseScale;
+        if (gunSprite != null)
+            gunSprite.color = special != null ? special.gunColor : gunBaseColor;
+        if (held == 0)
+            ammo = 0;
     }
 
     // Turned off while the player is dead (PlayerRespawn). When turned back on, holding Left Mouse
@@ -131,6 +212,7 @@ public class PlayerWeapon : MonoBehaviour
 
     private void Update()
     {
+        ShowHeldGun();
         UpdateShotFeedback();
         if (net != null && !net.IsMine)
             return; // another machine's player: only its shot feedback plays here (PlayShotFeedback)
@@ -150,11 +232,13 @@ public class PlayerWeapon : MonoBehaviour
 
         if (holding && Time.time >= nextFireTime)
         {
+            // The rate of the gun this shot comes from (its last bullet may switch back to the normal gun).
+            SpecialGun special = HeldGun;
+            float rate = (special != null ? special.fireRate : fireRate) * (cores != null ? cores.FireRateMultiplier(holdTime) : 1f);
             Shoot();
 
             // "+=" instead of "Time.time + interval": a late frame doesn't push the next shot back,
             // so holding the button gives exactly fireRate shots per second at any FPS.
-            float rate = fireRate * (cores != null ? cores.FireRateMultiplier(holdTime) : 1f);
             nextFireTime += 1f / rate;
         }
 
@@ -163,6 +247,13 @@ public class PlayerWeapon : MonoBehaviour
 
     private void Shoot()
     {
+        SpecialGun special = HeldGun;
+        if (special != null && cores != null)
+        {
+            ShootSpecial(special);
+            return;
+        }
+
         // Random angle inside the current spread, then open the spread a bit more.
         // Cores can make the gun steadier (less spread).
         float spreadAngle = Random.Range(-currentSpread, currentSpread) * (cores != null ? cores.SpreadMultiplier : 1f);
@@ -180,6 +271,24 @@ public class PlayerWeapon : MonoBehaviour
         }
 
         PlayShotFeedback(spreadAngle, true);
+    }
+
+    // A special gun's shot: its bullets fanned out over its spread (one bullet: a random angle inside it), one ammo.
+    private void ShootSpecial(SpecialGun special)
+    {
+        float spread = special.spread * cores.SpreadMultiplier;
+        for (int i = 0; i < special.pellets; i++)
+        {
+            float angle = special.pellets > 1 ? Mathf.Lerp(-spread, spread, i / (special.pellets - 1f)) + Random.Range(-2f, 2f)
+                                              : Random.Range(-spread, spread);
+            Quaternion rotation = firePoint.rotation * Quaternion.Euler(0f, 0f, angle);
+            cores.FireShot(projectilePrefab, firePoint.position, rotation, special.speed, special.damage, special.lifetime, playerRigidbody);
+        }
+        PlayShotFeedback(0f, true);
+
+        ammo--;
+        if (ammo <= 0)
+            net.DropGun(); // back to the normal gun
     }
 
     // Gun kick, muzzle flash and sound (also played for other machines' players when they shoot).

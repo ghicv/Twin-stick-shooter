@@ -3,7 +3,8 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // On-screen info: this machine's player's health (bar + number), the cores (augments) the player owns (icons),
-// and in single player the score and the wave. Reads the values every frame.
+// and in single player the score and the wave (on LAN that line shows the special gun held and its ammo).
+// Reads the values every frame.
 public class GameHUD : MonoBehaviour
 {
     [Tooltip("Score and wave are only shown while it is running (single player).")]
@@ -57,9 +58,13 @@ public class GameHUD : MonoBehaviour
         if (local != null && local.Cores != null)
             UpdateCoreIcons(local.Cores);
 
+        // LAN: the special gun held and its ammo, where single player shows the wave.
+        PlayerWeapon.SpecialGun gun = local != null ? local.GetComponent<PlayerWeapon>().HeldGun : null;
+        string gunText = gun != null ? gun.name + "  x" + local.GetComponent<PlayerWeapon>().Ammo : "";
+
         bool waves = waveManager.isActiveAndEnabled;
         scoreText.text = waves ? Lang.T("SCORE ", "ĐIỂM ") + waveManager.Score : "";
-        waveText.text = !waves ? ""
+        waveText.text = !waves ? gunText
             : waveManager.WaveRunning ? Lang.T("WAVE ", "ĐỢT ") + waveManager.Wave + Lang.T("   ENEMIES ", "   KẺ ĐỊCH ") + waveManager.EnemiesLeft
             : Lang.T("WAVE ", "ĐỢT ") + waveManager.Wave;
     }

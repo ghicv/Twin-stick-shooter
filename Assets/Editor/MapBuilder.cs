@@ -5,9 +5,10 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 
 // Builds the LAN round maps from text layouts (Tools > Rebuild LAN Maps), replacing every old round map; the single
-// player maps and the lobby stay. A map is 28 x 16 cells, one cell = one unit: exactly what the camera shows (size 8),
+// player maps and the lobby stay. A map is 32 x 18 cells, one cell = one unit: exactly what the camera shows (size 9),
 // so the whole arena is always on screen. Each map has a theme, whose pixel art (ground, platforms, hazards,
-// decorations, background) is painted here and saved under Assets/Sprites/Maps/<Theme>.
+// decorations, background) is painted here and saved under Assets/Sprites/Maps/<Theme>; the map items' art (jump
+// pad, barrel, health pack, weapon crate) under Assets/Sprites/Maps/Items, and their networked prefabs are made too.
 //
 // Layout characters (row 0 is the top of the screen):
 //   .  empty             #  ground (stops bullets)      %  ice (ground, players slide on it)
@@ -17,15 +18,19 @@ using UnityEngine;
 //   G H  ghost platforms (come and go; the G ones and the H ones take turns)
 //   M N O R ...  a moving platform, as the layout's Motions say (one-way; a spinning one is a solid bar)
 //   X  a crate (the host spawns it each time the map starts; bullets knock it around)
+//   B  an explosive barrel (spawned like a crate; shot enough, it blows up)
+//   +  a health pack (spawned like a crate, back a while after it is taken)
+//   J  a jump pad (throws whatever touches it up)
+//   Weapon crates drop from the sky anywhere during a round (MapProps).
 //   1 2 3 4  player starts (slot order; 1 and 2 far apart)
 //   a b c  the theme's decorations, standing on what is below them (no collision)
 // Falling off the bottom or the sides kills.
 public static class MapBuilder
 {
-    private const int Columns = 28;
-    private const int Rows = 16;
+    private const int Columns = 32;
+    private const int Rows = 18;
     private const float CameraSize = Rows * 0.5f;
-    private const float FallLimit = -10f;
+    private const float FallLimit = -11f;
     private const float ConveyorSpeed = 2.5f;
     private const int SkylineWidth = 224; // units: the background reaches far past the screen
     private const string CratePrefabPath = "Assets/Prefabs/Crate.prefab";
@@ -170,229 +175,253 @@ public static class MapBuilder
     private static readonly Layout[] Layouts =
     {
         new Layout { name = "GLADE", theme = Woods, rows = new[] {
-            "............................",
-            "............................",
-            "............................",
-            "............................",
-            "............................",
-            "........=====..=====........",
-            "............................",
-            "..1......................2..",
-            "======................======",
-            "............................",
-            ".........#........#.........",
-            "......3..#..a..a..#..4......",
-            "....####################....",
-            "....####################....",
-            ".....##################.....",
-            "......################......" } },
+            "................................",
+            "................................",
+            "................................",
+            "................................",
+            "................................",
+            "..........=====..=====..........",
+            "................................",
+            "...1........................2...",
+            "======....................======",
+            "...............+................",
+            "................................",
+            "..........#..........#..........",
+            "......3.B.#..a.JJ.a..#.B.4......",
+            "....########################....",
+            "....########################....",
+            ".....######################.....",
+            "......####################......",
+            "................................" } },
 
         new Layout { name = "CANOPY", theme = Woods, rows = new[] {
-            "............................",
-            "............................",
-            "............................",
-            ".........==========.........",
-            "............................",
-            ".....1...............2......",
-            ".....##..............##.....",
-            ".....##..............##.....",
-            "..3..##..............##..4..",
-            "=====##=====....=====##=====",
-            ".....##..............##.....",
-            ".....##...b....b.....##.....",
-            ".....##...========...##.....",
-            ".....##..............##.....",
-            ".....##..............##.....",
-            ".....##..............##....." } },
+            "................................",
+            "................................",
+            "................................",
+            "..........============..........",
+            "................................",
+            "......1.................2.......",
+            "......##................##......",
+            "......##................##......",
+            "...3..##..B....+.....B..##..4...",
+            "======##======....======##======",
+            "......##................##......",
+            "......##....b..JJ..b....##......",
+            "......##...==========...##......",
+            "......##................##......",
+            "......##................##......",
+            "......##................##......",
+            "......##................##......",
+            "......##................##......" } },
 
         new Layout { name = "MESA", theme = Desert, rows = new[] {
-            "............................",
-            "............................",
-            "............................",
-            ".......1............2.......",
-            ".....=====........=====.....",
-            "............................",
-            "..3......................4..",
-            "=====........XX........=====",
-            "............####............",
-            "..........########..........",
-            "..........########..........",
-            ".....X..############..X.....",
-            "...a.XX.############.XXa....",
-            "...######################...",
-            "....####################....",
-            ".....##################....." } },
+            "................................",
+            "................................",
+            "................................",
+            "........1..............2........",
+            "......=====..........=====......",
+            "................................",
+            "..3............+.............4..",
+            "======.........XX.........======",
+            "..............####..............",
+            "............########............",
+            "............########............",
+            "......X...############...X......",
+            "...a.XXBJ.############.JBXX.a...",
+            "...##########################...",
+            "....########################....",
+            ".....######################.....",
+            "......####################......",
+            "................................" } },
 
         new Layout { name = "DUNES", theme = Desert, rows = new[] {
-            "............................",
-            "............................",
-            "....3..................4....",
-            "..=====..............=====..",
-            "............................",
-            "............................",
-            "..........========..........",
-            "...#....................#...",
-            "...#....................#...",
-            ".1.#..cXX..........XXc..#.2.",
-            "#########==========#########",
-            "#########..........#########",
-            "#########..........#########",
-            "########............########",
-            "########............########",
-            "#######..............#######" } },
+            "................................",
+            "................................",
+            ".....3....................4.....",
+            "...=====................=====...",
+            "................................",
+            "...............+................",
+            "...........==========...........",
+            "................................",
+            "....#......................#....",
+            "....#......................#....",
+            ".1..#..cXXB..........BXXc..#..2.",
+            "###########==========###########",
+            "###########..........###########",
+            "###########..........###########",
+            "##########............##########",
+            "##########............##########",
+            "#########..............#########",
+            "#########..............#########" } },
 
         new Layout { name = "ASSEMBLY", theme = Factory, rows = new[] {
-            "............................",
-            "............................",
-            "............................",
-            "............................",
-            ".......3............4.......",
-            ".....======..b...======.....",
-            "............####............",
-            "............................",
-            "..#......................#..",
-            "..#...MMMMMM....NNNNNN...#..",
-            "..#......................#..",
-            "..#......................#..",
-            "..#.1......^^^^^^.....2..#..",
-            "..####>>>>>######<<<<<####..",
-            "...######################...",
-            "....####################...." },
+            "................................",
+            "................................",
+            "................................",
+            "................................",
+            "........3..............4........",
+            "......======...b....======......",
+            "..............####..............",
+            "................................",
+            "..#............+.............#..",
+            "..#...MMMMMM........NNNNNN...#..",
+            "..#..........................#..",
+            "..#..........................#..",
+            "..#J1.B......^^^^^^......B.2J#..",
+            "..####>>>>>>########<<<<<<####..",
+            "...##########################...",
+            "....########################....",
+            ".....######################.....",
+            "................................" },
             motions = new[] {
                 new Motion { key = 'M', travel = new Vector2(1.5f, 0f), period = 4f },
                 new Motion { key = 'N', travel = new Vector2(-1.5f, 0f), period = 4f } } },
 
         new Layout { name = "FURNACE", theme = Factory, rows = new[] {
-            "............................",
-            "............................",
-            "............................",
-            "..3......................4..",
-            ".=====................=====.",
-            "............................",
-            "..........#......#..........",
-            "....1.....#......#.....2....",
-            "..MMMMMM..#.RRRR.#..NNNNNN..",
-            "..........#......#..........",
-            "..........#......#..........",
-            "..........########..........",
-            "..........########..........",
-            "^^^^..a..##########..a..^^^^",
-            "############################",
-            "############################" },
+            "................................",
+            "................................",
+            "...............+................",
+            "...3........................4...",
+            "..=====..................=====..",
+            "................................",
+            "...........#........#...........",
+            "....1......#........#......2....",
+            "..MMMMMM...#..RRRR..#...NNNNNN..",
+            "...........#........#...........",
+            "...........#........#...........",
+            "...........##########...........",
+            "...........##########...........",
+            "^^^^^J.aB.############.Ba.J^^^^^",
+            "################################",
+            "################################",
+            "################################",
+            "################################" },
             motions = new[] {
                 new Motion { key = 'M', travel = new Vector2(0f, 1.5f), period = 5f },
                 new Motion { key = 'N', travel = new Vector2(0f, -1.5f), period = 5f },
                 new Motion { key = 'R', spin = 60f } } },
 
         new Layout { name = "GRAVEYARD", theme = Ghost, rows = new[] {
-            "............................",
-            "............................",
-            "............................",
-            "............................",
-            "...........HHHHHH...........",
-            "............................",
-            "......3..............4......",
-            "....GGGGG..........HHHHH....",
-            "............................",
-            "............................",
-            "...1..a..b........b..a..2...",
-            ".##########GGGGGG##########.",
-            ".##########......##########.",
-            "..#########......#########..",
-            "...########......########...",
-            "....#######......#######...." } },
+            "................................",
+            "................................",
+            "................................",
+            "................................",
+            ".............HHHHHH.............",
+            "................................",
+            ".......3................4.......",
+            ".....GGGGG............HHHHH.....",
+            "...............+................",
+            "................................",
+            "................................",
+            "...1..a..b.B........B.b..a..2...",
+            ".############GGGGGG############.",
+            ".############......############.",
+            "..###########......###########..",
+            "...##########......##########...",
+            "....#########......#########....",
+            "................................" } },
 
         new Layout { name = "CRYPT", theme = Ghost, rows = new[] {
-            "............................",
-            "............................",
-            "............................",
-            "...3....................4...",
-            "..GGGGG..............HHHHH..",
-            "............................",
-            "...........######...........",
-            "...........#....#...........",
-            "......=====#....#=====......",
-            "............................",
-            ".............c..............",
-            "..1..a.....######.....a..2..",
-            "############################",
-            "############################",
-            ".##########################.",
-            "..########################.." } },
+            "................................",
+            "................................",
+            "................................",
+            "....3......................4....",
+            "...GGGGG................HHHHH...",
+            "................................",
+            ".............######.............",
+            ".............#....#.............",
+            "........=====#....#=====........",
+            "................................",
+            "...............c+...............",
+            "..1..a...B...######...B...a..2..",
+            "################################",
+            "################################",
+            ".##############################.",
+            "..############################..",
+            "...##########################...",
+            "................................" } },
 
         new Layout { name = "MAGMA", theme = Volcano, rows = new[] {
-            "............................",
-            "............................",
-            "............................",
-            "............................",
-            "...........MMMMMM...........",
-            "............................",
-            ".........3........4.........",
-            ".......=====....=====.......",
-            "............................",
-            "...1..a..............a..2...",
-            "..######............######..",
-            "..######....b..b....######..",
-            "..######...######...######..",
-            "...####....######....####...",
-            "LLLLLLLLLLLLLLLLLLLLLLLLLLLL",
-            "LLLLLLLLLLLLLLLLLLLLLLLLLLLL" },
-            motions = new[] { new Motion { key = 'M', travel = new Vector2(5f, 0f), period = 7f } } },
+            "................................",
+            "................................",
+            "................................",
+            "................................",
+            ".............MMMMMM.............",
+            "................................",
+            "..........3..........4..........",
+            "........=====......=====........",
+            "................................",
+            "...............+................",
+            "...1..a..B............B..a..2...",
+            "..########............########..",
+            "..########....bJJb....########..",
+            "..########..########..########..",
+            "...######...########...######...",
+            "................................",
+            "LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL",
+            "LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL" },
+            motions = new[] { new Motion { key = 'M', travel = new Vector2(6f, 0f), period = 7f } } },
 
         new Layout { name = "CALDERA", theme = Volcano, rows = new[] {
-            "............................",
-            "............................",
-            "............................",
-            "....3..................4....",
-            "...=====............=====...",
-            "............................",
-            "............................",
-            "..........MMMMMMMM..........",
-            "............................",
-            "..1.a................a..2...",
-            "#######..............#######",
-            "#######..............#######",
-            "#########....##....#########",
-            "#########LLLLLLLLLL#########",
-            "#########LLLLLLLLLL#########",
-            "#########LLLLLLLLLL#########" },
+            "................................",
+            "................................",
+            "................................",
+            ".....3....................4.....",
+            "....=====..............=====....",
+            "................................",
+            "................................",
+            "...........MMMMMMMMMM...........",
+            "................................",
+            "...............+................",
+            "..1.a..B..............B...a..2..",
+            "########................########",
+            "########.......JJ.......########",
+            "##########....####....##########",
+            "##########LLLLLLLLLLLL##########",
+            "##########LLLLLLLLLLLL##########",
+            "##########LLLLLLLLLLLL##########",
+            "##########LLLLLLLLLLLL##########" },
             motions = new[] { new Motion { key = 'M', travel = new Vector2(0f, 2f), period = 6f } } },
 
         new Layout { name = "GLACIER", theme = Frost, rows = new[] {
-            "............................",
-            "............................",
-            "............................",
-            "............................",
-            "..3......................4..",
-            ".=====................=====.",
-            "............................",
-            "............%%%%............",
-            "............%%%%............",
-            "............................",
-            "......=====......=====......",
-            "............................",
-            "..1..a...X........X...a..2..",
-            "..%%%%%%%%%%%%%%%%%%%%%%%%..",
-            "...######################...",
-            "....####################...." } },
+            "................................",
+            "................................",
+            "................................",
+            "................................",
+            "...3........................4...",
+            "..=====..................=====..",
+            "...............+................",
+            "..............%%%%..............",
+            "..............%%%%..............",
+            "................................",
+            ".......=====........=====.......",
+            "................................",
+            "..1..a..BX............XB..a..2..",
+            "..%%%%%%%%%%%%%%%%%%%%%%%%%%%%..",
+            "...##########################...",
+            "....########################....",
+            ".....######################.....",
+            "................................" } },
 
         new Layout { name = "ICE LAKE", theme = Frost, rows = new[] {
-            "............................",
-            "............................",
-            "............................",
-            "............................",
-            "...........======...........",
-            "............................",
-            "....3..................4....",
-            "...%%%%%............%%%%%...",
-            "...%%%%%............%%%%%...",
-            "............................",
-            "............................",
-            "..1...c.X..........X.c...2..",
-            "%%%%%%%%%%........%%%%%%%%%%",
-            "##########........##########",
-            "##########........##########",
-            "##########........##########" } },
+            "................................",
+            "................................",
+            "................................",
+            "................................",
+            ".............======.............",
+            "................................",
+            "....3......................4....",
+            "...%%%%%................%%%%%...",
+            "...%%%%%.......+........%%%%%...",
+            "................................",
+            "................................",
+            "..1...c.XB............BX.c...2..",
+            "%%%%%%%%%%%%........%%%%%%%%%%%%",
+            "############........############",
+            "############........############",
+            "############........############",
+            "############........############",
+            "############........############" } },
     };
 
     // ---------- Build ----------
@@ -422,14 +451,18 @@ public static class MapBuilder
         var art = new Dictionary<Theme, ThemeArt>();
         foreach (Theme theme in Themes)
             art[theme] = PaintTheme(theme);
+        items = PaintItems();
         foreach (Layout layout in Layouts)
             maps.Add(Build(manager.transform, layout, art[layout.theme]));
 
-        // The host spawns each map's crates (MapProps, next to the MapManager).
+        // The host spawns each map's networked things (MapProps, next to the MapManager).
         MapProps props = manager.GetComponent<MapProps>();
         if (props == null)
             props = manager.gameObject.AddComponent<MapProps>();
         UiKit.Wire(props, "cratePrefab", CratePrefab(art[Woods].crate));
+        UiKit.Wire(props, "barrelPrefab", BarrelPrefab());
+        UiKit.Wire(props, "healthPackPrefab", HealthPackPrefab());
+        UiKit.Wire(props, "weaponCratePrefab", WeaponCratePrefab());
 
         // A picture of every round map, for the map roulette.
         for (int i = 0; i < Layouts.Length; i++)
@@ -518,13 +551,17 @@ public static class MapBuilder
                     AddMovingPlatform(blocks, c, r, width, motion, art);
                 else if (kind == '^')
                     AddSpikes(hazards, c, r, width, art);
+                else if (kind == 'J')
+                    AddJumpPad(hazards, c, r, width);
                 c += width;
             }
         }
 
-        // Starts, crates and decorations.
+        // Starts, item spots and decorations.
         var spawnPoints = new Transform[4];
         var crateSpots = new List<Transform>();
+        var barrelSpots = new List<Transform>();
+        var healthSpots = new List<Transform>();
         for (int r = 0; r < Rows; r++)
             for (int c = 0; c < Columns; c++)
             {
@@ -535,11 +572,11 @@ public static class MapBuilder
                     point.localPosition = new Vector3(CellX(c) + 0.5f, CellBottom(r) + 1f, 0f);
                     spawnPoints[kind - '1'] = point;
                 }
-                else if (kind == 'X')
+                else if (kind == 'X' || kind == 'B' || kind == '+')
                 {
-                    Transform spot = Child(spawns, "Crate");
+                    Transform spot = Child(spawns, kind == 'X' ? "Crate" : kind == 'B' ? "Barrel" : "HealthPack");
                     spot.localPosition = new Vector3(CellX(c) + 0.5f, CellBottom(r) + 0.5f, 0f);
-                    crateSpots.Add(spot);
+                    (kind == 'X' ? crateSpots : kind == 'B' ? barrelSpots : healthSpots).Add(spot);
                 }
                 else if (kind >= 'a' && kind <= 'c')
                 {
@@ -563,15 +600,38 @@ public static class MapBuilder
         points.arraySize = 4;
         for (int i = 0; i < 4; i++)
             points.GetArrayElementAtIndex(i).objectReferenceValue = spawnPoints[i];
-        SerializedProperty crates = mapSo.FindProperty("crateSpots");
-        crates.arraySize = crateSpots.Count;
-        for (int i = 0; i < crateSpots.Count; i++)
-            crates.GetArrayElementAtIndex(i).objectReferenceValue = crateSpots[i];
+        WireSpots(mapSo, "crateSpots", crateSpots);
+        WireSpots(mapSo, "barrelSpots", barrelSpots);
+        WireSpots(mapSo, "healthSpots", healthSpots);
         mapSo.FindProperty("crateSprite").objectReferenceValue = art.crate;
         mapSo.ApplyModifiedPropertiesWithoutUndo();
 
         root.gameObject.SetActive(false);
         return map;
+    }
+
+    private static void WireSpots(SerializedObject map, string field, List<Transform> spots)
+    {
+        SerializedProperty list = map.FindProperty(field);
+        list.arraySize = spots.Count;
+        for (int i = 0; i < spots.Count; i++)
+            list.GetArrayElementAtIndex(i).objectReferenceValue = spots[i];
+    }
+
+    // A spring on the ground, at the bottom of its cells (JumpPad throws things up).
+    private static void AddJumpPad(Transform parent, int c, int r, int width)
+    {
+        var pad = new GameObject("JumpPad");
+        pad.transform.SetParent(parent, false);
+        pad.transform.localPosition = new Vector3(CellX(c) + width * 0.5f, CellBottom(r), 0f);
+        var box = pad.AddComponent<BoxCollider2D>();
+        box.size = new Vector2(width - 0.1f, 0.5f);
+        box.offset = new Vector2(0f, 0.25f);
+        box.isTrigger = true;
+        SpriteRenderer spring = Tiled(pad.transform, "Spring", items.jumpPad, TopOrder, new Vector2(width, 0.5f));
+        var jumpPad = pad.AddComponent<JumpPad>();
+        UiKit.Wire(jumpPad, "spring", spring.transform);
+        UiKit.Wire(jumpPad, "sound", AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/Boing.wav"));
     }
 
     // Renders the map alone, 1 art pixel = 1 picture pixel (28 x 16 units), and gives it the theme's color.
@@ -624,6 +684,169 @@ public static class MapBuilder
         so.FindProperty("thumbnail").objectReferenceValue = thumbnail;
         so.FindProperty("themeColor").colorValue = theme.color;
         so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    // ---------- Map items ----------
+
+    private class ItemArt
+    {
+        public Sprite jumpPad, barrel, healthPack, weaponCrate;
+    }
+
+    private static ItemArt items;
+
+    private static ItemArt PaintItems()
+    {
+        const string folder = ArtRoot + "/Items";
+        return new ItemArt
+        {
+            jumpPad = Save(folder, "JumpPad", PaintJumpPad(), new Vector2(0.5f, 0f)),
+            barrel = Save(folder, "Barrel", PaintBarrel(), new Vector2(0.5f, 0.5f)),
+            healthPack = Save(folder, "HealthPack", PaintHealthPack(), new Vector2(0.5f, 0.5f)),
+            weaponCrate = Save(folder, "WeaponCrate", PaintWeaponCrate(), new Vector2(0.5f, 0.5f)),
+        };
+    }
+
+    // 16 x 8: a dark base, a zigzag spring, a yellow plate on top.
+    private static Pix PaintJumpPad()
+    {
+        var pix = new Pix(16, 8);
+        pix.Rect(1, 0, 14, 2, Metal[0]);
+        for (int y = 2; y < 6; y++)
+            for (int x = 3; x < 13; x++)
+                if ((x + y) % 4 == 0)
+                    pix.Set(x, y, Metal[2]);
+        pix.Rect(0, 6, 16, 2, H("#f0c020"));
+        pix.Rect(0, 6, 16, 1, H("#b08010"));
+        return pix;
+    }
+
+    // 12 x 16: a red barrel with dark rims and a hazard band.
+    private static Pix PaintBarrel()
+    {
+        var pix = new Pix(12, 16);
+        pix.Rect(1, 0, 10, 16, H("#c03020"));
+        pix.Rect(1, 0, 2, 16, H("#e8604a"));
+        pix.Rect(9, 0, 2, 16, H("#7a1810"));
+        foreach (int y in new[] { 0, 7, 15 })
+            pix.Rect(0, y, 12, 1, H("#3a1410"));
+        for (int x = 1; x < 11; x++)
+        {
+            pix.Set(x, 9, (x / 2) % 2 == 0 ? H("#f0c020") : H("#22242a"));
+            pix.Set(x, 10, ((x + 1) / 2) % 2 == 0 ? H("#f0c020") : H("#22242a"));
+        }
+        pix.Outline(H("#14121c"));
+        return pix;
+    }
+
+    // 12 x 10: a white box with a red cross.
+    private static Pix PaintHealthPack()
+    {
+        var pix = new Pix(12, 10);
+        pix.Rect(0, 0, 12, 10, H("#f0f0f4"));
+        pix.Rect(0, 0, 12, 2, H("#b0b8c8"));
+        pix.Rect(5, 2, 2, 7, H("#e03030"));
+        pix.Rect(3, 4, 6, 3, H("#e03030"));
+        pix.Outline(H("#14121c"));
+        return pix;
+    }
+
+    // 16 x 14: an army-green crate with a light gun on its side.
+    private static Pix PaintWeaponCrate()
+    {
+        var pix = new Pix(16, 14);
+        pix.Rect(0, 0, 16, 14, H("#55652e"));
+        pix.Rect(0, 12, 16, 2, H("#7f9444"));
+        pix.Rect(0, 0, 2, 14, H("#7f9444"));
+        pix.Rect(2, 0, 14, 2, H("#33401c"));
+        pix.Rect(14, 2, 2, 10, H("#33401c"));
+        pix.Rect(4, 7, 8, 2, H("#f0e8b0")); // the gun: barrel, body, grip
+        pix.Rect(4, 5, 4, 2, H("#f0e8b0"));
+        pix.Rect(5, 3, 2, 2, H("#f0e8b0"));
+        return pix;
+    }
+
+    // A networked physics prop like the crate: real physics on the host, copied to the others.
+    private static GameObject PhysicsProp(string name, Sprite look, Vector2 size, float mass)
+    {
+        var prop = new GameObject(name);
+        SpriteRenderer sprite = prop.AddComponent<SpriteRenderer>();
+        sprite.sprite = look;
+        sprite.sortingOrder = BodyOrder;
+        sprite.sharedMaterial = AssetDatabase.LoadAssetAtPath<Material>(UnlitMaterial);
+        prop.AddComponent<BoxCollider2D>().size = size;
+        var body = prop.AddComponent<Rigidbody2D>();
+        body.mass = mass;
+        body.gravityScale = 3f;
+        body.interpolation = RigidbodyInterpolation2D.Interpolate;
+        body.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+        prop.AddComponent<Unity.Netcode.NetworkObject>();
+        var sync = prop.AddComponent<Unity.Netcode.Components.NetworkTransform>();
+        sync.AuthorityMode = Unity.Netcode.Components.NetworkTransform.AuthorityModes.Server;
+        sync.SyncPositionZ = false;
+        sync.SyncRotAngleX = false;
+        sync.SyncRotAngleY = false;
+        sync.SyncScaleX = sync.SyncScaleY = sync.SyncScaleZ = false;
+        prop.AddComponent<Unity.Netcode.Components.NetworkRigidbody2D>();
+        prop.AddComponent<LevelBlock>(); // stops bullets
+        return prop;
+    }
+
+    // Made once, then kept (a networked prefab's id must not change); Netcode lists it by itself.
+    private static T SavePrefab<T>(GameObject made, string path) where T : Component
+    {
+        GameObject prefab = PrefabUtility.SaveAsPrefabAsset(made, path);
+        Object.DestroyImmediate(made);
+        return prefab.GetComponent<T>();
+    }
+
+    private static ExplosiveBarrel BarrelPrefab()
+    {
+        const string path = "Assets/Prefabs/Barrel.prefab";
+        var existing = AssetDatabase.LoadAssetAtPath<ExplosiveBarrel>(path);
+        if (existing != null)
+            return existing;
+        GameObject barrel = PhysicsProp("Barrel", items.barrel, new Vector2(0.7f, 0.98f), 4f);
+        var explosive = barrel.AddComponent<ExplosiveBarrel>();
+        UiKit.Wire(explosive, "sprite", barrel.GetComponent<SpriteRenderer>());
+        UiKit.Wire(explosive, "blastEffect", AssetDatabase.LoadAssetAtPath<ParticleSystem>("Assets/Prefabs/BulletExplosion.prefab"));
+        UiKit.Wire(explosive, "blastSound", AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/Boom.wav"));
+        return SavePrefab<ExplosiveBarrel>(barrel, path);
+    }
+
+    private static WeaponCrate WeaponCratePrefab()
+    {
+        const string path = "Assets/Prefabs/WeaponCrate.prefab";
+        var existing = AssetDatabase.LoadAssetAtPath<WeaponCrate>(path);
+        if (existing != null)
+            return existing;
+        GameObject crate = PhysicsProp("WeaponCrate", items.weaponCrate, new Vector2(0.95f, 0.82f), 3f);
+        crate.GetComponent<Rigidbody2D>().gravityScale = 1.5f; // drifts down a bit slower
+        var area = new GameObject("PickupArea").AddComponent<BoxCollider2D>();
+        area.transform.SetParent(crate.transform, false);
+        area.size = new Vector2(1.4f, 1.3f);
+        area.isTrigger = true;
+        var weaponCrate = crate.AddComponent<WeaponCrate>();
+        UiKit.Wire(weaponCrate, "pickupSound", AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/Pickup.wav"));
+        return SavePrefab<WeaponCrate>(crate, path);
+    }
+
+    private static HealthPack HealthPackPrefab()
+    {
+        const string path = "Assets/Prefabs/HealthPack.prefab";
+        var existing = AssetDatabase.LoadAssetAtPath<HealthPack>(path);
+        if (existing != null)
+            return existing;
+        var pack = new GameObject("HealthPack");
+        var box = pack.AddComponent<BoxCollider2D>();
+        box.size = new Vector2(0.9f, 0.9f);
+        box.isTrigger = true;
+        pack.AddComponent<Unity.Netcode.NetworkObject>();
+        SpriteRenderer visual = Sprite(pack.transform, "Visual", items.healthPack, TopOrder);
+        var healthPack = pack.AddComponent<HealthPack>();
+        UiKit.Wire(healthPack, "visual", visual.transform);
+        UiKit.Wire(healthPack, "pickupSound", AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/Pickup.wav"));
+        return SavePrefab<HealthPack>(pack, path);
     }
 
     // The networked crate (made once, then kept: its network id must not change). Real physics on the host,

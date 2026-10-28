@@ -176,6 +176,8 @@ public class Projectile : MonoBehaviour
             Rigidbody2D loose = other.attachedRigidbody;
             if (!IsLookAlike && loose != null && loose.bodyType == RigidbodyType2D.Dynamic)
                 loose.AddForceAtPosition(flightDirection * pushImpulse, hitPoint, ForceMode2D.Impulse);
+            if (!IsLookAlike && other.TryGetComponent(out ExplosiveBarrel barrel))
+                barrel.Hit(Damage);
             if (cores != null)
                 keepFlying = cores.OnBulletHitWall(this, hitPoint, normal);
         }

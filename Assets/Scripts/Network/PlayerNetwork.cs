@@ -53,6 +53,7 @@ public class PlayerNetwork : NetworkBehaviour
     private readonly NetworkVariable<bool> dead = new NetworkVariable<bool>(false);
     private readonly NetworkVariable<bool> ready = new NetworkVariable<bool>(false);
     private readonly NetworkVariable<int> look = new NetworkVariable<int>(-1); // Look.Pack(); -1 = not set yet
+    private readonly NetworkVariable<int> gun = new NetworkVariable<int>(0); // special gun held (PlayerWeapon), 0 = none
     private readonly NetworkVariable<Unity.Collections.FixedString32Bytes> playerName =
         new NetworkVariable<Unity.Collections.FixedString32Bytes>();
 
@@ -268,6 +269,42 @@ public class PlayerNetwork : NetworkBehaviour
             gunPivot.rotation = Quaternion.Euler(0f, 0f, aimAngle.Value);
         }
     }
+
+    // ---------- Special guns (weapon crates) ----------
+
+    // The special gun held (PlayerWeapon's Special Guns, from 1), 0 = the normal one. Every machine shows it.
+    public int Gun => Offline ? 0 : gun.Value;
+
+    // Host: gives this player a special gun; its owner gets the ammo.
+    public void GiveGun(int type)
+    {
+        if (!IsServer)
+            return;
+        gun.Value = type;
+        GiveGunRpc(type);
+    }
+
+    [Rpc(SendTo.Owner)]
+    private void GiveGunRpc(int type) => weapon.EquipSpecial(type);
+
+    // Host: back to the normal gun (death, a new round).
+    public void ClearGun()
+    {
+        if (IsServer)
+            gun.Value = 0;
+    }
+
+    // Owner: out of ammo.
+    public void DropGun()
+    {
+        if (IsServer)
+            gun.Value = 0;
+        else if (!Offline)
+            DropGunRpc();
+    }
+
+    [Rpc(SendTo.Server)]
+    private void DropGunRpc() => gun.Value = 0;
 
     // ---------- Shots ----------
 

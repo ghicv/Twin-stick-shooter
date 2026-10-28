@@ -165,6 +165,7 @@ public class PlayerRespawn : MonoBehaviour
         if (IsDead || traveling)
             return;
         net.Dead = true;
+        net.ClearGun(); // a special gun is lost with the life
 
         // Kill credit: the cores of whoever hurt this player last (Vampire, Death Blast, Void Feast...).
         CoreBridge killer = health.LastAttacker;

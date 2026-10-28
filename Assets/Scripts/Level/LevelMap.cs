@@ -23,6 +23,12 @@ public class LevelMap : MonoBehaviour
     [Tooltip("LAN: the host puts a crate on each of these when the map starts (MapProps).")]
     [SerializeField] private Transform[] crateSpots = new Transform[0];
 
+    [Tooltip("LAN: an explosive barrel on each of these when the map starts (MapProps).")]
+    [SerializeField] private Transform[] barrelSpots = new Transform[0];
+
+    [Tooltip("LAN: a health pack on each of these (back a while after it is taken).")]
+    [SerializeField] private Transform[] healthSpots = new Transform[0];
+
     [Tooltip("What the crates look like on this map.")]
     [SerializeField] private Sprite crateSprite;
 
@@ -37,6 +43,8 @@ public class LevelMap : MonoBehaviour
     public float CameraSize => cameraSize;
     public float FallLimitY => fallLimitY;
     public Transform[] CrateSpots => crateSpots;
+    public Transform[] BarrelSpots => barrelSpots;
+    public Transform[] HealthSpots => healthSpots;
     public Sprite CrateSprite => crateSprite;
     public Sprite Thumbnail => thumbnail;
     public Color ThemeColor => themeColor;

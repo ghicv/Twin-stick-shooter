@@ -5,7 +5,7 @@ using UnityEngine.UI;
 // jumps, shoots at the nearest other player, picks the first card when one is offered) and logs every player's
 // position and health once a second, so a session can be checked without anyone at the keyboard. In the lobby it
 // walks into the READY zone, so the match starts the normal way (3-2-1).
-// With -shots <folder> the host also saves pictures of the shows (round end, map roulette, dive, results).
+// With -shots <folder> the host also saves pictures (mid-round, round end, map roulette, dive, results).
 // MainMenu adds it.
 public class NetTestBot : MonoBehaviour
 {
@@ -132,6 +132,8 @@ public class NetTestBot : MonoBehaviour
         {
             if (match.CurrentPhase == MatchManager.Phase.BetweenRounds && match.Round > 0)
                 shots.Add((now + 0.6f, "end_r" + match.Round));
+            if (match.CurrentPhase == MatchManager.Phase.Round)
+                shots.Add((now + 6f, "round_r" + match.Round));
             if (match.CurrentPhase == MatchManager.Phase.Results)
                 shots.Add((now + 2.5f, "results"));
             lastPhase = match.CurrentPhase;

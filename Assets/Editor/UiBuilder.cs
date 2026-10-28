@@ -587,7 +587,7 @@ public static class UiBuilder
         body.type = Image.Type.Sliced;
         body.pixelsPerUnitMultiplier = UiKit.SliceMultiplier;
         body.color = new Color(0.24f, 0.26f, 0.36f);
-        Image thumbnail = UiKit.Icon(card, "Thumbnail", null, Top, new Vector2(0, -92), new Vector2(252, 144));
+        Image thumbnail = UiKit.Icon(card, "Thumbnail", null, Top, new Vector2(0, -92), new Vector2(256, 144));
         thumbnail.preserveAspect = false;
         UiKit.Label(card, "Name", "MAP", null, 44, Color.white, Mid, Bottom, new Vector2(0, 66), new Vector2(260, 56));
         UiKit.Box(card, "Bar", Bottom, new Vector2(0, 26), new Vector2(252, 12), Color.white);

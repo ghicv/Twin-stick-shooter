@@ -20,7 +20,44 @@ public static class SoundGenerator
         Save("Assets/Audio/UI/RoundDraw.wav", Notes(new[] { 392f, 392f }, 0.12f, 0.2f));
         Save("Assets/Audio/UI/Victory.wav", Notes(new[] { 523f, 523f, 523f, 659f, 784f, 659f, 784f, 1047f }, 0.11f, 0.6f));
         Save("Assets/Audio/UI/Defeat.wav", Notes(new[] { 494f, 440f, 392f, 330f }, 0.18f, 0.5f));
+        Save("Assets/Audio/Boom.wav", Boom());
+        Save("Assets/Audio/Boing.wav", Boing());
         AssetDatabase.Refresh();
+    }
+
+    // An explosive barrel: a deep crunchy blast (noise falling in pitch) with a low thump.
+    private static float[] Boom()
+    {
+        int length = (int)(Rate * 0.7f);
+        var data = new float[length];
+        var random = new System.Random(4);
+        float noise = 0f, phase = 0f;
+        for (int i = 0; i < length; i++)
+        {
+            float t = (float)i / Rate;
+            float smoothing = Mathf.Lerp(0.5f, 0.05f, t / 0.7f); // the rumble darkens as it fades
+            noise = Mathf.Lerp(noise, (float)random.NextDouble() * 2f - 1f, smoothing);
+            phase += Mathf.Lerp(90f, 40f, t / 0.7f) / Rate;
+            float thump = Triangle(phase) * Mathf.Exp(-t * 7f);
+            data[i] = (noise * Mathf.Exp(-t * 5f) * 0.9f + thump * 0.6f) * Mathf.Min(1f, t / 0.002f) * 0.8f;
+        }
+        return data;
+    }
+
+    // A jump pad: a springy "boing", a tone sliding up with a wobble.
+    private static float[] Boing()
+    {
+        int length = (int)(Rate * 0.25f);
+        var data = new float[length];
+        float phase = 0f;
+        for (int i = 0; i < length; i++)
+        {
+            float t = (float)i / Rate;
+            float frequency = Mathf.Lerp(220f, 660f, t / 0.25f) * (1f + 0.06f * Mathf.Sin(t * 2f * Mathf.PI * 18f));
+            phase += frequency / Rate;
+            data[i] = Triangle(phase) * Mathf.Exp(-t * 9f) * Mathf.Min(1f, t / 0.002f) * 0.5f;
+        }
+        return data;
     }
 
     // A little chiptune tune: the notes one after another (Step seconds each), the last one ringing for Tail more.
