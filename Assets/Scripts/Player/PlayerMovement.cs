@@ -37,20 +37,21 @@ public class PlayerMovement : MonoBehaviour
 
     [Header("Jump")]
     [Tooltip("Upward impulse of the ground jump. With Rigidbody2D mass = 1 this is the jump speed (units/sec).")]
-    [SerializeField] private float jumpForce = 16f;
+    [SerializeField] private float jumpForce = 13.7f;
 
     [Tooltip("Upward impulse of each jump made in the air.")]
-    [SerializeField] private float doubleJumpForce = 14f;
+    [SerializeField] private float doubleJumpForce = 12.8f;
 
     [Tooltip("Jumps allowed in the air before landing again (or touching a wall). 1 = double jump.")]
     [Min(0)]
     [SerializeField] private int airJumps = 1;
 
-    [Tooltip("Releasing Space while rising multiplies the upward speed by this: tap = short hop, hold = full jump.")]
+    [Tooltip("Releasing Space while rising multiplies the upward speed by this (1 = off: every jump is just as high, " +
+             "however long Space is held; lower = tap for a short hop).")]
     [Range(0f, 1f)]
-    [SerializeField] private float jumpCutMultiplier = 0.5f;
+    [SerializeField] private float jumpCutMultiplier = 1f;
 
-    [Tooltip("Near the top of a jump (vertical speed below this, units/sec) gravity is lighter while Space is held: a short float.")]
+    [Tooltip("Near the top of a jump (vertical speed below this, units/sec) gravity is lighter: a short float.")]
     [SerializeField] private float apexHangSpeed = 2.5f;
 
     [Tooltip("Gravity multiplier during that float at the top of a jump.")]
@@ -59,10 +60,10 @@ public class PlayerMovement : MonoBehaviour
 
     [Tooltip("Gravity multiplier while falling, for a snappier descent.")]
     [Min(1f)]
-    [SerializeField] private float fallGravityMultiplier = 1.6f;
+    [SerializeField] private float fallGravityMultiplier = 1.25f;
 
     [Tooltip("Falling never gets faster than this (units/sec).")]
-    [SerializeField] private float maxFallSpeed = 22f;
+    [SerializeField] private float maxFallSpeed = 19f;
 
     [Tooltip("Holding S in the air falls faster: gravity multiplier and top speed while doing it.")]
     [Min(1f)]
@@ -87,7 +88,7 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private float wallSlideSpeed = 2.5f;
 
     [Tooltip("Upward impulse of a wall jump.")]
-    [SerializeField] private float wallJumpForce = 15f;
+    [SerializeField] private float wallJumpForce = 12.8f;
 
     [Tooltip("Sideways speed a wall jump gives, away from the wall (units/sec).")]
     [SerializeField] private float wallJumpPush = 7f;
@@ -151,8 +152,8 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private float landVolume = 0.35f;
 
     [Tooltip("The landing sound only plays when landing at least this fast (units/sec). A full jump on flat ground " +
-             "lands at about 18, a double jump or a jump down from a platform above at about 24 or more.")]
-    [SerializeField] private float hardLandingSpeed = 21f;
+             "lands at about 17.9, a double jump or a jump down from a platform above at the top fall speed (19).")]
+    [SerializeField] private float hardLandingSpeed = 18.5f;
 
     [Tooltip("Random pitch change per jump / landing, so they don't sound identical.")]
     [Range(0f, 0.3f)]
@@ -313,8 +314,8 @@ public class PlayerMovement : MonoBehaviour
             jumpBufferTimer = 0f;
         jumpBufferTimer -= Time.fixedDeltaTime;
 
-        // Variable jump height: letting go of Space while still rising cuts the jump short.
-        if (canCutJump && !jumpHeld && rb.linearVelocity.y > 0f)
+        // Variable jump height (off at 1): letting go of Space while still rising cuts the jump short.
+        if (canCutJump && !jumpHeld && rb.linearVelocity.y > 0f && jumpCutMultiplier < 1f)
         {
             rb.linearVelocity = new Vector2(rb.linearVelocity.x, rb.linearVelocity.y * jumpCutMultiplier);
             canCutJump = false;
@@ -411,7 +412,7 @@ public class PlayerMovement : MonoBehaviour
         SpawnDust(FeetPosition, runDustScale);
     }
 
-    // Gravity for this step: none while wall sliding, lighter near the top of a jump while Space is held
+    // Gravity for this step: none while wall sliding, lighter near the top of a jump
     // (a short float that rounds off the arc), heavier while falling, normal otherwise.
     private float GravityScale(bool sliding)
     {
@@ -421,7 +422,7 @@ public class PlayerMovement : MonoBehaviour
         float verticalSpeed = rb.linearVelocity.y;
         if (FastFalling)
             return baseGravityScale * fastFallGravityMultiplier;
-        if (!IsGrounded && jumpHeld && Mathf.Abs(verticalSpeed) < apexHangSpeed)
+        if (!IsGrounded && Mathf.Abs(verticalSpeed) < apexHangSpeed)
             return baseGravityScale * apexGravityMultiplier;
         if (verticalSpeed < 0f)
             return baseGravityScale * fallGravityMultiplier;

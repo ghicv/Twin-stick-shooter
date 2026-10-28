@@ -1,7 +1,8 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
-// The host sets the room up in the lobby (the ROUNDS, CARD TIME and CORES EVERY stations open it, [E]): the match
+// The host sets the room up in the lobby ([E] anywhere there opens it; the lobby's signs show the values): the match
 // length, the seconds to pick a card and how often everybody picks one, the same choices as the create room box.
 // A click applies at once. MAPS switches to the map board.
 public class RoomBoard : MonoBehaviour
@@ -67,12 +68,20 @@ public class RoomBoard : MonoBehaviour
         panel.SetActive(false);
     }
 
-    // The buttons show the choices, the current ones lit.
+    // [E] anywhere in the lobby opens / closes it (host only). The buttons show the choices, the current ones lit.
     private void Update()
     {
         MatchManager match = Match();
         if (IsOpen && (match == null || match.InMatch))
             Close();
+        bool inLobby = match != null && match.IsSpawned && !match.InMatch && match.IsServer && PlayerNetwork.Local != null;
+        if (inLobby && !InputLock.Blocked && Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame)
+        {
+            if (mapBoard.IsOpen)
+                mapBoard.Close(); // E closes the map board too (back to nothing)
+            else
+                Toggle();
+        }
         if (!IsOpen)
             return;
 

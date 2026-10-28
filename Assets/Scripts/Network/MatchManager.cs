@@ -37,8 +37,20 @@ public class MatchManager : NetworkBehaviour
              "the create room box: 1 = every round, 2 = every other round).")]
     [SerializeField] private int defaultCardEvery = 2;
 
-    [Tooltip("Each milestone rolls one rarity for everybody: chances of silver, gold and diamond.")]
-    [SerializeField] private float[] rarityChances = { 40f, 45f, 15f };
+    [Tooltip("Each milestone rolls one rarity for everybody (RarityRoll): two silvers in a row make the next gold at " +
+             "least; the diamond chance starts here...")]
+    [Range(0f, 1f)]
+    [SerializeField] private float diamondChance = 0.08f;
+
+    [Tooltip("...and grows this much with every gold since the last diamond...")]
+    [Range(0f, 1f)]
+    [SerializeField] private float diamondPerGold = 0.25f;
+
+    [Tooltip("...otherwise silver this share of the time, gold the rest.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float silverShare = 0.5f;
+
+    private RarityRoll rarityRoll;
 
     [Header("Match")]
     [Min(1)]
@@ -116,6 +128,7 @@ public class MatchManager : NetworkBehaviour
     private void Awake()
     {
         Instance = this;
+        rarityRoll = new RarityRoll(diamondChance, diamondPerGold, silverShare);
         wins = new NetworkList<int>();
         maps = FindAnyObjectByType<MapManager>();
         ui = FindAnyObjectByType<MatchUI>(FindObjectsInactive.Include);
@@ -237,6 +250,7 @@ public class MatchManager : NetworkBehaviour
         tiebreak.Value = false;
         tiebreaks = 0;
         mapBag.Clear();
+        rarityRoll.Reset(); // no luck carried over from the last match
         StartCoroutine(NextRound());
     }
 
@@ -452,7 +466,7 @@ public class MatchManager : NetworkBehaviour
 
         // A card milestone: everybody picks a card before the round.
         if ((round.Value - 1) % Mathf.Max(1, cardEvery.Value) == 0 && !tiebreak.Value)
-            yield return PickCards(CoreBridge.RandomRarity(rarityChances));
+            yield return PickCards(rarityRoll.Next());
 
         // The map roulette shows which map is next, then everybody travels there (the dead come back too).
         int next = NextMap();

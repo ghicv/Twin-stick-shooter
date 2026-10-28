@@ -987,15 +987,10 @@ public static class UiBuilder
         UiKit.Wire(board, "closeButton", done);
         panel.gameObject.SetActive(false);
 
-        // The lobby's MAPS station opens this board.
-        foreach (LobbyStation station in Object.FindObjectsByType<LobbyStation>(FindObjectsInactive.Include, FindObjectsSortMode.None))
-            if (station.name == "Station_Maps")
-                UiKit.Wire(station, "mapBoard", board);
-
-        BuildRoomBoard(hud, board);
+        BuildRoomBoard(hud, board); // the room board's MAPS button opens this board
     }
 
-    // The room board: the lobby's ROUNDS, CARD TIME and CORES EVERY stations open it (labels come from the match).
+    // The room board: [E] anywhere in the lobby opens it for the host (labels come from the match).
     private static void BuildRoomBoard(Transform hud, MapBoard mapBoard)
     {
         Transform old = hud.Find("RoomBoard");
@@ -1030,10 +1025,6 @@ public static class UiBuilder
         UiKit.Wire(board, "mapBoard", mapBoard);
         UiKit.Wire(board, "closeButton", done);
         panel.gameObject.SetActive(false);
-
-        foreach (LobbyStation station in Object.FindObjectsByType<LobbyStation>(FindObjectsInactive.Include, FindObjectsSortMode.None))
-            if (station.name != "Station_Maps")
-                UiKit.Wire(station, "roomBoard", board);
     }
 
     private static void BuildUiAudio(Transform hud)

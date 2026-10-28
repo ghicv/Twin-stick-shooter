@@ -567,21 +567,21 @@ MonoBehaviour:
   deceleration: 30
   airControl: 0.8
   iceGrip: 0.12
-  jumpForce: 16
-  doubleJumpForce: 14
+  jumpForce: 13.7
+  doubleJumpForce: 12.8
   airJumps: 1
-  jumpCutMultiplier: 0.5
+  jumpCutMultiplier: 1
   apexHangSpeed: 2.5
   apexGravityMultiplier: 0.5
-  fallGravityMultiplier: 1.6
-  maxFallSpeed: 22
+  fallGravityMultiplier: 1.25
+  maxFallSpeed: 19
   fastFallGravityMultiplier: 2.4
   maxFastFallSpeed: 30
   coyoteTime: 0.12
   jumpBufferTime: 0.13
   cornerCorrection: 0.3
   wallSlideSpeed: 2.5
-  wallJumpForce: 15
+  wallJumpForce: 12.8
   wallJumpPush: 7
   wallJumpControlTime: 0.25
   dropThroughTime: 0.25
@@ -600,7 +600,7 @@ MonoBehaviour:
   jumpVolume: 0.3
   landSound: {fileID: 8300000, guid: 1420c4443851da741b08239e0851c05a, type: 3}
   landVolume: 0.35
-  hardLandingSpeed: 21
+  hardLandingSpeed: 18.5
   pitchVariation: 0.08
 --- !u!114 &138357040129230196
 MonoBehaviour:
@@ -1737,10 +1737,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CoreBridge
   cardWaves: 01000000030000000500000008000000
   cardEveryWavesAfter: 3
-  rarityChances:
-  - 40
-  - 45
-  - 15
+  rarityLuck: {x: 0.08, y: 0.25, z: 0.5}
   cardsAtStart: 0
 --- !u!114 &890928807774870592
 MonoBehaviour:

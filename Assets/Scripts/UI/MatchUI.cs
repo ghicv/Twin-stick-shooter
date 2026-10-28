@@ -51,6 +51,9 @@ public class MatchUI : MonoBehaviour
     [SerializeField] private float rowSlideTime = 0.25f;
     [SerializeField] private Color victoryColor = new Color(1f, 0.85f, 0.3f);
     [SerializeField] private Color defeatColor = new Color(0.75f, 0.4f, 0.45f);
+
+    [Tooltip("This machine's own name in the ranking (the same green as the \"YOU\" over its head).")]
+    [SerializeField] private Color youColor = new Color(0.3f, 1f, 0.3f);
     [SerializeField] private AudioClip victorySound;
     [SerializeField] private AudioClip defeatSound;
     [SerializeField] private AudioClip rowSound;
@@ -103,7 +106,7 @@ public class MatchUI : MonoBehaviour
             PlayerNetwork player = ranking[i];
             row.rank.text = "#" + (i + 1);
             row.name.text = player.Name + (player == PlayerNetwork.Local ? Lang.T(" (YOU)", " (BẠN)") : "");
-            row.name.color = player.Color;
+            row.name.color = player == PlayerNetwork.Local ? youColor : player.Color; // this machine's own row: green
             row.wins.text = (match != null ? match.Wins(player.Slot) : 0) + Lang.T(" WINS", " THẮNG");
             row.cores.text = player.Cores.OwnedCount + " CORE";
         }

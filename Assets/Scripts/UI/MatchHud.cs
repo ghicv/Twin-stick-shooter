@@ -42,8 +42,8 @@ public class MatchHud : MonoBehaviour
             lobbyHintText.text = Lang.T("WAITING FOR " + match.PicksLeft + " PLAYER(S) TO CHOOSE A CARD...",
                                         "ĐANG CHỜ " + match.PicksLeft + " NGƯỜI CHỌN THẺ...");
         else if (lobbyHintText.gameObject.activeSelf)
-            lobbyHintText.text = Lang.T("[SHIFT] DASH     [TAB] PLAYERS     [ENTER] CHAT     [E] USE     [ESC] MENU",
-                                        "[SHIFT] LƯỚT     [TAB] NGƯỜI CHƠI     [ENTER] CHAT     [E] DÙNG     [ESC] MENU");
+            lobbyHintText.text = Lang.T("[SHIFT] DASH     [TAB] PLAYERS     [ENTER] CHAT     [E] ROOM SETTINGS     [ESC] MENU",
+                                        "[SHIFT] LƯỚT     [TAB] NGƯỜI CHƠI     [ENTER] CHAT     [E] CÀI ĐẶT PHÒNG     [ESC] MENU");
         if (!inMatch)
             return;
 

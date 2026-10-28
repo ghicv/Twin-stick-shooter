@@ -6,6 +6,7 @@ using UnityEngine.UI;
 // core among them while that rarity has any left. The cards take the rarity's color. Clicking a card gives that core
 // to the player. Offers come at milestones (CoreBridge: after some waves; MatchManager: before some LAN rounds, where
 // a random card is taken when the time runs out). If the rarity runs short, the nearest rarity fills the offer.
+// Every card can be swapped (reroll) once for another core.
 public class CoreCards : MonoBehaviour
 {
     [System.Serializable]
@@ -53,9 +54,6 @@ public class CoreCards : MonoBehaviour
     [Tooltip("\"CHOOSE A SILVER CARD\" above the cards.")]
     [SerializeField] private Text headerText;
 
-    [Tooltip("Card swaps allowed per offer (any card, once each).")]
-    [Min(0)]
-    [SerializeField] private int rerollsPerOffer = 1;
 
     [Tooltip("Diamond borders run through the rainbow at this speed (turns per second).")]
     [SerializeField] private float diamondHueSpeed = 0.35f;
@@ -74,7 +72,7 @@ public class CoreCards : MonoBehaviour
 
     private readonly List<CoreType> offered = new List<CoreType>();
     private readonly List<CoreType> spare = new List<CoreType>(); // what rerolls swap in
-    private int rerollsLeft;
+    private bool[] rerolled = new bool[0]; // every card can be swapped once
     private System.Action onPicked;
     private Image dim;
     private float dimAlpha;
@@ -117,7 +115,7 @@ public class CoreCards : MonoBehaviour
             return false;
 
         this.onPicked = onPicked;
-        rerollsLeft = rerollsPerOffer;
+        rerolled = new bool[cards.Length];
         if (headerText != null)
         {
             headerText.text = Lang.T("CHOOSE A " + RarityName(rarity) + " CARD", "CHỌN THẺ " + RarityName(rarity));
@@ -155,23 +153,26 @@ public class CoreCards : MonoBehaviour
     private void ShowRerolls()
     {
         for (int i = 0; i < cards.Length; i++)
-            cards[i].reroll.interactable = rerollsLeft > 0 && spare.Count > 0;
+            cards[i].reroll.interactable = i < rerolled.Length && !rerolled[i] && spare.Count > 0;
     }
 
-    // Swaps one card for the next spare core (same rarity first), if a swap is left.
+    // Swaps one card for the next spare core (same rarity first); every card once.
     private void Reroll(int index)
     {
-        if (!panel.activeSelf || rerollsLeft <= 0 || spare.Count == 0 || index >= offered.Count)
+        if (!panel.activeSelf || spare.Count == 0 || index >= offered.Count || index >= rerolled.Length || rerolled[index])
             return;
-        rerollsLeft--;
+        rerolled[index] = true;
         offered[index] = spare[0];
         spare.RemoveAt(0);
+        CountOffer(offered[index]);
+        SaveOfferCounts();
         ShowCard(index);
         UiAudio.Play(UiAudio.Sound.Click);
     }
 
     // 3 different cores not owned yet, all of the rarity (the nearest rarity fills in when it runs short),
-    // a bullet core among them when there is one.
+    // a bullet core among them when there is one. The cores offered least often on this PC come first (random among
+    // equals), so the offers go round every core of a rarity before showing the same ones again.
     private void ChooseOffer(CoreInventory.Rarity rarity)
     {
         offered.Clear();
@@ -184,6 +185,7 @@ public class CoreCards : MonoBehaviour
                 if (!inventory.Has(info.type) && Mathf.Abs((int)info.rarity - (int)rarity) == distance)
                     ring.Add(info.type);
             Shuffle(ring);
+            LeastOfferedFirst(ring);
             pool.AddRange(ring);
         }
 
@@ -198,6 +200,58 @@ public class CoreCards : MonoBehaviour
         for (int i = offered.Count; i < pool.Count; i++)
             spare.Add(pool[i]);
         Shuffle(offered); // the bullet core isn't always the first card
+        foreach (CoreType core in offered)
+            CountOffer(core);
+        SaveOfferCounts();
+    }
+
+    // ---------- What has been offered (kept on this PC between games) ----------
+
+    private const string OfferCountsKey = "CoreOfferCounts";
+    private static Dictionary<CoreType, int> offerCounts;
+
+    private static Dictionary<CoreType, int> OfferCounts
+    {
+        get
+        {
+            if (offerCounts != null)
+                return offerCounts;
+            offerCounts = new Dictionary<CoreType, int>();
+            foreach (string entry in PlayerPrefs.GetString(OfferCountsKey, "").Split(';'))
+            {
+                string[] parts = entry.Split(':');
+                if (parts.Length == 2 && System.Enum.TryParse(parts[0], out CoreType core) && int.TryParse(parts[1], out int count))
+                    offerCounts[core] = count;
+            }
+            return offerCounts;
+        }
+    }
+
+    private static int TimesOffered(CoreType core) => OfferCounts.TryGetValue(core, out int count) ? count : 0;
+
+    private static void CountOffer(CoreType core) => OfferCounts[core] = TimesOffered(core) + 1;
+
+    private static void SaveOfferCounts()
+    {
+        var text = new System.Text.StringBuilder();
+        foreach (var pair in OfferCounts)
+            text.Append(pair.Key).Append(':').Append(pair.Value).Append(';');
+        PlayerPrefs.SetString(OfferCountsKey, text.ToString());
+        PlayerPrefs.Save();
+    }
+
+    // The least offered first; the shuffle before keeps equals in a random order (a stable sort).
+    private static void LeastOfferedFirst(List<CoreType> cores)
+    {
+        var ordered = new List<CoreType>(cores);
+        cores.Clear();
+        for (int times = 0; ordered.Count > 0; times++)
+            for (int i = 0; i < ordered.Count; i++)
+                if (TimesOffered(ordered[i]) <= times)
+                {
+                    cores.Add(ordered[i]);
+                    ordered.RemoveAt(i--);
+                }
     }
 
     private static void Shuffle(List<CoreType> list)

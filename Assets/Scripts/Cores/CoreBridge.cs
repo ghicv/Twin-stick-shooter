@@ -16,8 +16,12 @@ public class CoreBridge : MonoBehaviour
     [Min(1)]
     [SerializeField] private int cardEveryWavesAfter = 3;
 
-    [Tooltip("Each offer's rarity is random: chances of silver, gold and diamond.")]
-    [SerializeField] private float[] rarityChances = { 40f, 45f, 15f };
+    [Tooltip("Each offer's rarity (RarityRoll): two silvers in a row make the next gold at least; the diamond chance " +
+             "starts at the first value and grows by the second with every gold since the last diamond; otherwise silver " +
+             "the third value's share of the time.")]
+    [SerializeField] private Vector3 rarityLuck = new Vector3(0.08f, 0.25f, 0.5f);
+
+    private RarityRoll rarityRoll; // one per run (the scene loads again for a new one)
 
     [Tooltip("Single player: card offers before the first wave (0 = none). Handy for trying cores on the dummies.")]
     [Min(0)]
@@ -173,15 +177,10 @@ public class CoreBridge : MonoBehaviour
         int last = cardWaves.Length > 0 ? cardWaves[cardWaves.Length - 1] : 0;
         bool milestone = System.Array.IndexOf(cardWaves, wave) >= 0 ||
                          (wave > last && (wave - last) % cardEveryWavesAfter == 0);
-        return milestone && OfferCards(1, RandomRarity(rarityChances), onDone);
-    }
-
-    public static CoreInventory.Rarity RandomRarity(float[] chances)
-    {
-        float roll = Random.Range(0f, chances[0] + chances[1] + chances[2]);
-        return roll < chances[0] ? CoreInventory.Rarity.Silver
-             : roll < chances[0] + chances[1] ? CoreInventory.Rarity.Gold
-             : CoreInventory.Rarity.Diamond;
+        if (!milestone)
+            return false;
+        rarityRoll ??= new RarityRoll(rarityLuck.x, rarityLuck.y, rarityLuck.z);
+        return OfferCards(1, rarityRoll.Next(), onDone);
     }
 
     // The map was swapped (things the cores left on the old one go away).
