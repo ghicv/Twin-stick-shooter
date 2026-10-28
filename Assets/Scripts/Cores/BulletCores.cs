@@ -7,7 +7,7 @@ using UnityEngine;
 // The rules that make any mix of bullet cores work together without special combos:
 // 1. Every bullet (extra, back shot, nova, fork, shrapnel) carries all the bullet cores, but the small ones made
 //    from another bullet (fork, shrapnel = "shards") never make anything more (no fork, shrapnel or mines).
-// 2. FLY cores add up (homing keeps steering after a bounce, a lob still waves, ...).
+// 2. FLY cores add up (homing keeps steering after a bounce, a mortar shell still speeds up, ...).
 // 3. Every HIT core happens on every hit (a bullet that bounces or pierces explodes each time).
 // 4. A bullet only disappears when no core keeps it alive (Bounce/Drill on walls, Pierce on targets).
 // 5. Each core has its own cost (less damage, slower fire rate, ...).
@@ -35,7 +35,7 @@ public class BulletCores : MonoBehaviour
         public float age;
         public float distance;    // long shot
         public float longShotFactor = 1f;
-        public float waveOffset;
+        public float accelerateFactor = 1f;
         public bool returning;    // boomerang
     }
 
@@ -122,18 +122,44 @@ public class BulletCores : MonoBehaviour
     [Range(0f, 1f)]
     [SerializeField] private float pierceDamage = 0.7f;
 
-    [Header("FLY · Lob")]
-    [Tooltip("Gravity scale of lobbed bullets (they fall in an arc).")]
-    [SerializeField] private float lobGravity = 2.5f;
+    [Header("FLY · Mortar")]
+    [Tooltip("Shells leave this many degrees above the aim (toward the sky)...")]
+    [SerializeField] private float mortarAngle = 30f;
 
-    [SerializeField] private float lobDamage = 1.25f;
+    [Tooltip("...at this share of the bullet speed (a lob, so it lands inside the map)...")]
+    [SerializeField] private float mortarSpeed = 0.65f;
 
-    [Header("FLY · Wave")]
-    [Tooltip("How far the bullet wiggles to each side of its path (units).")]
-    [SerializeField] private float waveAmplitude = 0.5f;
+    [Tooltip("...and fall with this gravity scale, in an arc.")]
+    [SerializeField] private float mortarGravity = 4f;
 
-    [Tooltip("Wiggles per second.")]
-    [SerializeField] private float waveFrequency = 2.5f;
+    [Tooltip("Where a shell lands (wall, floor or target) it blows up: damage to everyone within the radius but " +
+             "the one hit directly, and a push.")]
+    [SerializeField] private float mortarBlastDamage = 14f;
+    [SerializeField] private float mortarBlastRadius = 1.6f;
+    [SerializeField] private float mortarKnockback = 1.5f;
+
+    [Header("SPAWN · Echo")]
+    [Tooltip("Every shot fires again from the same spot, the same way, this many seconds later.")]
+    [SerializeField] private float echoDelay = 0.3f;
+
+    [Range(0f, 1f)]
+    [SerializeField] private float echoDamage = 0.6f;
+
+    [Tooltip("Echo bullets are tinted like this, so they are told apart.")]
+    [SerializeField] private Color echoColor = new Color(0.55f, 0.85f, 1f);
+
+    [Header("FLY · Accelerate")]
+    [Tooltip("Bullets leave at this share of their speed and reach Accelerate Max Speed after Accelerate Time.")]
+    [SerializeField] private float accelerateStartSpeed = 0.45f;
+    [SerializeField] private float accelerateMaxSpeed = 2.2f;
+    [SerializeField] private float accelerateTime = 0.6f;
+
+    [Tooltip("Damage multiplier when slowest (start) and fastest.")]
+    [SerializeField] private Vector2 accelerateDamage = new Vector2(0.8f, 1.7f);
+
+    [Header("FLY · Deflect")]
+    [Tooltip("Other players' bullets within this distance of a bullet are destroyed (units).")]
+    [SerializeField] private float deflectRadius = 0.35f;
 
     [Header("FLY · Boomerang")]
     [Tooltip("Seconds of flight before the bullet turns back toward the player.")]
@@ -167,9 +193,12 @@ public class BulletCores : MonoBehaviour
     [Tooltip("Blast damage to each target in range, except the one hit directly (it only takes the bullet's damage).")]
     [SerializeField] private float explosionDamage = 6f;
 
+    [Tooltip("Knockback multiplier of the blast (it throws targets away).")]
+    [SerializeField] private float explosionKnockback = 1.5f;
+
     [Tooltip("The fire rate is multiplied by this while Explosive is owned (explosions cost fire rate).")]
     [Range(0.1f, 1f)]
-    [SerializeField] private float explosiveFireRate = 0.75f;
+    [SerializeField] private float explosiveFireRate = 0.85f;
 
     [Tooltip("Spawned at every blast (Explosive, Mine). It should destroy itself (Stop Action = Destroy).")]
     [SerializeField] private ParticleSystem explosionEffect;
@@ -234,6 +263,47 @@ public class BulletCores : MonoBehaviour
     [Range(0f, 1f)]
     [SerializeField] private float reaperThreshold = 0.15f;
 
+    [Header("HIT · Sticky Bomb")]
+    [Tooltip("A hit sticks a bomb on the target (one at a time per target) that blows up after this many seconds.")]
+    [SerializeField] private float stickyDelay = 1f;
+    [SerializeField] private float stickyDamage = 15f;
+    [SerializeField] private float stickyRadius = 1.6f;
+
+    [Tooltip("Knockback multiplier of the bomb's blast.")]
+    [SerializeField] private float stickyKnockback = 3f;
+    [SerializeField] private Color stickyColor = new Color(1f, 0.35f, 0.2f);
+
+    [Header("HIT · Thunder")]
+    [Tooltip("Every hit calls lightning down on the target from the sky this many seconds later...")]
+    [SerializeField] private float thunderDelay = 0.12f;
+
+    [Tooltip("...dealing this share of the bullet's damage.")]
+    [Range(0f, 2f)]
+    [SerializeField] private float thunderDamage = 0.6f;
+
+    [SerializeField] private Color thunderGlow = new Color(0.6f, 0.75f, 1f, 0.6f);
+    [SerializeField] private Color thunderCore = new Color(1f, 1f, 0.85f);
+    [SerializeField] private AudioClip thunderSound;
+    [Range(0f, 1f)]
+    [SerializeField] private float thunderVolume = 0.45f;
+
+    [Header("END · Black Hole")]
+    [Tooltip("Chance that a bullet leaves a black hole where it stops.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float blackHoleChance = 0.25f;
+
+    [SerializeField] private int maxBlackHoles = 2;
+    [SerializeField] private float blackHoleTime = 1.2f;
+    [SerializeField] private float blackHoleRadius = 2.8f;
+
+    [Tooltip("Pull toward the middle every 0.1 s (impulse; with mass 1 = speed).")]
+    [SerializeField] private float blackHolePull = 1.6f;
+
+    [Tooltip("Blast when it collapses.")]
+    [SerializeField] private float blackHoleDamage = 12f;
+    [SerializeField] private float blackHoleBlastRadius = 1.5f;
+    [SerializeField] private Sprite blackHoleSprite;
+
     [Header("END · Shrapnel")]
     [SerializeField] private int shrapnelCount = 3;
 
@@ -278,6 +348,10 @@ public class BulletCores : MonoBehaviour
     private readonly List<HitTarget> chainHits = new List<HitTarget>();
     private readonly List<Burn> burns = new List<Burn>();
     private readonly List<CoreMine> mines = new List<CoreMine>();
+    private readonly List<CoreBlackHole> blackHoles = new List<CoreBlackHole>();
+    private readonly Dictionary<HitTarget, CoreStickyBomb> stickyBombs = new Dictionary<HitTarget, CoreStickyBomb>();
+
+    public CoreBridge Bridge => bridge;
 
     private void Awake()
     {
@@ -301,15 +375,11 @@ public class BulletCores : MonoBehaviour
                          Rigidbody2D shooter, float size, int seed, bool lookAlike)
     {
         var random = new System.Random(seed);
-        int count = Has(CoreType.ExtraBullet) ? 2 : 1;
-        float damagePerBullet = damage * (1f + extraBulletDamage * (count - 1)) / count;
-        for (int i = 0; i < count; i++)
-        {
-            Quaternion rotation = aim * Quaternion.Euler(0f, 0f, (i - (count - 1) * 0.5f) * extraBulletAngle);
-            Spawn(prefab, position, rotation * Vector3.right, speed, damagePerBullet, lifetime, shooter, false, null, size, random.Next(), lookAlike);
-            if (Has(CoreType.BackShot))
-                Spawn(prefab, position, rotation * Vector3.left, speed, damagePerBullet * backShotDamage, lifetime, shooter, false, null, size, random.Next(), lookAlike);
-        }
+        FireBullets(prefab, position, aim, speed, damage, lifetime, shooter, size, random, lookAlike, null);
+
+        // Echo: the same bullets again a moment later, from the same spot (not the Nova ring).
+        if (Has(CoreType.Echo))
+            StartCoroutine(Echo(prefab, position, aim, speed, damage * echoDamage, lifetime, shooter, size, random.Next(), lookAlike));
 
         shotCount++;
         if (Has(CoreType.Nova) && shotCount % novaEvery == 0)
@@ -322,12 +392,34 @@ public class BulletCores : MonoBehaviour
         }
     }
 
+    // The shot's own bullets: one (two with +1 Bullet), each mirrored backwards with Back Shot.
+    private void FireBullets(Projectile prefab, Vector2 position, Quaternion aim, float speed, float damage, float lifetime,
+                             Rigidbody2D shooter, float size, System.Random random, bool lookAlike, Color? tint)
+    {
+        int count = Has(CoreType.ExtraBullet) ? 2 : 1;
+        float damagePerBullet = damage * (1f + extraBulletDamage * (count - 1)) / count;
+        for (int i = 0; i < count; i++)
+        {
+            Quaternion rotation = aim * Quaternion.Euler(0f, 0f, (i - (count - 1) * 0.5f) * extraBulletAngle);
+            Spawn(prefab, position, rotation * Vector3.right, speed, damagePerBullet, lifetime, shooter, false, null, size, random.Next(), lookAlike, tint);
+            if (Has(CoreType.BackShot))
+                Spawn(prefab, position, rotation * Vector3.left, speed, damagePerBullet * backShotDamage, lifetime, shooter, false, null, size, random.Next(), lookAlike, tint);
+        }
+    }
+
+    private System.Collections.IEnumerator Echo(Projectile prefab, Vector2 position, Quaternion aim, float speed, float damage,
+                                                float lifetime, Rigidbody2D shooter, float size, int seed, bool lookAlike)
+    {
+        yield return new WaitForSeconds(echoDelay);
+        if (shooter != null)
+            FireBullets(prefab, position, aim, speed, damage, lifetime, shooter, size, new System.Random(seed), lookAlike, echoColor);
+    }
+
     private void Spawn(Projectile prefab, Vector2 position, Vector2 direction, float speed, float damage, float lifetime,
-                       Rigidbody2D shooter, bool isShard, Collider2D ignore, float size, int seed, bool lookAlike)
+                       Rigidbody2D shooter, bool isShard, Collider2D ignore, float size, int seed, bool lookAlike, Color? tint = null)
     {
         var random = new System.Random(seed);
         float baseDamage = damage;
-        Color? tint = null;
         if (Has(CoreType.Giant))
         {
             size *= giantSize;
@@ -340,14 +432,20 @@ public class BulletCores : MonoBehaviour
             damage *= luckyDamage;
             tint = luckyColor;
         }
-        if (Has(CoreType.Lob))
-            damage *= lobDamage;
         if (Has(CoreType.Homing))
             damage *= homingDamage;
+        if (Has(CoreType.Mortar)) // tilted toward the sky, whichever way it was aimed, and lobbed softly
+        {
+            direction = Quaternion.Euler(0f, 0f, direction.x >= 0f ? mortarAngle : -mortarAngle) * direction;
+            if (!isShard) // shards already start from the shell's slower speed
+                speed *= mortarSpeed;
+        }
 
         float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
         Projectile bullet = Instantiate(prefab, position, Quaternion.Euler(0f, 0f, angle));
-        bullet.Launch(direction, speed, damage, lifetime, shooter);
+        float launchSpeed = Has(CoreType.Accelerate) ? speed * accelerateStartSpeed : speed;
+        float launchDamage = Has(CoreType.Accelerate) ? damage * accelerateDamage.x : damage;
+        bullet.Launch(direction, launchSpeed, launchDamage, lifetime, shooter);
         if (lookAlike)
             bullet.MakeLookAlike();
         if (size != 1f)
@@ -355,8 +453,8 @@ public class BulletCores : MonoBehaviour
         if (tint.HasValue)
             bullet.SetTint(tint.Value);
         bullet.IgnoreCollider(ignore);
-        if (Has(CoreType.Lob))
-            bullet.Body.gravityScale = lobGravity;
+        if (Has(CoreType.Mortar))
+            bullet.Body.gravityScale = mortarGravity;
 
         var state = new BulletState
         {
@@ -371,6 +469,7 @@ public class BulletCores : MonoBehaviour
             bouncesLeft = Has(CoreType.Bounce) ? bounceCount : 0,
             piercesLeft = Has(CoreType.Pierce) ? pierceCount : 0,
             drillsLeft = Has(CoreType.Drill) ? drillCount : 0,
+            accelerateFactor = Has(CoreType.Accelerate) ? accelerateDamage.x : 1f,
         };
         bullet.AttachCores(bridge, state);
     }
@@ -401,17 +500,31 @@ public class BulletCores : MonoBehaviour
         if (Has(CoreType.Homing) && !state.returning)
             Steer(bullet, state);
 
-        // Lob: gravity bends the path; keep the bullet facing where it flies.
-        if (Has(CoreType.Lob))
+        // Mortar: gravity bends the path; keep the shell facing where it flies.
+        if (Has(CoreType.Mortar))
             bullet.SetVelocity(rb.linearVelocity);
 
-        // Wave: slides the bullet sideways along a wiggle, without touching its velocity (so it mixes with the rest).
-        if (Has(CoreType.Wave))
+        // Accelerate: from slow to very fast over Accelerate Time, damage growing with it.
+        if (Has(CoreType.Accelerate) && !state.returning)
         {
-            float offset = waveAmplitude * Mathf.Sin(state.age * waveFrequency * 2f * Mathf.PI);
-            rb.position += Vector2.Perpendicular(rb.linearVelocity.normalized) * (offset - state.waveOffset);
-            state.waveOffset = offset;
+            float progress = Mathf.Clamp01(state.age / accelerateTime);
+            bullet.SetVelocity(rb.linearVelocity.normalized * state.speed * Mathf.Lerp(accelerateStartSpeed, accelerateMaxSpeed, progress));
+            float factor = Mathf.Lerp(accelerateDamage.x, accelerateDamage.y, progress);
+            bullet.ScaleDamage(factor / state.accelerateFactor);
+            state.accelerateFactor = factor;
         }
+
+        // Deflect: other players' bullets touching this one are destroyed (each machine does it to its own bullets).
+        if (Has(CoreType.Deflect))
+            foreach (Collider2D hit in Physics2D.OverlapCircleAll(rb.position, deflectRadius))
+            {
+                Projectile other = hit.GetComponent<Projectile>();
+                if (other != null && other != bullet && other.Shooter != state.shooter)
+                {
+                    Instantiate(explosionEffect, other.Body.position, Quaternion.identity).transform.localScale = Vector3.one * 0.3f;
+                    other.Finish();
+                }
+            }
 
         // Long Shot: damage grows with the distance flown.
         if (Has(CoreType.LongShot))
@@ -476,7 +589,13 @@ public class BulletCores : MonoBehaviour
         if (real && Has(CoreType.Reaper) && !target.IsDying && target.HealthFraction <= reaperThreshold)
             target.TakeTickDamage(target.HealthFraction * 10000f, bridge); // finished off
         if (Has(CoreType.Explosive))
-            CoreEffects.Blast(explosionEffect, explosionRadius, point + normal * 0.1f, explosionRadius, explosionDamage, Knockback(), bridge, real, target, self);
+            CoreEffects.Blast(explosionEffect, explosionRadius, point + normal * 0.1f, explosionRadius, explosionDamage, Knockback() * explosionKnockback, bridge, real, target, self);
+        if (Has(CoreType.Mortar))
+            CoreEffects.Blast(explosionEffect, mortarBlastRadius, point, mortarBlastRadius, mortarBlastDamage, Knockback() * mortarKnockback, bridge, real, target, self);
+        if (Has(CoreType.StickyBomb))
+            StickBomb(target, point, state.lookAlike);
+        if (Has(CoreType.Thunder))
+            StartCoroutine(Thunder(target, bullet.Damage * thunderDamage, real));
         if (real && Has(CoreType.Chill))
             target.Slow(chillSpeed, chillTime);
         if (real && Has(CoreType.Ignite))
@@ -513,16 +632,25 @@ public class BulletCores : MonoBehaviour
     public bool OnHitWall(Projectile bullet, Vector2 point, Vector2 normal)
     {
         var state = (BulletState)bullet.CoreData;
+        bool real = !state.lookAlike;
         if (Has(CoreType.Explosive))
-            CoreEffects.Blast(explosionEffect, explosionRadius, point + normal * 0.1f, explosionRadius, explosionDamage, Knockback(), bridge, !state.lookAlike, self);
+            CoreEffects.Blast(explosionEffect, explosionRadius, point + normal * 0.1f, explosionRadius, explosionDamage, Knockback() * explosionKnockback, bridge, real, self);
+        if (Has(CoreType.Mortar))
+            CoreEffects.Blast(explosionEffect, mortarBlastRadius, point + normal * 0.1f, mortarBlastRadius, mortarBlastDamage, Knockback() * mortarKnockback, bridge, real, self);
 
+        // Pierce goes through crates and barrels too (they are not walls).
+        if (state.piercesLeft > 0 && IsProp(bullet.LastHit))
+        {
+            state.piercesLeft--;
+            bullet.IgnoreCollider(bullet.LastHit);
+            return true;
+        }
         if (state.bouncesLeft > 0)
         {
             state.bouncesLeft--;
             bullet.ScaleDamage(bounceDamage);
             bullet.Body.position = point + normal * 0.1f; // back out of the wall
             bullet.SetVelocity(Vector2.Reflect(bullet.Body.linearVelocity, normal));
-            state.waveOffset = 0f;
             return true;
         }
         if (state.drillsLeft > 0)
@@ -535,9 +663,64 @@ public class BulletCores : MonoBehaviour
         return false;
     }
 
-    // Lightning jumps from the hit target to the nearest others (never this player). real = also hurt them.
+    private static bool IsProp(Collider2D hit) =>
+        hit != null && (hit.GetComponent<Crate>() != null || hit.GetComponent<ExplosiveBarrel>() != null || hit.GetComponent<WeaponCrate>() != null);
+
+    // Sticky Bomb: a blinking bomb rides on the target (one at a time) and blows up after a moment.
+    private void StickBomb(HitTarget target, Vector2 point, bool lookAlike)
+    {
+        if (stickyBombs.TryGetValue(target, out CoreStickyBomb old) && old != null)
+            return;
+        var bomb = new GameObject("StickyBomb");
+        bomb.transform.SetParent(target.transform, false);
+        bomb.transform.position = point;
+        bomb.transform.localScale = Vector3.one * 1.3f;
+        var sprite = bomb.AddComponent<SpriteRenderer>();
+        sprite.sprite = mineSprite;
+        sprite.color = stickyColor;
+        sprite.sortingOrder = 6;
+        CoreStickyBomb sticky = bomb.AddComponent<CoreStickyBomb>();
+        sticky.Setup(this, stickyDelay, lookAlike);
+        stickyBombs[target] = sticky;
+    }
+
+    public void StickyBlast(Vector2 position, bool lookAlike)
+    {
+        CoreEffects.Blast(explosionEffect, stickyRadius, position, stickyRadius, stickyDamage, Knockback() * stickyKnockback, bridge, !lookAlike, self);
+        CRTScreen.Blur(position, 0.35f);
+    }
+
+    // Thunder: a moment after the hit, lightning comes down from the sky onto the target.
+    private System.Collections.IEnumerator Thunder(HitTarget target, float damage, bool real)
+    {
+        yield return new WaitForSeconds(thunderDelay);
+        if (target == null || target.IsDying)
+            yield break;
+        Vector2 point = target.transform.position;
+        CoreEffects.Bolt(zapMaterial, thunderGlow, thunderCore, point, 14f, 0.12f);
+        Instantiate(explosionEffect, point, Quaternion.identity).transform.localScale = Vector3.one * 0.6f;
+        GameAudio.PlayAt(thunderSound, point, thunderVolume, 0.1f);
+        if (real)
+            target.TakeDamage(damage, point, Vector2.up, 0.3f, bridge);
+    }
+
+    // Lightning jumps from the hit target to the nearest others (never this player), and to the barrels and crates
+    // near it (barrels go off, crates are knocked). real = also hurt them.
     private void ChainLightning(HitTarget first, float damage, bool real)
     {
+        foreach (Collider2D hit in Physics2D.OverlapCircleAll(first.transform.position, chainRange))
+        {
+            if (!IsProp(hit))
+                continue;
+            CoreEffects.Zap(zapMaterial, zapColor, first.transform.position, hit.transform.position, 0.08f, 0.1f);
+            if (!real)
+                continue;
+            if (hit.TryGetComponent(out ExplosiveBarrel barrel))
+                barrel.Hit(1000f);
+            else if (hit.attachedRigidbody != null && hit.attachedRigidbody.bodyType == RigidbodyType2D.Dynamic)
+                hit.attachedRigidbody.AddForce(((Vector2)hit.transform.position - (Vector2)first.transform.position).normalized * 8f, ForceMode2D.Impulse);
+        }
+
         chainHits.Clear();
         chainHits.Add(first);
         HitTarget from = first;
@@ -641,6 +824,41 @@ public class BulletCores : MonoBehaviour
             if (mines.Count < maxMines)
                 mines.Add(PlaceMine(position, state.lookAlike));
         }
+
+        // Black Hole: sometimes, wherever the bullet stopped.
+        if (Has(CoreType.BlackHole) && state.random.NextDouble() < blackHoleChance)
+        {
+            blackHoles.RemoveAll(hole => hole == null);
+            if (blackHoles.Count < maxBlackHoles)
+                blackHoles.Add(PlaceBlackHole(position, state.lookAlike));
+        }
+    }
+
+    // A dark core inside a purple ring (both from Black Hole Sprite).
+    private CoreBlackHole PlaceBlackHole(Vector2 position, bool lookAlike)
+    {
+        var go = new GameObject("BlackHole");
+        go.transform.position = position;
+        var ring = new GameObject("Ring").AddComponent<SpriteRenderer>();
+        ring.transform.SetParent(go.transform, false);
+        ring.transform.localScale = Vector3.one * 2.6f;
+        ring.sprite = blackHoleSprite;
+        ring.color = new Color(0.6f, 0.3f, 1f, 0.55f);
+        ring.sortingOrder = 4;
+        var core = new GameObject("Core").AddComponent<SpriteRenderer>();
+        core.transform.SetParent(go.transform, false);
+        core.transform.localScale = Vector3.one * 1.3f;
+        core.sprite = blackHoleSprite;
+        core.color = new Color(0.05f, 0f, 0.1f);
+        core.sortingOrder = 5;
+        var hole = go.AddComponent<CoreBlackHole>();
+        hole.Setup(this, self, ring.transform, blackHoleTime, blackHoleRadius, blackHolePull, lookAlike);
+        return hole;
+    }
+
+    public void BlackHoleCollapse(Vector2 position, bool lookAlike)
+    {
+        CoreEffects.Blast(explosionEffect, blackHoleBlastRadius, position, blackHoleBlastRadius, blackHoleDamage, Knockback(), bridge, !lookAlike, self);
     }
 
     private CoreMine PlaceMine(Vector2 position, bool lookAlike)
@@ -657,12 +875,17 @@ public class BulletCores : MonoBehaviour
         return mine;
     }
 
+    // The map changed: mines and black holes left on the old one go away.
     public void ClearMines()
     {
         foreach (CoreMine mine in mines)
             if (mine != null)
                 Destroy(mine.gameObject);
         mines.Clear();
+        foreach (CoreBlackHole hole in blackHoles)
+            if (hole != null)
+                Destroy(hole.gameObject);
+        blackHoles.Clear();
     }
 
     public void MineBlast(Vector2 position, bool lookAlike)

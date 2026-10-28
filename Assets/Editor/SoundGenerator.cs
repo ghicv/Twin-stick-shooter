@@ -22,7 +22,28 @@ public static class SoundGenerator
         Save("Assets/Audio/UI/Defeat.wav", Notes(new[] { 494f, 440f, 392f, 330f }, 0.18f, 0.5f));
         Save("Assets/Audio/Boom.wav", Boom());
         Save("Assets/Audio/Boing.wav", Boing());
+        Save("Assets/Audio/Thunder.wav", Thunder());
         AssetDatabase.Refresh();
+    }
+
+    // The Thunder core's bolt: a sharp bright crack, then a short low rumble.
+    private static float[] Thunder()
+    {
+        int length = (int)(Rate * 0.45f);
+        var data = new float[length];
+        var random = new System.Random(5);
+        float crackNoise = 0f, rumbleNoise = 0f;
+        for (int i = 0; i < length; i++)
+        {
+            float t = (float)i / Rate;
+            float white = (float)random.NextDouble() * 2f - 1f;
+            crackNoise = Mathf.Lerp(crackNoise, white, 0.7f);
+            rumbleNoise = Mathf.Lerp(rumbleNoise, white, 0.04f);
+            float crack = crackNoise * Mathf.Exp(-t * 40f);
+            float rumble = rumbleNoise * 3f * Mathf.Exp(-t * 7f) * Mathf.Min(1f, t / 0.03f);
+            data[i] = (crack * 0.7f + rumble * 0.6f) * Mathf.Min(1f, t / 0.001f) * 0.7f;
+        }
+        return data;
     }
 
     // An explosive barrel: a deep crunchy blast (noise falling in pitch) with a low thump.

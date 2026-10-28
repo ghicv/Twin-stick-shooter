@@ -103,6 +103,22 @@ public class CoreBridge : MonoBehaviour
 
     public bool DashUpgraded => singleCores.DashUpgraded;
 
+    // Host: knockback this player takes is multiplied by this (Anchor).
+    public float KnockbackTaken => singleCores.KnockbackTaken;
+
+    // Host: health packs heal this many times more and protect this long (Medic).
+    public float HealthPackHeal => singleCores.HealthPackHeal;
+    public float HealthPackProtection => singleCores.HealthPackProtection;
+
+    // Bullet damage to barrels and the push on crates (Demolition).
+    public float PropMultiplier => singleCores.PropMultiplier;
+
+    // Ammo of the special guns from weapon crates (Gun Nut).
+    public float SpecialAmmoMultiplier => singleCores.SpecialAmmoMultiplier;
+
+    // Host: this player's bullets or cores dealt that much damage (Vampire).
+    public void OnDamageDealt(float amount) => singleCores.OnDamageDealt(amount);
+
     // The machine that controls the player landed hard; the shockwave counts on the host.
     public void OnHardLanding(Vector2 feet)
     {

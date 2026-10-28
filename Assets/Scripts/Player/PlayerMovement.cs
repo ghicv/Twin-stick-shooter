@@ -1,10 +1,13 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-// Rigidbody2D platformer movement: A/D to run, Space to jump (plus a double jump in the air),
+// Rigidbody2D platformer movement: A/D to run, Space to jump (plus a double jump in the air), Shift to dash in any of
+// 8 directions (WASD; up and diagonals help get back to the map),
 // S to drop through one-way platforms, and wall slide / wall jump when touching a wall in the air.
 // Horizontal speed eases toward the target speed every physics step: it reacts right away,
 // then settles gently at full speed or at a stop, so there are no hard corners in the motion.
+// Pressing into a wall whose top is just above the feet pops the player up onto it (ledge assist), and being hit
+// gives the air jumps back, so a player knocked off the map can get back.
 // Falling is heavier than rising and has a top speed; holding S in the air falls faster. Rising into the corner of a
 // block slides around it instead of bumping the head. Jump buffer and coyote time forgive early / late presses.
 // Every jump (ground, wall and double jump) plays the jump sound; only hard landings play the landing sound.
@@ -98,8 +101,13 @@ public class PlayerMovement : MonoBehaviour
              "Collision with that platform stays off at least this long, and until the player is out of it (seconds).")]
     [SerializeField] private float dropThroughTime = 0.25f;
 
+    [Tooltip("In the air, pressing into a wall whose top is at most this far above the feet pops the player up " +
+             "onto it instead of sliding down (units; 0 = off).")]
+    [SerializeField] private float ledgeAssistHeight = 0.6f;
+
     [Header("Dash (Shift, everybody; the Dash+ core makes it better)")]
-    [Tooltip("Shift dashes this fast, straight sideways, toward A/D (or the way you last moved) (units/sec).")]
+    [Tooltip("Shift dashes this fast toward WASD (8 directions; no keys = the way you last moved). Not down " +
+             "into the ground (units/sec).")]
     [SerializeField] private float dashSpeed = 22f;
 
     [Tooltip("Seconds a dash lasts (with the Dash+ core the player can't be hurt meanwhile).")]
@@ -111,7 +119,7 @@ public class PlayerMovement : MonoBehaviour
     [Tooltip("Seconds from one dash to the next with the Dash+ core.")]
     [SerializeField] private float upgradedDashCooldown = 0.6f;
 
-    [Tooltip("Sideways speed kept when a dash ends (it then eases back to running), so it doesn't stop dead.")]
+    [Tooltip("Speed kept when a dash ends (it then eases back to running or falling), so it doesn't stop dead.")]
     [SerializeField] private float dashExitSpeed = 11f;
 
     [Header("Dust")]
@@ -156,17 +164,19 @@ public class PlayerMovement : MonoBehaviour
     private Collider2D bodyCollider;
     private CoreBridge cores;
     private PlayerHealth health;
+    private PlayerNetwork net;
     private InputAction moveAction;
     private InputAction jumpAction;
     private InputAction dashAction;
     private bool dashRequested;
     private float dashTimer;         // > 0 while dashing
     private float dashCooldownTimer;
-    private int dashDirection;
+    private Vector2 dashDirection;
     private int facing = 1;          // the way the player last moved: 1 = right, -1 = left
     private float baseGravityScale;
 
     private float moveInput;        // -1 = left, 0 = none, 1 = right
+    private float moveUpInput;      // -1 = down (S), 0 = none, 1 = up (W)
     private bool downHeld;          // S / down
     private bool jumpHeld;
     private float jumpBufferTimer;  // > 0: Space was pressed recently and is waiting to be used
@@ -191,6 +201,7 @@ public class PlayerMovement : MonoBehaviour
     private Vector2 groundVelocity; // how the ground under the feet moves (moving platform, conveyor, crate)
     private float runDustTimer;
     private readonly RaycastHit2D[] ceilingHits = new RaycastHit2D[4];
+    private readonly Collider2D[] ledgeHits = new Collider2D[4];
     private ContactFilter2D solidFilter; // everything but players and triggers (corner correction)
 
     // Grounded = touching any collider whose surface faces up (floor, top of a platform, ...).
@@ -207,6 +218,7 @@ public class PlayerMovement : MonoBehaviour
         bodyCollider = GetComponent<Collider2D>();
         cores = GetComponent<CoreBridge>();        // this player's own cores (null → none)
         health = GetComponent<PlayerHealth>();     // null → a dash gives no protection
+        net = GetComponent<PlayerNetwork>();       // null → no dash ghosts for the other machines
         baseGravityScale = rb.gravityScale;
 
         // Actions come from the project-wide input asset: Assets/InputSystem_Actions.inputactions
@@ -225,6 +237,7 @@ public class PlayerMovement : MonoBehaviour
         bool controls = !InputLock.Blocked;
         Vector2 move = controls ? moveAction.ReadValue<Vector2>() : Vector2.zero;
         moveInput = move.x;
+        moveUpInput = Mathf.Abs(move.y) > 0.5f ? Mathf.Sign(move.y) : 0f;
         downHeld = move.y < -0.5f;
         jumpHeld = controls && jumpAction.IsPressed();
 
@@ -241,7 +254,7 @@ public class PlayerMovement : MonoBehaviour
         UpdateGrounded();
         UpdateWall();
 
-        // Dash: straight sideways, no gravity, nothing else happens meanwhile.
+        // Dash: straight along its direction, no gravity, nothing else happens meanwhile.
         dashCooldownTimer -= Time.fixedDeltaTime;
         if (dashRequested)
         {
@@ -254,14 +267,15 @@ public class PlayerMovement : MonoBehaviour
             dashTimer -= Time.fixedDeltaTime;
             rb.gravityScale = 0f;
             // The last step of the dash keeps only some of its speed, then running eases it back.
-            rb.linearVelocity = new Vector2(dashDirection * (dashTimer > 0f ? dashSpeed : dashExitSpeed), 0f);
-            lastVelocityY = 0f;
+            rb.linearVelocity = dashDirection * (dashTimer > 0f ? dashSpeed : dashExitSpeed);
+            lastVelocityY = rb.linearVelocity.y;
             return;
         }
 
         wallJumpTimer -= Time.fixedDeltaTime;
         slowTimer -= Time.fixedDeltaTime;
         Run();
+        LedgeAssist();
 
         // Wall slide: falling while holding toward a wall you touch → you brake down to Wall Slide Speed
         // and slide down the wall. Never while moving up, so a jump along a wall keeps its full height.
@@ -324,6 +338,26 @@ public class PlayerMovement : MonoBehaviour
                     return;
                 }
             }
+    }
+
+    // In the air, pressing into a wall whose top is just above the feet: a little hop that clears it, instead of
+    // sliding down past it. Running on toward the wall then carries the player onto the top.
+    private void LedgeAssist()
+    {
+        if (IsGrounded || wallPush == 0 || moveInput * wallPush >= 0f || rb.linearVelocity.y > 2f || ledgeAssistHeight <= 0f)
+            return;
+        Bounds bounds = bodyCollider.bounds;
+        Vector2 size = bounds.size * 0.95f;
+        var inward = new Vector2(-wallPush * 0.15f, 0f); // a little into the wall: is there room on top of it?
+        for (float lift = 0.05f; lift <= ledgeAssistHeight; lift += 0.05f)
+        {
+            if (Physics2D.OverlapBox((Vector2)bounds.center + inward + Vector2.up * lift, size, 0f, solidFilter, ledgeHits) > 0)
+                continue;
+            float gravity = Physics2D.gravity.magnitude * baseGravityScale * fallGravityMultiplier;
+            rb.linearVelocity = new Vector2(rb.linearVelocity.x, Mathf.Sqrt(2f * gravity * (lift + 0.15f)));
+            canCutJump = false;
+            return;
+        }
     }
 
     private bool HeadBlocked(Vector2 offset, float distance)
@@ -550,6 +584,12 @@ public class PlayerMovement : MonoBehaviour
         return false;
     }
 
+    // The dash can be used again right away (e.g. Void Feast).
+    public void ResetDash() => dashCooldownTimer = 0f;
+
+    // Hit by someone: all the air jumps come back, to fight the push.
+    public void RefreshAirJumps() => airJumpsLeft = Mathf.Max(airJumpsLeft, TotalAirJumps);
+
     // Runs slower for a while (factor 0.5 = half speed), e.g. hit by a Chill bullet.
     public void Slow(float factor, float duration)
     {
@@ -559,7 +599,9 @@ public class PlayerMovement : MonoBehaviour
 
     private void StartDash()
     {
-        dashDirection = moveInput != 0f ? (moveInput > 0f ? 1 : -1) : facing;
+        float x = Mathf.Abs(moveInput) > 0.3f ? Mathf.Sign(moveInput) : 0f;
+        float y = IsGrounded ? Mathf.Max(0f, moveUpInput) : moveUpInput; // never down into the ground
+        dashDirection = x == 0f && y == 0f ? new Vector2(facing, 0f) : new Vector2(x, y).normalized;
         dashTimer = dashTime;
         bool upgraded = cores != null && cores.DashUpgraded;
         dashCooldownTimer = upgraded ? upgradedDashCooldown : dashCooldown;
@@ -569,6 +611,8 @@ public class PlayerMovement : MonoBehaviour
         PlaySound(jumpSound, jumpVolume);
         if (upgraded && health != null)
             health.MakeInvulnerable(dashTime + 0.05f); // Dash+: can't be hurt while dashing
+        if (net != null)
+            net.PlayDash(dashTime); // the ghosts, on every machine
     }
 
     // Sets the velocity directly (impulse / mass for the upward part) so every jump has the same height,

@@ -2,7 +2,8 @@ using UnityEngine;
 
 // Brings the body to life on every machine (the player is one body sprite, so its shape does the acting): it breathes
 // when standing, bounces step by step while running, stretches with its speed in the air, squashes on landing,
-// stretches on jumping and dashing. Everything is read from how the player really moves, so the other machines'
+// stretches on jumping and dashing, and leaves fading ghosts of itself behind while dashing (PlayerAfterimage).
+// Everything is read from how the player really moves, so the other machines'
 // players move just as alive as this one's. The shape snaps to whole pixels of the sprite (retro), and the feet stay
 // on the ground while the body squashes.
 public class PlayerBodyAnimator : MonoBehaviour
@@ -37,6 +38,16 @@ public class PlayerBodyAnimator : MonoBehaviour
     [Tooltip("How quickly a squash or stretch springs back (higher = snappier).")]
     [SerializeField] private float recovery = 14f;
 
+    [Header("Dash")]
+    [Tooltip("While dashing, a ghost of the body is left behind this often (seconds)...")]
+    [SerializeField] private float afterimageInterval = 0.03f;
+
+    [Tooltip("...and each fades out over this long.")]
+    [SerializeField] private float afterimageLife = 0.22f;
+
+    [Range(0f, 1f)]
+    [SerializeField] private float afterimageAlpha = 0.55f;
+
     private Vector3 baseScale;
     private Vector3 basePosition;
     private float halfHeight;
@@ -48,6 +59,9 @@ public class PlayerBodyAnimator : MonoBehaviour
     private bool grounded;
     private float airVelocityY;
     private Collider2D bodyCollider;
+    private PlayerNetwork player;
+    private float afterimageTimer;
+    private float dashWindow;    // > 0: a dash is going on (or about to show up here)
     private readonly RaycastHit2D[] hits = new RaycastHit2D[4];
     private ContactFilter2D groundFilter;
 
@@ -59,6 +73,7 @@ public class PlayerBodyAnimator : MonoBehaviour
         halfHeight = sprite.bounds.extents.y * baseScale.y;
         pixels = sprite.rect.size;
         bodyCollider = GetComponent<Collider2D>();
+        player = GetComponent<PlayerNetwork>();
         groundFilter.SetLayerMask(Physics2D.GetLayerCollisionMask(gameObject.layer) & ~(1 << gameObject.layer));
         groundFilter.useTriggers = false;
         lastPosition = transform.position;
@@ -80,8 +95,27 @@ public class PlayerBodyAnimator : MonoBehaviour
             punch = Vector2.Lerp(Vector2.one, landSquash, Mathf.InverseLerp(4f, hardLanding, -airVelocityY));
         else if (wasGrounded && !grounded && velocity.y > 6f)
             punch = jumpStretch;
-        if (Mathf.Abs(velocity.x) > 15f && Mathf.Abs(velocity.y) < 2f)
-            punch = dashStretch; // only a dash moves this fast sideways
+        // Dashing: told by the owner (PlayDash), shown while the body really moves fast (other machines see the
+        // move a little later than they hear about it).
+        dashWindow -= step;
+        bool dashing = dashWindow > 0f && velocity.magnitude > 12f;
+        if (dashing)
+        {
+            bool sideways = Mathf.Abs(velocity.x) >= Mathf.Abs(velocity.y);
+            punch = sideways ? dashStretch : new Vector2(dashStretch.y, dashStretch.x);
+            afterimageTimer -= step;
+            if (afterimageTimer <= 0f)
+            {
+                afterimageTimer = afterimageInterval;
+                Color color = player != null ? player.Color : Color.white;
+                color.a = afterimageAlpha;
+                PlayerAfterimage.Leave(body.GetComponentsInChildren<SpriteRenderer>(), color, afterimageLife);
+            }
+        }
+        else
+        {
+            afterimageTimer = 0f;
+        }
         if (!grounded)
             airVelocityY = velocity.y;
         punch = Vector2.Lerp(punch, Vector2.one, 1f - Mathf.Exp(-recovery * step));
@@ -114,6 +148,10 @@ public class PlayerBodyAnimator : MonoBehaviour
         body.localScale = new Vector3(baseScale.x * shape.x, baseScale.y * shape.y, baseScale.z);
         body.localPosition = basePosition + Vector3.down * (halfHeight * (1f - shape.y));
     }
+
+    // This player dashes for that long (any direction). The window is a little longer, for the other machines'
+    // delay in seeing the move.
+    public void PlayDash(float duration) => dashWindow = duration + 0.15f;
 
     // Something solid right under the feet (works for every machine's players, moved by physics or not).
     private bool OnGround()

@@ -33,6 +33,9 @@ public class Projectile : MonoBehaviour
     public float Damage { get; private set; }
     public Rigidbody2D Body => rb;
 
+    // Who fired it (null for enemy bullets without one).
+    public Rigidbody2D Shooter => shooter;
+
     // The last collider it hit (e.g. shards from it ignore that enemy).
     public Collider2D LastHit { get; private set; }
 
@@ -175,9 +178,9 @@ public class Projectile : MonoBehaviour
             GameAudio.PlayAt(wallHitSound, hitPoint, wallHitVolume, 0.1f);
             Rigidbody2D loose = other.attachedRigidbody;
             if (!IsLookAlike && loose != null && loose.bodyType == RigidbodyType2D.Dynamic)
-                loose.AddForceAtPosition(flightDirection * pushImpulse, hitPoint, ForceMode2D.Impulse);
+                loose.AddForceAtPosition(flightDirection * pushImpulse * (cores != null ? cores.PropMultiplier : 1f), hitPoint, ForceMode2D.Impulse);
             if (!IsLookAlike && other.TryGetComponent(out ExplosiveBarrel barrel))
-                barrel.Hit(Damage);
+                barrel.Hit(Damage * (cores != null ? cores.PropMultiplier : 1f)); // Demolition: much more
             if (cores != null)
                 keepFlying = cores.OnBulletHitWall(this, hitPoint, normal);
         }

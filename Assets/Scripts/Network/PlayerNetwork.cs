@@ -378,6 +378,30 @@ public class PlayerNetwork : NetworkBehaviour
     [Rpc(SendTo.Owner)]
     private void HitConfirmRpc(Vector2 point, float damage, bool knockout) => weapon.PlayHitConfirm(point, damage, knockout);
 
+    // Host: the dash is ready again right away (Void Feast).
+    public void ResetDash()
+    {
+        if (Offline)
+            GetComponent<PlayerMovement>().ResetDash();
+        else
+            ResetDashRpc();
+    }
+
+    [Rpc(SendTo.Owner)]
+    private void ResetDashRpc() => GetComponent<PlayerMovement>().ResetDash();
+
+    // Owner: this player dashed for that long; every machine leaves its ghosts behind it.
+    public void PlayDash(float duration)
+    {
+        if (Offline)
+            GetComponent<PlayerBodyAnimator>().PlayDash(duration);
+        else
+            DashRpc(duration);
+    }
+
+    [Rpc(SendTo.Everyone)]
+    private void DashRpc(float duration) => GetComponent<PlayerBodyAnimator>().PlayDash(duration);
+
     public void PushOwner(Vector2 velocity, bool set)
     {
         if (Offline)

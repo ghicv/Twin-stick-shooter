@@ -193,6 +193,8 @@ public class Dummy : MonoBehaviour
         // Blood spurts out of the wound, starting slightly outside the body.
         SpawnEffect(bloodEffect, hitPoint + hitNormal * 0.05f, hitNormal);
 
+        if (source != null)
+            source.OnDamageDealt(Mathf.Min(amount, health)); // Vampire
         health = Mathf.Max(0f, health - amount);
         chipTimer = chipDelay;
         UpdateHealthBar();
@@ -221,6 +223,8 @@ public class Dummy : MonoBehaviour
 
         if (source != null)
             lastSource = source;
+        if (source != null)
+            source.OnDamageDealt(Mathf.Min(amount, health)); // Vampire
         health = Mathf.Max(0f, health - amount);
         chipTimer = chipDelay;
         UpdateHealthBar();

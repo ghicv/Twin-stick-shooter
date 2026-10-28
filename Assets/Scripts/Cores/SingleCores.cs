@@ -35,11 +35,28 @@ public class SingleCores : MonoBehaviour
     [Tooltip("Max health added (and given right away) when the core is picked.")]
     [SerializeField] private float thickSkinHealth = 40f;
 
-    [Header("PLAYER · Regeneration")]
-    [Tooltip("Health per second while not hurt for Regeneration Delay.")]
-    [SerializeField] private float regenerationRate = 2f;
+    [Header("PLAYER · Orbit")]
+    [Tooltip("Two orbs circle the player at this distance, destroying other players' bullets and hurting whoever they touch.")]
+    [SerializeField] private float orbitRadius = 1.3f;
+    [SerializeField] private float orbitSpeed = 220f;
+    [SerializeField] private float orbitDamage = 8f;
 
-    [SerializeField] private float regenerationDelay = 3f;
+    [Tooltip("The same target can't be hurt by the orbs again for this long (seconds).")]
+    [SerializeField] private float orbitHitCooldown = 0.4f;
+    [SerializeField] private Sprite orbSprite;
+    [SerializeField] private Color orbColor = new Color(0.5f, 0.9f, 1f);
+
+    [Header("PLAYER · Anchor")]
+    [Tooltip("Knockback this player takes is multiplied by this.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float anchorKnockback = 0.6f;
+
+    [Header("PLAYER · Medic")]
+    [Tooltip("Health packs heal this many times more...")]
+    [SerializeField] private float medicHeal = 2f;
+
+    [Tooltip("...and protect for this many seconds.")]
+    [SerializeField] private float medicProtection = 1f;
 
     [Header("GUN · Hot Barrel")]
     [Tooltip("Fire rate multiplier after holding fire for Hot Barrel Ramp Time.")]
@@ -75,11 +92,19 @@ public class SingleCores : MonoBehaviour
     [Tooltip("...and its bullets are this much bigger.")]
     [SerializeField] private float openerSize = 1.5f;
 
-    [Header("ENEMY · Void Feast")]
-    [Tooltip("Health the player gets back for each target it knocked into the void.")]
-    [SerializeField] private float voidFeastHeal = 10f;
+    [Header("GUN · Demolition")]
+    [Tooltip("Bullet damage to barrels and the push on crates are multiplied by this.")]
+    [SerializeField] private float demolitionMultiplier = 3f;
 
-    [Header("ENEMY · Death Blast")]
+    [Header("GUN · Gun Nut")]
+    [Tooltip("Ammo of the special guns from weapon crates is multiplied by this.")]
+    [SerializeField] private float gunNutAmmo = 2f;
+
+    [Header("TARGETS · Void Feast")]
+    [Tooltip("Health the player gets back for each target it knocked into the void (and the dash comes back).")]
+    [SerializeField] private float voidFeastHeal = 30f;
+
+    [Header("TARGETS · Death Blast")]
     [Tooltip("Targets this player kills explode, hurting the targets within this distance (units).")]
     [SerializeField] private float deathBlastRadius = 2f;
 
@@ -89,16 +114,17 @@ public class SingleCores : MonoBehaviour
     [Tooltip("Spawned at the blast. It should destroy itself.")]
     [SerializeField] private ParticleSystem deathBlastEffect;
 
-    [Header("ENEMY · Crash")]
+    [Header("TARGETS · Crash")]
     [Tooltip("Damage to a target knocked into a wall or another enemy (both enemies get it).")]
     [SerializeField] private float crashDamage = 12f;
 
     [Tooltip("The same target can't crash again for this long (seconds).")]
     [SerializeField] private float crashCooldown = 0.5f;
 
-    [Header("ENEMY · Vampire")]
-    [Tooltip("Health the player gets back for each target it kills (not fallen off).")]
-    [SerializeField] private float vampireHeal = 3f;
+    [Header("TARGETS · Vampire")]
+    [Tooltip("Share of the damage this player deals that comes back as health.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float vampireLifesteal = 0.15f;
 
     private CoreInventory inventory;
     private CoreBridge bridge;
@@ -109,6 +135,7 @@ public class SingleCores : MonoBehaviour
     private CameraShake cameraShake;
     private float lastShotTime = -100f;
     private bool extraLifeUsed;
+    private CoreOrbit orbit;
     private readonly List<HitTarget> poundHits = new List<HitTarget>();
     private readonly Dictionary<HitTarget, float> lastCrash = new Dictionary<HitTarget, float>();
 
@@ -132,12 +159,26 @@ public class SingleCores : MonoBehaviour
     {
         if (type == CoreType.ThickSkin && OnHost)
             playerHealth.AddMaxHealth(thickSkinHealth);
+        if (type == CoreType.ExtraLife)
+            extraLifeUsed = false; // a new run or match
     }
 
+    // The orbs come and go with the core (every machine shows them).
     private void Update()
     {
-        if (OnHost && Has(CoreType.Regeneration) && Time.time - playerHealth.LastDamageTime >= regenerationDelay)
-            playerHealth.Heal(regenerationRate * Time.deltaTime);
+        if (Has(CoreType.Orbit) != (orbit != null))
+        {
+            if (orbit == null)
+            {
+                orbit = new GameObject("Orbit").AddComponent<CoreOrbit>();
+                orbit.transform.SetParent(transform, false);
+                orbit.Setup(this, net, self, orbSprite, orbColor, orbitRadius, orbitSpeed, orbitDamage, orbitHitCooldown);
+            }
+            else
+            {
+                Destroy(orbit.gameObject);
+            }
+        }
     }
 
     // ---------- Player ----------
@@ -146,7 +187,15 @@ public class SingleCores : MonoBehaviour
 
     public bool DashUpgraded => Has(CoreType.Dash); // Dash+: faster dashes that can't be hurt
 
-    // Host: Extra Life → true (once per run; on LAN once per round) = the player comes back right away.
+    public float KnockbackTaken => Has(CoreType.Anchor) ? anchorKnockback : 1f;
+
+    // Health packs (Medic): how many times more they heal, and the seconds of protection they give.
+    public float HealthPackHeal => Has(CoreType.Medic) ? medicHeal : 1f;
+    public float HealthPackProtection => Has(CoreType.Medic) ? medicProtection : 0f;
+
+    public CoreBridge Bridge => bridge;
+
+    // Host: Extra Life → true (once per run; on LAN once per match) = the player comes back right away.
     public bool TryUseExtraLife()
     {
         if (!Has(CoreType.ExtraLife) || extraLifeUsed)
@@ -156,9 +205,9 @@ public class SingleCores : MonoBehaviour
     }
 
     // LAN: a new round.
+    // (Extra Life is once per match on LAN, so nothing comes back here now.)
     public void ResetForRound()
     {
-        extraLifeUsed = false;
     }
 
     // Host: Ground Pound: a hard landing throws the targets around the feet away and up.
@@ -199,6 +248,12 @@ public class SingleCores : MonoBehaviour
 
     public float SpreadMultiplier => Has(CoreType.SteadyAim) ? steadyAimSpread : 1f;
 
+    // Demolition: bullet damage to barrels and the push on crates.
+    public float PropMultiplier => Has(CoreType.Demolition) ? demolitionMultiplier : 1f;
+
+    // Gun Nut: ammo of the special guns.
+    public float SpecialAmmoMultiplier => Has(CoreType.GunNut) ? gunNutAmmo : 1f;
+
     // Called for every shot: damage and bullet size multipliers for it.
     public float ShotDamage(out float size)
     {
@@ -223,17 +278,25 @@ public class SingleCores : MonoBehaviour
         if (fellOff)
         {
             if (Has(CoreType.VoidFeast))
+            {
                 playerHealth.Heal(voidFeastHeal);
+                net.ResetDash();
+            }
             return;
         }
 
-        if (Has(CoreType.Vampire))
-            playerHealth.Heal(vampireHeal);
         if (Has(CoreType.DeathBlast))
         {
             ShowEffect(BlastEffectId, position, deathBlastRadius);
             CoreEffects.Blast(null, 0f, position, deathBlastRadius, deathBlastDamage, deathBlastKnockback, bridge, true, victim, self);
         }
+    }
+
+    // Host: this player's bullets or cores dealt that much damage (Vampire heals a share of it).
+    public void OnDamageDealt(float amount)
+    {
+        if (Has(CoreType.Vampire) && amount > 0f)
+            playerHealth.Heal(amount * vampireLifesteal);
     }
 
     // A target this player hit was knocked into a wall (other = null) or into another enemy.

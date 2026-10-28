@@ -198,7 +198,7 @@ public class PlayerWeapon : MonoBehaviour
     public void EquipSpecial(int type)
     {
         if (type > 0 && type <= specialGuns.Length)
-            ammo = specialGuns[type - 1].ammo;
+            ammo = Mathf.RoundToInt(specialGuns[type - 1].ammo * (cores != null ? cores.SpecialAmmoMultiplier : 1f)); // Gun Nut: more
     }
 
     // Every machine: the gun looks like the one held.

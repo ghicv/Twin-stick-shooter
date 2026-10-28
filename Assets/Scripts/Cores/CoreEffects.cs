@@ -38,6 +38,36 @@ public static class CoreEffects
         }
     }
 
+    // A lightning bolt from high above down onto a point (Thunder): a wide glow and a bright core along the same
+    // jagged path, gone after Duration.
+    public static void Bolt(Material material, Color glow, Color core, Vector2 to, float height, float duration)
+    {
+        const int points = 10;
+        Vector2 from = to + new Vector2(Random.Range(-1.5f, 1.5f), height);
+        var path = new Vector3[points];
+        for (int i = 0; i < points; i++)
+        {
+            float t = i / (points - 1f);
+            float jitter = i == 0 || i == points - 1 ? 0f : Random.Range(-0.45f, 0.45f);
+            path[i] = Vector2.Lerp(from, to, t) + Vector2.right * jitter;
+        }
+        Line(material, glow, path, 0.4f, duration, 19);
+        Line(material, core, path, 0.12f, duration, 20);
+    }
+
+    private static void Line(Material material, Color color, Vector3[] path, float width, float duration, int order)
+    {
+        var line = new GameObject("Bolt").AddComponent<LineRenderer>();
+        line.material = material;
+        line.startColor = color;
+        line.endColor = color;
+        line.widthMultiplier = width;
+        line.sortingOrder = order;
+        line.positionCount = path.Length;
+        line.SetPositions(path);
+        Object.Destroy(line.gameObject, duration);
+    }
+
     // A jagged line from one point to another that disappears after Duration (real seconds).
     public static void Zap(Material material, Color color, Vector2 from, Vector2 to, float width, float duration)
     {

@@ -64,12 +64,16 @@ public class PlayerHealth : MonoBehaviour
 
     // Host side: Time.time of the last hit that hurt, and the cores of the player who did it (kill credit).
     public float LastDamageTime { get; private set; } = -100f;
+
+    // Knockback this player takes is multiplied by this (the Anchor core lowers it).
+    private float OwnKnockbackTaken => cores != null ? cores.KnockbackTaken : 1f;
     public CoreBridge LastAttacker { get; private set; }
 
     private Rigidbody2D rb;
     private PlayerRespawn respawn;
     private PlayerNetwork net;
     private PlayerMovement movement;
+    private CoreBridge cores; // this player's own cores (null in some tests)
     private CameraShake cameraShake;
     private Color bodyColor;
     private float invulnerableTimer; // host side
@@ -83,6 +87,7 @@ public class PlayerHealth : MonoBehaviour
         respawn = GetComponent<PlayerRespawn>();
         net = GetComponent<PlayerNetwork>();
         movement = GetComponent<PlayerMovement>();
+        cores = GetComponent<CoreBridge>();
         cameraShake = Camera.main.GetComponent<CameraShake>(); // null → no shake
         bodyColor = body.color;
     }
@@ -94,7 +99,7 @@ public class PlayerHealth : MonoBehaviour
         if (!Hurt(amount, source))
             return;
 
-        float scale = knockbackScale * (GameMode.IsLan ? lanKnockbackScale : 1f);
+        float scale = knockbackScale * (GameMode.IsLan ? lanKnockbackScale : 1f) * OwnKnockbackTaken;
         net.PushOwner(new Vector2(Mathf.Sign(direction.x) * knockback.x, knockback.y) * scale, true);
     }
 
@@ -111,7 +116,7 @@ public class PlayerHealth : MonoBehaviour
             return;
         if (source != null)
             LastAttacker = source;
-        net.PushOwner(impulse / rb.mass, false);
+        net.PushOwner(impulse / rb.mass * OwnKnockbackTaken, false);
     }
 
     // Host only. Moves slower for a while.
@@ -144,6 +149,8 @@ public class PlayerHealth : MonoBehaviour
             LastAttacker = source;
         net.PlayHurt(invulnerableTimer);
         ConfirmHit(source, dealt, Health <= 0f);
+        if (source != null && source != cores)
+            source.OnDamageDealt(dealt); // Vampire
 
         if (Health <= 0f)
         {
@@ -176,10 +183,13 @@ public class PlayerHealth : MonoBehaviour
     }
 
     // Owner: pushed by a hit or a pull. set = replace the speed (hit), otherwise add to it.
+    // A hit gives the air jumps back, so a player knocked away can still get back to the map.
     public void ApplyPush(Vector2 velocity, bool set)
     {
         pushTime = Time.time;
         rb.linearVelocity = set ? velocity : rb.linearVelocity + velocity;
+        if (set)
+            movement.RefreshAirJumps();
     }
 
     // Owner: slowed down.
