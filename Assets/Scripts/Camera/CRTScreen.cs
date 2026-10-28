@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Rendering.Universal;
 
 // Old-TV (CRT) look over the whole screen: curved glass, scanlines, red/green/blue phosphor columns,
 // color fringing and darker corners. The drawing is done by the "CRT Screen" Full Screen Pass
@@ -6,8 +7,12 @@ using UnityEngine;
 // sends the values below to it. Intensity 0 = normal picture (the default); PlayerRespawn turns it up
 // during the respawn transition. Put it on the main camera.
 // It also plays the impact blur (Blur: a short radial smear from a point), drawn by the same pass.
+// The pass only runs while there is something to draw (CRT or blur): a full-screen pass costs a slow GPU dearly.
 public class CRTScreen : MonoBehaviour
 {
+    [Tooltip("The \"CRT Screen\" renderer feature (on PC_Renderer). Turned off while the picture is left untouched.")]
+    [SerializeField] private ScriptableRendererFeature screenPass;
+
     [Tooltip("0 = normal picture, 1 = full CRT effect. PlayerRespawn drives it; drag it in Play Mode to preview the look.")]
     [Range(0f, 1f)]
     [SerializeField] private float intensity;
@@ -95,12 +100,19 @@ public class CRTScreen : MonoBehaviour
         Shader.SetGlobalFloat(MaskStrengthId, maskStrength);
         Shader.SetGlobalFloat(ColorFringeId, colorFringe);
         Shader.SetGlobalFloat(VignetteId, vignette);
+
+        bool needed = intensity > 0f || blur > 0f;
+        if (screenPass != null && screenPass.isActive != needed)
+            screenPass.SetActive(needed);
     }
 
-    // Leaving Play Mode (or removing the component) must not leave the screen stuck in CRT mode.
+    // Leaving Play Mode (or removing the component) must not leave the screen stuck in CRT mode, and leaves the
+    // pass on in the asset (as saved).
     private void OnDisable()
     {
         Shader.SetGlobalFloat(IntensityId, 0f);
         Shader.SetGlobalFloat(BlurStrengthId, 0f);
+        if (screenPass != null)
+            screenPass.SetActive(true);
     }
 }

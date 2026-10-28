@@ -3,7 +3,7 @@ using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 // The ESC menu during a game (also the main menu's SETTINGS): resume, music and sound effects volumes, full screen, VSync,
-// effects (EffectsSetting),
+// effects (EffectsSetting), render resolution (RenderScaleSetting),
 // language, and leave
 // (back to the main menu).
 // On LAN the match keeps running behind it (the others keep playing); only this player's controls stop
@@ -32,6 +32,9 @@ public class SettingsMenu : MonoBehaviour
     [Tooltip("EFFECTS on/off (EffectsSetting): bloom, motion blur and impact blur in a game. Off for slow PCs.")]
     [SerializeField] private Button effectsButton;
 
+    [Tooltip("RESOLUTION 100% / 75% / 50% (RenderScaleSetting): the game drawn smaller and blown up. Lower for slow PCs.")]
+    [SerializeField] private Button resolutionButton;
+
     [Tooltip("Back to the main menu. On LAN it leaves the room (the host's leaving closes it for everyone).")]
     [SerializeField] private Button leaveButton;
 
@@ -53,6 +56,8 @@ public class SettingsMenu : MonoBehaviour
             EffectsSetting.On = !EffectsSetting.On;
             EffectsSetting.Apply(GameMode.Current == GameMode.Mode.None); // the menu keeps its blurred backdrop
         });
+        RenderScaleSetting.Apply();
+        resolutionButton.onClick.AddListener(RenderScaleSetting.Next);
 
         AudioListener.volume = 1f; // the two volumes below do it all
         musicSlider.SetValueWithoutNotify(GameAudio.MusicVolume);
@@ -133,6 +138,8 @@ public class SettingsMenu : MonoBehaviour
         effectsButton.GetComponentInChildren<Text>().text = EffectsSetting.On
             ? Lang.T("EFFECTS: ON", "HIỆU ỨNG: BẬT")
             : Lang.T("EFFECTS: OFF", "HIỆU ỨNG: TẮT");
+        string percent = Mathf.RoundToInt(RenderScaleSetting.Scale * 100f) + "%";
+        resolutionButton.GetComponentInChildren<Text>().text = Lang.T("RESOLUTION: ", "ĐỘ PHÂN GIẢI: ") + percent;
 
         bool host = GameMode.IsLan && Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsServer;
         leaveButton.GetComponentInChildren<Text>().text = !GameMode.IsLan ? Lang.T("MAIN MENU", "VỀ MENU")

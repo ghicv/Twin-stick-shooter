@@ -972,8 +972,9 @@ public static class UiBuilder
         Slider music = VolumeRow(card, "Music", "MUSIC", "NHẠC", -262, out Text musicValue);
         Slider sfx = VolumeRow(card, "Sfx", "SOUND EFFECTS", "HIỆU ỨNG", -372, out Text sfxValue);
         Button fullScreen = UiKit.Button(card, "FullScreenButton", "FULL SCREEN: ON", null, Top, new Vector2(0, -500), new Vector2(520, 76), K.Normal, 28);
-        Button vSync = UiKit.Button(card, "VSyncButton", "VSYNC: ON", null, Top, new Vector2(0, -585), new Vector2(520, 76), K.Normal, 28);
-        Button effects = UiKit.Button(card, "EffectsButton", "EFFECTS: ON", null, Top, new Vector2(0, -670), new Vector2(520, 76), K.Normal, 28);
+        Button vSync = UiKit.Button(card, "VSyncButton", "VSYNC: ON", null, Top, new Vector2(-133, -585), new Vector2(254, 76), K.Normal, 28);
+        Button effects = UiKit.Button(card, "EffectsButton", "EFFECTS: ON", null, Top, new Vector2(133, -585), new Vector2(254, 76), K.Normal, 28);
+        Button resolution = UiKit.Button(card, "ResolutionButton", "RESOLUTION: 100%", null, Top, new Vector2(0, -670), new Vector2(520, 76), K.Normal, 28);
         UiKit.Label(card, "LanguageLabel", "LANGUAGE", "NGÔN NGỮ", 40, Color.white, MidLeft, Top, new Vector2(-60, -752), new Vector2(400, 50));
         LanguageRow(card, Top, new Vector2(0, -815), 254, 24);
         Button leave = UiKit.Button(card, "LeaveButton", "LEAVE ROOM", null, Bottom, new Vector2(0, 80), new Vector2(520, 84), K.Danger, 28);
@@ -986,6 +987,7 @@ public static class UiBuilder
         UiKit.Wire(menu, "fullScreenButton", fullScreen);
         UiKit.Wire(menu, "vSyncButton", vSync);
         UiKit.Wire(menu, "effectsButton", effects);
+        UiKit.Wire(menu, "resolutionButton", resolution);
         UiKit.Wire(menu, "leaveButton", leave);
         panel.gameObject.SetActive(false);
     }

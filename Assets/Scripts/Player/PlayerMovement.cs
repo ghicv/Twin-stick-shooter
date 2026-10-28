@@ -234,7 +234,7 @@ public class PlayerMovement : MonoBehaviour
     private void Update()
     {
         // Read input every frame, apply it in FixedUpdate (physics). The ESC menu or the chat takes the keys while open.
-        bool controls = !InputLock.Blocked;
+        bool controls = !InputLock.Blocked && !InputLock.Frozen;
         Vector2 move = controls ? moveAction.ReadValue<Vector2>() : Vector2.zero;
         moveInput = move.x;
         moveUpInput = Mathf.Abs(move.y) > 0.5f ? Mathf.Sign(move.y) : 0f;
@@ -251,6 +251,17 @@ public class PlayerMovement : MonoBehaviour
 
     private void FixedUpdate()
     {
+        // Between the rounds of a LAN match: frozen in place (no falling to death once the round is decided).
+        if (InputLock.Frozen)
+        {
+            rb.linearVelocity = Vector2.zero;
+            rb.gravityScale = 0f;
+            dashTimer = 0f;
+            dashRequested = false;
+            jumpBufferTimer = 0f;
+            return;
+        }
+
         UpdateGrounded();
         UpdateWall();
 

@@ -1,8 +1,8 @@
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
 
-// The EFFECTS setting (SettingsMenu), remembered on this PC: on = the camera's post-processing in a game (bloom,
-// motion blur from the Global Volume) and the impact blur (CRTScreen). Off = a plain picture for slow PCs. The menu
+// The EFFECTS setting (SettingsMenu), remembered on this PC: on = the camera's post-processing in a game (bloom and
+// color from the Global Volume) and the impact blur (CRTScreen). Off = a plain picture for slow PCs. The menu
 // always post-processes (its blurred backdrop, MenuBackdrop).
 public static class EffectsSetting
 {

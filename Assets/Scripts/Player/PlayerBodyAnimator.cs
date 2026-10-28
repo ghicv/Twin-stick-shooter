@@ -62,6 +62,7 @@ public class PlayerBodyAnimator : MonoBehaviour
     private PlayerNetwork player;
     private float afterimageTimer;
     private float dashWindow;    // > 0: a dash is going on (or about to show up here)
+    private SpriteRenderer[] bodySprites; // the body, outfit and hat (copied by the dash ghosts)
     private readonly RaycastHit2D[] hits = new RaycastHit2D[4];
     private ContactFilter2D groundFilter;
 
@@ -74,6 +75,7 @@ public class PlayerBodyAnimator : MonoBehaviour
         pixels = sprite.rect.size;
         bodyCollider = GetComponent<Collider2D>();
         player = GetComponent<PlayerNetwork>();
+        bodySprites = body.GetComponentsInChildren<SpriteRenderer>(true);
         groundFilter.SetLayerMask(Physics2D.GetLayerCollisionMask(gameObject.layer) & ~(1 << gameObject.layer));
         groundFilter.useTriggers = false;
         lastPosition = transform.position;
@@ -109,7 +111,7 @@ public class PlayerBodyAnimator : MonoBehaviour
                 afterimageTimer = afterimageInterval;
                 Color color = player != null ? player.Color : Color.white;
                 color.a = afterimageAlpha;
-                PlayerAfterimage.Leave(body.GetComponentsInChildren<SpriteRenderer>(), color, afterimageLife);
+                PlayerAfterimage.Leave(bodySprites, color, afterimageLife);
             }
         }
         else

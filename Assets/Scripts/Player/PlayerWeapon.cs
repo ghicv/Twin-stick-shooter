@@ -235,10 +235,10 @@ public class PlayerWeapon : MonoBehaviour
         UpdateShotFeedback();
         if (net != null && !net.IsMine)
             return; // another machine's player: only its shot feedback plays here (PlayShotFeedback)
-        if (InputLock.Blocked)
+        if (InputLock.Blocked || InputLock.Frozen)
         {
             holdTime = 0f;
-            return; // no shooting while a menu or the chat is open
+            return; // no shooting while a menu or the chat is open, or between rounds
         }
 
         // New click: may fire right away, but never before the cooldown from the last shot is over.

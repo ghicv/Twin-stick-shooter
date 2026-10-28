@@ -132,7 +132,8 @@ public class PlayerRespawn : MonoBehaviour
     private void FixedUpdate()
     {
         fallReportTimer -= Time.fixedDeltaTime;
-        if (net.IsMine && fallReportTimer <= 0f && rb.simulated && !IsDead && !traveling && rb.position.y < FallLimit)
+        if (net.IsMine && fallReportTimer <= 0f && rb.simulated && !IsDead && !traveling && !InputLock.Frozen &&
+            rb.position.y < FallLimit) // a decided round can't be lost by falling (the travel brings everybody back)
         {
             fallReportTimer = fallReportInterval;
             Die(true);

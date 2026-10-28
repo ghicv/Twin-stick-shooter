@@ -19,6 +19,8 @@ public class CoreOrbit : MonoBehaviour
     private float angle;
     private readonly List<Transform> orbs = new List<Transform>();
     private readonly Dictionary<HitTarget, float> lastHit = new Dictionary<HitTarget, float>();
+    private readonly List<Collider2D> touching = new List<Collider2D>();
+    private static readonly ContactFilter2D AnyCollider = new ContactFilter2D().NoFilter(); // triggers too
 
     public void Setup(SingleCores owner, PlayerNetwork player, HitTarget self, Sprite sprite, Color color,
                       float radius, float speed, float damage, float hitCooldown)
@@ -60,7 +62,9 @@ public class CoreOrbit : MonoBehaviour
             return;
         Rigidbody2D shooter = owner.GetComponent<Rigidbody2D>();
         foreach (Transform orb in orbs)
-            foreach (Collider2D hit in Physics2D.OverlapCircleAll(orb.position, OrbSize * 0.5f))
+        {
+            Physics2D.OverlapCircle(orb.position, OrbSize * 0.5f, AnyCollider, touching); // every step: no new arrays
+            foreach (Collider2D hit in touching)
             {
                 Projectile bullet = hit.GetComponent<Projectile>();
                 if (bullet != null && bullet.Shooter != shooter)
@@ -77,5 +81,6 @@ public class CoreOrbit : MonoBehaviour
                 Vector2 away = ((Vector2)target.transform.position - (Vector2)orb.position).normalized;
                 target.TakeDamage(damage, orb.position, -away, 0.6f, owner.Bridge);
             }
+        }
     }
 }

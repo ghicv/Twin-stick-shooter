@@ -350,6 +350,8 @@ public class BulletCores : MonoBehaviour
     private readonly List<CoreMine> mines = new List<CoreMine>();
     private readonly List<CoreBlackHole> blackHoles = new List<CoreBlackHole>();
     private readonly Dictionary<HitTarget, CoreStickyBomb> stickyBombs = new Dictionary<HitTarget, CoreStickyBomb>();
+    private readonly List<Collider2D> nearby = new List<Collider2D>();
+    private static readonly ContactFilter2D AnyCollider = new ContactFilter2D().NoFilter(); // triggers too, like OverlapCircleAll
 
     public CoreBridge Bridge => bridge;
 
@@ -516,7 +518,9 @@ public class BulletCores : MonoBehaviour
 
         // Deflect: other players' bullets touching this one are destroyed (each machine does it to its own bullets).
         if (Has(CoreType.Deflect))
-            foreach (Collider2D hit in Physics2D.OverlapCircleAll(rb.position, deflectRadius))
+        {
+            Physics2D.OverlapCircle(rb.position, deflectRadius, AnyCollider, nearby); // every step: no new arrays
+            foreach (Collider2D hit in nearby)
             {
                 Projectile other = hit.GetComponent<Projectile>();
                 if (other != null && other != bullet && other.Shooter != state.shooter)
@@ -525,6 +529,7 @@ public class BulletCores : MonoBehaviour
                     other.Finish();
                 }
             }
+        }
 
         // Long Shot: damage grows with the distance flown.
         if (Has(CoreType.LongShot))

@@ -1,7 +1,8 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-// LAN: the player's name (in its color) and a small health bar above its head, on every machine.
+// LAN: the player's name (in its color; "YOU" over this machine's own player) and a small health bar above its
+// head, on every machine.
 // A world-space canvas under the player; hidden in single player and while the player is out of play.
 public class NameTag : MonoBehaviour
 {
@@ -33,7 +34,7 @@ public class NameTag : MonoBehaviour
         if (!show)
             return;
 
-        nameText.text = player.Name;
+        nameText.text = player.IsMine ? "YOU" : player.Name; // this machine's own player: easy to spot
         nameText.color = player.Color;
         MatchManager match = MatchManager.Instance;
         healthBar.SetActive(match != null && match.InMatch);

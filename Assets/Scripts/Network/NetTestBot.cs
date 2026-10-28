@@ -25,8 +25,15 @@ public class NetTestBot : MonoBehaviour
         PlayerProfile.Name = "BOT" + System.Diagnostics.Process.GetCurrentProcess().Id % 1000;
         string[] args = System.Environment.GetCommandLineArgs();
         for (int i = 0; i + 1 < args.Length; i++)
+        {
             if (args[i] == "-shots")
                 shotFolder = args[i + 1];
+            if (args[i] == "-scale") // the RESOLUTION setting, e.g. -scale 0.5 (measuring speed)
+            {
+                PlayerPrefs.SetFloat("RenderScale", float.Parse(args[i + 1], System.Globalization.CultureInfo.InvariantCulture));
+                RenderScaleSetting.Apply();
+            }
+        }
     }
 
     private void Update()

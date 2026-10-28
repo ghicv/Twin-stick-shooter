@@ -21,7 +21,7 @@ public class PlayerAfterimage : MonoBehaviour
             part.transform.SetParent(ghost.transform, false);
             part.transform.SetPositionAndRotation(from.transform.position, from.transform.rotation);
             part.transform.localScale = from.transform.lossyScale;
-            part.sprite = from.enabled ? from.sprite : null;
+            part.sprite = from.enabled && from.gameObject.activeInHierarchy ? from.sprite : null; // a hidden hat stays hidden
             part.flipX = from.flipX;
             part.sharedMaterial = from.sharedMaterial;
             part.sortingLayerID = from.sortingLayerID;
