@@ -5,18 +5,25 @@ using UnityEngine.UI;
 // jumps, shoots at the nearest other player, picks the first card when one is offered) and logs every player's
 // position and health once a second, so a session can be checked without anyone at the keyboard. In the lobby it
 // walks into the READY zone, so the match starts the normal way (3-2-1).
-// MainMenu adds it.
+// With -shots <folder> the host also saves a picture of every round map. MainMenu adds it.
 public class NetTestBot : MonoBehaviour
 {
     private float logTimer;
     private int framesSinceLog;
     private float shootTimer;
+    private string shotFolder;
+    private float roundTime;
+    private readonly System.Collections.Generic.HashSet<int> shotMaps = new System.Collections.Generic.HashSet<int>();
 
     // Every test copy on this PC gets its own name (they share the saved one, and a room refuses a name twice).
     // Put -bot before -autohost / -autojoin on the command line, so the name is set before entering.
     private void Awake()
     {
         PlayerProfile.Name = "BOT" + System.Diagnostics.Process.GetCurrentProcess().Id % 1000;
+        string[] args = System.Environment.GetCommandLineArgs();
+        for (int i = 0; i + 1 < args.Length; i++)
+            if (args[i] == "-shots")
+                shotFolder = args[i + 1];
     }
 
     private void Update()
@@ -81,6 +88,21 @@ public class NetTestBot : MonoBehaviour
             Button first = cards.transform.Find("Card0").GetComponent<Button>();
             first.onClick.Invoke();
             Debug.Log("[BOT] picked a card, cores now " + local.Cores.OwnedCount);
+        }
+
+        // -shots <folder>: the host saves one picture of every round map, a few seconds into the round.
+        MatchManager current = MatchManager.Instance;
+        MapManager currentMaps = FindAnyObjectByType<MapManager>();
+        if (shotFolder != null && current != null && current.IsServer && currentMaps != null &&
+            current.CurrentPhase == MatchManager.Phase.Round && !shotMaps.Contains(currentMaps.CurrentIndex))
+        {
+            roundTime += Time.deltaTime;
+            if (roundTime > 2.5f)
+            {
+                shotMaps.Add(currentMaps.CurrentIndex);
+                roundTime = 0f;
+                ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(shotFolder, currentMaps.CurrentMap.DisplayName + ".png"));
+            }
         }
 
         framesSinceLog++;

@@ -25,6 +25,10 @@ public class PlayerMovement : MonoBehaviour
     [Range(0f, 1f)]
     [SerializeField] private float airControl = 0.8f;
 
+    [Tooltip("Share of the ground acceleration/deceleration kept on ice (a slippery LevelBlock). Low = long slides.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float iceGrip = 0.12f;
+
     [Header("Jump")]
     [Tooltip("Upward impulse of the ground jump. With Rigidbody2D mass = 1 this is the jump speed (units/sec).")]
     [SerializeField] private float jumpForce = 16f;
@@ -174,6 +178,7 @@ public class PlayerMovement : MonoBehaviour
     private Collider2D droppingThrough; // one-way platform we are currently falling through
     private float dropTimer;
     private readonly Collider2D[] groundColliders = new Collider2D[4];
+    private bool onIce;
 
     private Vector3 bodyBaseScale;
     private Vector3 bodyBasePosition;
@@ -306,9 +311,18 @@ public class PlayerMovement : MonoBehaviour
 
         // Not while moving up, so the step right after a jump never counts as "still on the ground".
         IsGrounded = rb.IsTouching(groundFilter) && rb.linearVelocity.y <= 0.01f;
+        onIce = false;
 
         if (IsGrounded)
         {
+            int count = rb.GetContacts(groundFilter, groundColliders);
+            for (int i = 0; i < count; i++)
+            {
+                LevelBlock block = groundColliders[i].GetComponent<LevelBlock>();
+                if (block != null && block.Slippery)
+                    onIce = true;
+            }
+
             coyoteTimer = coyoteTime;
             airJumpsLeft = TotalAirJumps;
 
@@ -414,6 +428,8 @@ public class PlayerMovement : MonoBehaviour
 
         if (!IsGrounded)
             sharpness *= airControl;
+        else if (onIce)
+            sharpness *= iceGrip;
 
         // Right after a wall jump control is 0, then it comes back to full over wallJumpControlTime.
         if (wallJumpTimer > 0f)

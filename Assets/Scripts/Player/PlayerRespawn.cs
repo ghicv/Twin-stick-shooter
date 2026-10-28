@@ -141,6 +141,15 @@ public class PlayerRespawn : MonoBehaviour
 
     public void Die() => Die(false);
 
+    // The machine that moves this player touched lava, spikes... (Hazard): dies like a fall, reported the same way.
+    public void TouchHazard()
+    {
+        if (!net.IsMine || fallReportTimer > 0f || IsDead || traveling)
+            return;
+        fallReportTimer = fallReportInterval;
+        Die(true);
+    }
+
     // On the host this kills the player; the owner only reports a fall to the host.
     public void Die(bool fellOff)
     {
