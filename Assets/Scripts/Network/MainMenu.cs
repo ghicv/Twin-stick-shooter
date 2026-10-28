@@ -1,18 +1,30 @@
+using System.Collections.Generic;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using System.Text;
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
 using UnityEngine;
 using UnityEngine.UI;
 
-// Main menu: SINGLE PLAYER (waves, no network at all), HOST LAN or JOIN LAN (by IP, up to 4 players),
-// and the language (ENGLISH / TIẾNG VIỆT, see Lang).
-// After hosting or joining, the player picks a skin (SkinPanel) and appears in the lobby map.
-// A small lobby panel lists the players (between matches); the host starts the match
-// (MatchManager). Nobody can join while a match is on. Losing the connection goes back to the menu.
-// Command line (for test builds): -autohost, -autojoin <ip>, -bot (NetTestBot plays by itself).
+// The menu screens before a game.
+// - Title: your name (shown above your head in the lobby and the match), PLAY LAN, SINGLE PLAYER, SETTINGS, QUIT.
+// - LAN: the rooms on the local network (found by themselves, LanDiscovery: click one to join),
+//   CREATE ROOM and JOIN BY IP.
+// - Create room: name, password (optional), max players. Join by IP: address and password. A locked room from
+//   the list opens the same box with its address filled in.
+// After hosting or joining, the player makes its character (CharacterPanel) and appears in the lobby map, where the room is set
+// up and started (MatchManager, LobbyStation, ReadyZone). Losing the connection comes back here with the reason.
+// Command line (for test builds): -port <n> (before -autohost / -autojoin), -autohost, -autojoin <ip>, -bot (NetTestBot).
 public class MainMenu : MonoBehaviour
 {
+    // Why the host sent a player back (sent as a code, shown in the player's own language).
+    public const string ReasonFull = "full";
+    public const string ReasonPlaying = "playing";
+    public const string ReasonPassword = "password";
+    public const string ReasonKicked = "kicked";
+    public const string ReasonClosed = "closed";
+
     [SerializeField] private NetworkManager network;
     [SerializeField] private UnityTransport transport;
 
@@ -27,85 +39,129 @@ public class MainMenu : MonoBehaviour
     [Tooltip("Spawned by the host of a LAN game: runs the match (rounds, wins, results).")]
     [SerializeField] private NetworkObject matchManagerPrefab;
 
-    [Tooltip("LAN: shown after hosting or joining; the player spawns once a skin is picked.")]
-    [SerializeField] private SkinPanel skinPanel;
+    [Tooltip("LAN: shown after hosting or joining; the player spawns once the character is made.")]
+    [SerializeField] private CharacterPanel characterPanel;
 
-    [Min(1)]
-    [SerializeField] private int maxPlayers = 4;
+    [SerializeField] private SettingsMenu settingsMenu;
+    [SerializeField] private LanDiscovery discovery;
 
-    [Header("Menu")]
-    [SerializeField] private GameObject menuPanel;
+    [Tooltip("The blurred map behind the menu screens (hidden in a game).")]
+    [SerializeField] private GameObject menuScene;
+
+    [Header("Title screen")]
+    [SerializeField] private GameObject titlePanel;
+    [SerializeField] private InputField nameInput;
+    [SerializeField] private Button lanButton;
     [SerializeField] private Button singleButton;
-    [SerializeField] private Button hostButton;
-    [SerializeField] private Button joinButton;
-    [SerializeField] private InputField ipInput;
+    [SerializeField] private Button settingsButton;
+    [SerializeField] private Button quitButton;
+
+    [Header("LAN screen")]
+    [SerializeField] private GameObject lanPanel;
+    [SerializeField] private Button createButton;
+    [SerializeField] private Button joinIpButton;
+    [SerializeField] private Button backButton;
+
+    [Tooltip("One button per room found is made from this (kept off itself), under the same parent.")]
+    [SerializeField] private Button roomButtonTemplate;
+
+    [Tooltip("\"Searching for rooms...\" while the list is empty.")]
+    [SerializeField] private Text roomsStatusText;
+
+    [Tooltip("Connecting..., or why the last game ended (kicked, room closed...).")]
     [SerializeField] private Text statusText;
 
-    [Header("Language")]
-    [SerializeField] private Button englishButton;
-    [SerializeField] private Button vietnameseButton;
+    [Header("Create room box")]
+    [SerializeField] private GameObject createPanel;
+    [SerializeField] private InputField roomNameInput;
+    [SerializeField] private InputField createPasswordInput;
 
-    [Tooltip("Label color of the language in use (the other one is dimmed).")]
-    [SerializeField] private Color languageOnColor = Color.white;
+    [Tooltip("2, 3 and 4 players.")]
+    [SerializeField] private Button[] maxPlayerButtons;
 
-    [SerializeField] private Color languageOffColor = new Color(1f, 1f, 1f, 0.35f);
+    [SerializeField] private Button createConfirmButton;
+    [SerializeField] private Button createCancelButton;
 
-    [Header("Lobby")]
-    [SerializeField] private GameObject lobbyPanel;
-    [SerializeField] private Text lobbyPlayersText;
-    [SerializeField] private Text lobbyInfoText;
-    [SerializeField] private Button leaveButton;
+    [Header("Join box (by IP, or a locked room)")]
+    [SerializeField] private GameObject joinPanel;
+    [SerializeField] private InputField ipInput;
+    [SerializeField] private InputField joinPasswordInput;
+    [SerializeField] private Button joinConfirmButton;
+    [SerializeField] private Button joinCancelButton;
 
-    [Tooltip("Host only: starts the match (needs at least 2 players).")]
-    [SerializeField] private Button startMatchButton;
-
-    [Tooltip("Shrinks the lobby panel to its title bar (and back).")]
-    [SerializeField] private Button collapseButton;
-
-    [Tooltip("Everything under the title: hidden while the panel is collapsed.")]
-    [SerializeField] private GameObject lobbyBody;
-
-    [Tooltip("Panel height while collapsed (UI pixels).")]
-    [SerializeField] private float collapsedHeight = 76f;
+    [Header("Look")]
+    [SerializeField] private Color choiceOnColor = new Color(1f, 0.902f, 0.427f);
+    [SerializeField] private Color choiceOffColor = new Color(1f, 1f, 1f, 0.45f);
 
     private const string LastIpKey = "LastJoinIp";
 
-    // Shown on the menu after the scene was reloaded (e.g. why the connection was lost).
+    // Shown on the LAN screen after the scene was reloaded (why the connection was lost).
     private static string pendingMessage;
 
-    private bool inLobby; // connected on LAN (the lobby panel itself hides during a match)
-    private float lobbyPanelHeight;
+    // Host: the room as it was created.
+    private string roomPassword = "";
+    private int maxPlayers = 4;
 
     private void Awake()
     {
         PlayerNetwork.All.Clear();
         singleModeRoot.SetActive(false);
-        menuPanel.SetActive(true);
-        lobbyPanel.SetActive(false);
+        createPanel.SetActive(false);
+        joinPanel.SetActive(false);
+        roomButtonTemplate.gameObject.SetActive(false);
+
+        // Back from a LAN game with a reason: straight to the LAN screen to try again.
+        bool fromLan = pendingMessage != null;
+        titlePanel.SetActive(!fromLan);
+        lanPanel.SetActive(fromLan);
         statusText.text = pendingMessage ?? "";
         pendingMessage = null;
-        ipInput.text = PlayerPrefs.GetString(LastIpKey, "127.0.0.1");
 
-        singleButton.onClick.AddListener(StartSingle);
-        hostButton.onClick.AddListener(HostLan);
-        joinButton.onClick.AddListener(() => JoinLan(ipInput.text.Trim()));
-        leaveButton.onClick.AddListener(() => GameMode.Restart(false));
-        startMatchButton.onClick.AddListener(() => MatchManager.Instance.StartMatch());
-        collapseButton.onClick.AddListener(ToggleLobbyPanel);
-        englishButton.onClick.AddListener(() => SetLanguage(Lang.Language.English));
-        vietnameseButton.onClick.AddListener(() => SetLanguage(Lang.Language.Vietnamese));
-        ShowLanguage();
-        lobbyPanelHeight = ((RectTransform)lobbyPanel.transform).sizeDelta.y;
+        nameInput.characterLimit = PlayerProfile.MaxNameLength;
+        nameInput.text = PlayerProfile.Name;
+        nameInput.onEndEdit.AddListener(SaveName);
+        ipInput.text = PlayerPrefs.GetString(LastIpKey, "");
+
+        lanButton.onClick.AddListener(() =>
+        {
+            SaveName(nameInput.text);
+            ShowScreen(lanPanel);
+        });
+        singleButton.onClick.AddListener(() =>
+        {
+            SaveName(nameInput.text);
+            StartSingle();
+        });
+        settingsButton.onClick.AddListener(settingsMenu.Open);
+        quitButton.onClick.AddListener(Application.Quit);
+        backButton.onClick.AddListener(() => ShowScreen(titlePanel));
+        createButton.onClick.AddListener(OpenCreateBox);
+        joinIpButton.onClick.AddListener(() => OpenJoinBox(ipInput.text, false));
+        createConfirmButton.onClick.AddListener(HostLan);
+        createCancelButton.onClick.AddListener(() => createPanel.SetActive(false));
+        joinConfirmButton.onClick.AddListener(() => JoinLan(ipInput.text.Trim(), joinPasswordInput.text));
+        joinCancelButton.onClick.AddListener(() => joinPanel.SetActive(false));
+        for (int i = 0; i < maxPlayerButtons.Length; i++)
+        {
+            int players = i + 2; // captured by the click
+            maxPlayerButtons[i].onClick.AddListener(() => SetMaxPlayers(players));
+        }
+        Lang.Changed += ClearStatus;
 
         network.ConnectionApprovalCallback = ApproveConnection;
         network.OnClientConnectedCallback += OnClientConnected;
         network.OnClientDisconnectCallback += OnClientDisconnected;
+        discovery.StartListening();
     }
 
     private void OnDestroy()
     {
+        Lang.Changed -= ClearStatus;
         if (network == null)
             return;
+        // Leaving play mode (or quitting) while in a room: close the connection, or the port stays taken.
+        if (network.IsListening && !network.ShutdownInProgress)
+            network.Shutdown(true);
         network.ConnectionApprovalCallback = null;
         network.OnClientConnectedCallback -= OnClientConnected;
         network.OnClientDisconnectCallback -= OnClientDisconnected;
@@ -119,7 +175,9 @@ public class MainMenu : MonoBehaviour
             if (args[i] == "-autohost")
                 HostLan();
             else if (args[i] == "-autojoin" && i + 1 < args.Length)
-                JoinLan(args[i + 1]);
+                JoinLan(args[i + 1], "");
+            else if (args[i] == "-port" && i + 1 < args.Length && ushort.TryParse(args[i + 1], out ushort testPort))
+                port = testPort;
             else if (args[i] == "-bot")
                 gameObject.AddComponent<NetTestBot>();
         }
@@ -131,93 +189,174 @@ public class MainMenu : MonoBehaviour
         }
     }
 
+    private void ShowScreen(GameObject screen)
+    {
+        menuScene.SetActive(true);
+        titlePanel.SetActive(screen == titlePanel);
+        lanPanel.SetActive(screen == lanPanel);
+        createPanel.SetActive(false);
+        joinPanel.SetActive(false);
+        statusText.text = "";
+    }
+
+    private void HideMenu()
+    {
+        menuScene.SetActive(false);
+        titlePanel.SetActive(false);
+        lanPanel.SetActive(false);
+        createPanel.SetActive(false);
+        joinPanel.SetActive(false);
+    }
+
+    private void SaveName(string name)
+    {
+        PlayerProfile.Name = name;
+        nameInput.text = PlayerProfile.Name; // cleaned (or a new one if it was left empty)
+    }
+
+    // The last message was in the other language.
+    private void ClearStatus() => statusText.text = "";
+
+    // ---------- Single player ----------
+
     // No network in single player: the player is simply made here.
     private void StartSingle()
     {
         GameMode.Current = GameMode.Mode.Single;
+        HideMenu(); // ends the menu's blurred backdrop first
+        maps.SetMap(maps.StartMap);
         singleModeRoot.SetActive(true); // before the player appears, so it finds the cores
         Instantiate(network.NetworkConfig.PlayerPrefab).GetComponent<PlayerNetwork>().StartOffline();
-        menuPanel.SetActive(false);
+        discovery.StopListening();
+    }
+
+    // ---------- Host ----------
+
+    private void OpenCreateBox()
+    {
+        SaveName(nameInput.text);
+        roomNameInput.text = Lang.T(PlayerProfile.Name + "'S ROOM", "PHÒNG CỦA " + PlayerProfile.Name);
+        createPasswordInput.text = "";
+        SetMaxPlayers(4);
+        joinPanel.SetActive(false);
+        createPanel.SetActive(true);
+    }
+
+    private void SetMaxPlayers(int players)
+    {
+        maxPlayers = players;
+        for (int i = 0; i < maxPlayerButtons.Length; i++)
+            maxPlayerButtons[i].GetComponentInChildren<Text>().color = i + 2 == players ? choiceOnColor : choiceOffColor;
     }
 
     private void HostLan()
     {
+        string roomName = PlayerProfile.Clean(roomNameInput.text, PlayerProfile.MaxRoomNameLength);
+        if (roomName.Length == 0)
+            roomName = Lang.T(PlayerProfile.Name + "'S ROOM", "PHÒNG CỦA " + PlayerProfile.Name);
+        roomPassword = createPasswordInput.text.Trim();
+
         GameMode.Current = GameMode.Mode.Lan;
-        maps.SetMap(maps.LobbyMap); // LAN players arrive in the lobby
         transport.SetConnectionData("127.0.0.1", port, "0.0.0.0"); // listen on every network card
         if (!network.StartHost())
         {
-            Fail(Lang.T("COULD NOT HOST (PORT " + port + " IN USE?)", "KHÔNG THỂ TẠO PHÒNG (CỔNG " + port + " ĐANG BẬN?)"));
+            Fail(Lang.T("COULD NOT CREATE THE ROOM (PORT " + port + " IN USE?)", "KHÔNG TẠO ĐƯỢC PHÒNG (CỔNG " + port + " ĐANG BẬN?)"));
             return;
         }
-        Instantiate(matchManagerPrefab).Spawn(); // every machine (also the ones joining later) gets the match
-        ShowLobby();
+        NetworkObject match = Instantiate(matchManagerPrefab);
+        match.Spawn(); // every machine (also the ones joining later) gets the match
+        match.GetComponent<MatchManager>().SetRoomOnHost(roomName);
+        GameMode.RoomAddress = LocalIp();
+        discovery.StopListening();
+        discovery.StartAnnouncing(roomName, roomPassword.Length > 0, maxPlayers); // shows up on the other PCs
+        EnterRoom();
     }
 
-    private void JoinLan(string ip)
+    // Host side: room full, match on, wrong password. The reason goes as a code (see ReasonText).
+    private void ApproveConnection(NetworkManager.ConnectionApprovalRequest request, NetworkManager.ConnectionApprovalResponse response)
+    {
+        bool hostItself = request.ClientNetworkId == NetworkManager.ServerClientId;
+        bool full = network.ConnectedClientsIds.Count >= maxPlayers;
+        bool playing = MatchManager.Instance != null && MatchManager.Instance.InMatch;
+        string password = request.Payload != null ? Encoding.UTF8.GetString(request.Payload) : "";
+        bool wrongPassword = roomPassword.Length > 0 && password != roomPassword;
+
+        response.Approved = hostItself || (!full && !playing && !wrongPassword);
+        response.CreatePlayerObject = false; // LAN players spawn after picking a skin
+        response.Reason = full ? ReasonFull : playing ? ReasonPlaying : wrongPassword ? ReasonPassword : "";
+    }
+
+    // ---------- Join ----------
+
+    // A room from the list: open rooms join right away, locked ones ask for the password first.
+    private void JoinRoom(int index)
+    {
+        if (index >= discovery.Rooms.Count)
+            return;
+        LanDiscovery.Room room = discovery.Rooms[index];
+        if (room.locked)
+            OpenJoinBox(room.address, true);
+        else
+            JoinLan(room.address, "");
+    }
+
+    private void OpenJoinBox(string ip, bool forLockedRoom)
+    {
+        SaveName(nameInput.text);
+        ipInput.text = ip;
+        joinPasswordInput.text = "";
+        createPanel.SetActive(false);
+        joinPanel.SetActive(true);
+        (forLockedRoom ? joinPasswordInput : ipInput).ActivateInputField();
+    }
+
+    private void JoinLan(string ip, string password)
     {
         if (string.IsNullOrEmpty(ip))
+        {
+            statusText.text = Lang.T("TYPE THE HOST'S IP FIRST", "HÃY NHẬP IP CỦA CHỦ PHÒNG");
             return;
+        }
 
         PlayerPrefs.SetString(LastIpKey, ip);
         GameMode.Current = GameMode.Mode.Lan;
-        maps.SetMap(maps.LobbyMap); // LAN players arrive in the lobby
+        GameMode.RoomAddress = ip;
         transport.SetConnectionData(ip, port);
+        network.NetworkConfig.ConnectionData = Encoding.UTF8.GetBytes(password ?? "");
         if (!network.StartClient())
         {
             Fail(Lang.T("COULD NOT CONNECT TO ", "KHÔNG KẾT NỐI ĐƯỢC TỚI ") + ip);
             return;
         }
+        createPanel.SetActive(false);
+        joinPanel.SetActive(false);
         statusText.text = Lang.T("CONNECTING TO ", "ĐANG KẾT NỐI TỚI ") + ip + "...";
-        SetMenuButtons(false);
+        SetButtons(false);
+        discovery.StopListening();
     }
 
     private void Fail(string message)
     {
         GameMode.Current = GameMode.Mode.None;
         statusText.text = message;
-        SetMenuButtons(true);
+        SetButtons(true);
+        discovery.StartListening();
     }
 
-    private void SetMenuButtons(bool interactable)
+    private void SetButtons(bool interactable)
     {
-        singleButton.interactable = interactable;
-        hostButton.interactable = interactable;
-        joinButton.interactable = interactable;
-    }
-
-    // Host side: at most Max Players, and nobody joins during a match.
-    private void ApproveConnection(NetworkManager.ConnectionApprovalRequest request, NetworkManager.ConnectionApprovalResponse response)
-    {
-        bool hostItself = request.ClientNetworkId == NetworkManager.ServerClientId;
-        bool full = network.ConnectedClientsIds.Count >= maxPlayers;
-        bool playing = MatchManager.Instance != null && MatchManager.Instance.InMatch;
-
-        response.Approved = hostItself || (!full && !playing);
-        response.CreatePlayerObject = false; // LAN players spawn after picking a skin
-        response.Reason = full ? ReasonFull : playing ? ReasonPlaying : ""; // shown in the joining player's language
-    }
-
-    private const string ReasonFull = "full";
-    private const string ReasonPlaying = "playing";
-
-    // Why this machine was sent back to the menu, in its own language.
-    private string ReasonText(string reason)
-    {
-        if (reason == ReasonFull)
-            return Lang.T("ROOM IS FULL (" + maxPlayers + " PLAYERS)", "PHÒNG ĐÃ ĐỦ NGƯỜI (" + maxPlayers + " NGƯỜI)");
-        if (reason == ReasonPlaying)
-            return Lang.T("A MATCH IS ALREADY ON - TRY AGAIN LATER", "TRẬN ĐẤU ĐANG DIỄN RA - HÃY THỬ LẠI SAU");
-        return Lang.T("DISCONNECTED", "MẤT KẾT NỐI");
+        createButton.interactable = interactable;
+        joinIpButton.interactable = interactable;
+        backButton.interactable = interactable;
     }
 
     private void OnClientConnected(ulong clientId)
     {
-        if (GameMode.IsLan && clientId == network.LocalClientId)
-            ShowLobby();
+        if (GameMode.IsLan && clientId == network.LocalClientId && !network.IsServer)
+            EnterRoom();
     }
 
-    // A client that lost the host (or was refused) goes back to the menu.
+    // A client that lost the host (or was refused / kicked) goes back to the LAN screen with the reason.
     private void OnClientDisconnected(ulong clientId)
     {
         if (GameMode.Current == GameMode.Mode.None || network.IsServer || clientId != network.LocalClientId)
@@ -227,69 +366,70 @@ public class MainMenu : MonoBehaviour
         GameMode.Restart(false);
     }
 
-    private void SetLanguage(Lang.Language language)
+    // Why this machine was sent back to the menu, in its own language.
+    private static string ReasonText(string reason)
     {
-        Lang.Set(language); // fixed texts switch by themselves (LocalizedText)
+        switch (reason)
+        {
+            case ReasonFull: return Lang.T("THE ROOM IS FULL", "PHÒNG ĐÃ ĐỦ NGƯỜI");
+            case ReasonPlaying: return Lang.T("A MATCH IS ON IN THAT ROOM - TRY AGAIN LATER", "PHÒNG ĐANG ĐẤU - HÃY THỬ LẠI SAU");
+            case ReasonPassword: return Lang.T("WRONG PASSWORD", "SAI MẬT KHẨU");
+            case ReasonKicked: return Lang.T("YOU WERE KICKED FROM THE ROOM", "BẠN ĐÃ BỊ ĐUỔI KHỎI PHÒNG");
+            case ReasonClosed: return Lang.T("THE HOST CLOSED THE ROOM", "CHỦ PHÒNG ĐÃ ĐÓNG PHÒNG");
+            default: return Lang.T("CONNECTION LOST", "MẤT KẾT NỐI");
+        }
+    }
+
+    // In the room: make the character, then the player appears in the lobby.
+    private void EnterRoom()
+    {
+        HideMenu(); // ends the menu's blurred backdrop first
+        maps.SetMap(maps.LobbyMap); // LAN players arrive in the lobby
         statusText.text = "";
-        ShowLanguage();
+        characterPanel.Show();
     }
 
-    // The language in use is bright, the other one dimmed.
-    private void ShowLanguage()
-    {
-        bool vietnamese = Lang.Current == Lang.Language.Vietnamese;
-        englishButton.GetComponentInChildren<Text>().color = vietnamese ? languageOffColor : languageOnColor;
-        vietnameseButton.GetComponentInChildren<Text>().color = vietnamese ? languageOnColor : languageOffColor;
-    }
-
-    // The lobby panel's "-" / "+" button: only the title bar, or everything.
-    private void ToggleLobbyPanel()
-    {
-        bool collapse = lobbyBody.activeSelf;
-        lobbyBody.SetActive(!collapse);
-        var rect = (RectTransform)lobbyPanel.transform;
-        rect.sizeDelta = new Vector2(rect.sizeDelta.x, collapse ? collapsedHeight : lobbyPanelHeight);
-        collapseButton.GetComponentInChildren<Text>().text = collapse ? "+" : "-";
-    }
-
-    private void ShowLobby()
-    {
-        menuPanel.SetActive(false);
-        inLobby = true;
-        lobbyInfoText.text = network.IsServer
-            ? Lang.T("HOSTING - YOUR IP: ", "ĐANG LÀM CHỦ PHÒNG - IP CỦA BẠN: ") + LocalIp() +
-              Lang.T("\nFRIENDS JOIN WITH THIS IP", "\nBẠN BÈ VÀO BẰNG IP NÀY")
-            : Lang.T("WAITING FOR THE HOST TO START", "ĐANG CHỜ CHỦ PHÒNG BẮT ĐẦU");
-        skinPanel.Show(); // the player appears in the lobby once it picked a skin
-    }
+    // ---------- LAN rooms found by themselves ----------
 
     private void Update()
     {
-        // The lobby panel is up between matches only.
-        MatchManager match = MatchManager.Instance;
-        bool show = inLobby && (match == null || !match.InMatch);
-        if (lobbyPanel.activeSelf != show)
-            lobbyPanel.SetActive(show);
-        if (!show)
-            return;
+        if (lanPanel.activeSelf)
+            ShowRooms();
+    }
 
-        startMatchButton.gameObject.SetActive(network.IsServer);
-        startMatchButton.interactable = match != null && match.CanStart;
+    // One button per room heard (made from the template, reused while the list keeps its size).
+    private void ShowRooms()
+    {
+        var buttons = new List<Button>();
+        foreach (Transform child in roomButtonTemplate.transform.parent)
+            if (child != roomButtonTemplate.transform && child.GetComponent<Button>() != null)
+                buttons.Add(child.GetComponent<Button>());
 
-        var lines = new System.Text.StringBuilder();
-        lines.AppendLine(Lang.T("PLAYERS ", "NGƯỜI CHƠI ") + PlayerNetwork.All.Count + "/" + maxPlayers);
-        for (int slot = 0; slot < maxPlayers; slot++)
+        var rooms = discovery.Rooms;
+        for (int i = buttons.Count; i < rooms.Count; i++)
         {
-            foreach (PlayerNetwork player in PlayerNetwork.All)
-            {
-                if (player.Slot != slot)
-                    continue;
-                string you = player == PlayerNetwork.Local ? Lang.T("  (YOU)", "  (BẠN)") : "";
-                string host = player.OwnerClientId == NetworkManager.ServerClientId ? Lang.T("  HOST", "  CHỦ PHÒNG") : "";
-                lines.AppendLine("<color=#" + ColorUtility.ToHtmlStringRGB(player.Color) + ">P" + (slot + 1) + "</color>" + host + you);
-            }
+            Button made = Instantiate(roomButtonTemplate, roomButtonTemplate.transform.parent);
+            made.gameObject.SetActive(true);
+            int index = i; // the button joins whatever room is at its place in the list
+            made.onClick.AddListener(() => JoinRoom(index));
+            buttons.Add(made);
         }
-        lobbyPlayersText.text = lines.ToString();
+        for (int i = 0; i < buttons.Count; i++)
+        {
+            buttons[i].gameObject.SetActive(i < rooms.Count);
+            if (i >= rooms.Count)
+                continue;
+            LanDiscovery.Room room = rooms[i];
+            Text[] texts = buttons[i].GetComponentsInChildren<Text>(true);
+            texts[0].text = (room.locked ? "[" + Lang.T("LOCKED", "KHÓA") + "]  " : "") + room.name;
+            texts[1].text = room.playing ? Lang.T("PLAYING", "ĐANG ĐẤU")
+                          : room.players + "/" + room.maxPlayers + (room.players >= room.maxPlayers ? Lang.T("  FULL", "  ĐẦY") : "");
+            buttons[i].interactable = room.CanJoin && createButton.interactable;
+        }
+
+        roomsStatusText.text = rooms.Count > 0 ? ""
+                             : discovery.Listening ? Lang.T("SEARCHING FOR ROOMS ON YOUR NETWORK...", "ĐANG TÌM PHÒNG TRONG MẠNG LAN...")
+                             : Lang.T("CAN'T SEARCH FOR ROOMS (PORT IN USE)", "KHÔNG TÌM ĐƯỢC PHÒNG (CỔNG ĐANG BẬN)");
     }
 
     // This machine's address on the local network (what the others type to join).

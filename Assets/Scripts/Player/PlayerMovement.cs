@@ -210,15 +210,16 @@ public class PlayerMovement : MonoBehaviour
 
     private void Update()
     {
-        // Read input every frame, apply it in FixedUpdate (physics).
-        Vector2 move = moveAction.ReadValue<Vector2>();
+        // Read input every frame, apply it in FixedUpdate (physics). The ESC menu or the chat takes the keys while open.
+        bool controls = !InputLock.Blocked;
+        Vector2 move = controls ? moveAction.ReadValue<Vector2>() : Vector2.zero;
         moveInput = move.x;
         downHeld = move.y < -0.5f;
-        jumpHeld = jumpAction.IsPressed();
+        jumpHeld = controls && jumpAction.IsPressed();
 
-        if (jumpAction.WasPressedThisFrame())
+        if (controls && jumpAction.WasPressedThisFrame())
             jumpBufferTimer = jumpBufferTime;
-        if (dashAction != null && dashAction.WasPressedThisFrame())
+        if (controls && dashAction != null && dashAction.WasPressedThisFrame())
             dashRequested = true;
         if (moveInput != 0f)
             facing = moveInput > 0f ? 1 : -1;

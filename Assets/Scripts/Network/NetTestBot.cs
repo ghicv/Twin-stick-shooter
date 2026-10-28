@@ -3,33 +3,31 @@ using UnityEngine.UI;
 
 // Test helper for LAN builds (command line -bot): drives this machine's player by itself (runs left and right,
 // jumps, shoots at the nearest other player, picks the first card when one is offered) and logs every player's
-// position and health once a second, so a session can be checked without anyone at the keyboard. On the host it
-// also starts the match as soon as it can.
+// position and health once a second, so a session can be checked without anyone at the keyboard. In the lobby it
+// walks into the READY zone, so the match starts the normal way (3-2-1).
 // MainMenu adds it.
 public class NetTestBot : MonoBehaviour
 {
     private float logTimer;
+    private int framesSinceLog;
     private float shootTimer;
+
+    // Every test copy on this PC gets its own name (they share the saved one, and a room refuses a name twice).
+    // Put -bot before -autohost / -autojoin on the command line, so the name is set before entering.
+    private void Awake()
+    {
+        PlayerProfile.Name = "BOT" + System.Diagnostics.Process.GetCurrentProcess().Id % 1000;
+    }
 
     private void Update()
     {
-        // Host: start the match once everyone is ready.
-        MatchManager host = MatchManager.Instance;
-        if (host != null && host.IsServer && host.CurrentPhase == MatchManager.Phase.Lobby && host.CanStart)
-            host.StartMatch();
-
         PlayerNetwork local = PlayerNetwork.Local;
         if (local == null)
         {
-            // LAN: pick the first free skin to get spawned.
-            GameObject skins = GameObject.Find("HUD/SkinPanel/Panel");
-            if (skins != null && skins.activeInHierarchy)
-                foreach (Button button in skins.GetComponentsInChildren<Button>())
-                    if (button.interactable)
-                    {
-                        button.onClick.Invoke();
-                        break;
-                    }
+            // LAN: enter the room with the saved look.
+            CharacterPanel character = FindAnyObjectByType<CharacterPanel>();
+            if (character != null)
+                character.Enter();
             return;
         }
 
@@ -38,7 +36,15 @@ public class NetTestBot : MonoBehaviour
             movement.enabled = false; // the bot moves the body itself
 
         var rb = local.GetComponent<Rigidbody2D>();
-        if (rb.simulated)
+        MatchManager room = MatchManager.Instance;
+        bool lobby = room != null && !room.InMatch;
+        if (rb.simulated && lobby && ReadyZone.Instance != null)
+        {
+            // Lobby: walk into the READY zone like a player would (everybody there starts the match).
+            float toZone = ReadyZone.Instance.transform.position.x - local.transform.position.x;
+            rb.linearVelocity = new Vector2(Mathf.Abs(toZone) > 0.5f ? Mathf.Sign(toZone) * 4f : 0f, rb.linearVelocity.y);
+        }
+        else if (rb.simulated)
         {
             float vy = rb.linearVelocity.y;
             if (Mathf.Repeat(Time.time, 2f) < Time.deltaTime && Mathf.Abs(vy) < 0.1f)
@@ -77,13 +83,16 @@ public class NetTestBot : MonoBehaviour
             Debug.Log("[BOT] picked a card, cores now " + local.Cores.OwnedCount);
         }
 
+        framesSinceLog++;
         logTimer -= Time.deltaTime;
         if (logTimer <= 0f)
         {
             logTimer = 1f;
+            int fps = framesSinceLog;
+            framesSinceLog = 0;
             MatchManager match = MatchManager.Instance;
             MapManager maps = FindAnyObjectByType<MapManager>();
-            var line = new System.Text.StringBuilder("[BOT] t=" + Time.time.ToString("F1") + " players=" + PlayerNetwork.All.Count +
+            var line = new System.Text.StringBuilder("[BOT] t=" + Time.time.ToString("F1") + " fps=" + fps + " players=" + PlayerNetwork.All.Count +
                 (match != null ? " phase=" + match.CurrentPhase + " round=" + match.Round : " no-match") +
                 " map=" + (maps != null ? maps.CurrentMap.DisplayName : "?"));
             foreach (PlayerNetwork player in PlayerNetwork.All)

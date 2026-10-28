@@ -17,6 +17,9 @@ public static class GameMode
 
     public static bool IsLan => Current == Mode.Lan;
 
+    // LAN: the host's address (this PC's own when hosting), shown in the lobby.
+    public static string RoomAddress { get; set; } = "";
+
     // Ends the session (host or client) and loads the scene again. autoStartSingle = skip the menu, new single run.
     public static void Restart(bool autoStartSingle)
     {
@@ -35,6 +38,14 @@ public static class GameMode
         public IEnumerator Run()
         {
             NetworkManager network = NetworkManager.Singleton;
+            if (network != null && network.IsServer && network.IsListening)
+            {
+                // A host leaving tells everybody why they are sent back to the menu.
+                foreach (ulong client in new System.Collections.Generic.List<ulong>(network.ConnectedClientsIds))
+                    if (client != NetworkManager.ServerClientId)
+                        network.DisconnectClient(client, MainMenu.ReasonClosed);
+                yield return new WaitForSecondsRealtime(0.2f); // let the messages go out
+            }
             if (network != null)
             {
                 network.Shutdown();

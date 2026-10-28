@@ -173,7 +173,7 @@ public class PlayerRespawn : MonoBehaviour
         else if (GameMode.IsLan && match != null && match.RoundOn && !extraLife)
         {
             outcome = DeathOutcome.Wait; // out of this round (picks a card meanwhile)
-            match.OnPlayerDiedInRound(net);
+            match.OnPlayerDiedInRound(net, killer != null ? killer.GetComponent<PlayerNetwork>() : null, fellOff);
         }
         else if (GameMode.IsLan && match != null && match.InMatch)
         {

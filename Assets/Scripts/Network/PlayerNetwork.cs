@@ -13,7 +13,7 @@ using UnityEngine;
 // - Shots: the host spawns the real bullets (they deal the damage); every other machine spawns look-alike
 //   bullets from the same random seed, so they fly the same way but never hurt anyone.
 // - The host gives every player a slot (0-3) that sets where it appears (and its color in single player).
-//   On LAN the player has a skin (SkinCatalog): its color and a head accessory.
+// - Every player has a look (Wardrobe): a skin color, an outfit and a hat, made in the character screen.
 public class PlayerNetwork : NetworkBehaviour
 {
     // Player colors by slot (P1-P4).
@@ -33,8 +33,11 @@ public class PlayerNetwork : NetworkBehaviour
     [Tooltip("The owner only sends a new aim when it turned at least this much (degrees).")]
     [SerializeField] private float aimSendThreshold = 0.5f;
 
-    [Tooltip("Shows the skin's accessory (a child of the body, so it squashes with it).")]
-    [SerializeField] private SpriteRenderer accessory;
+    [Tooltip("Shows the outfit (a child of the body, so it squashes with it).")]
+    [SerializeField] private SpriteRenderer outfit;
+
+    [Tooltip("Shows the hat (a child of the body).")]
+    [SerializeField] private SpriteRenderer hat;
 
     // The player this machine controls (null before it has spawned).
     public static PlayerNetwork Local { get; private set; }
@@ -49,7 +52,13 @@ public class PlayerNetwork : NetworkBehaviour
     private readonly NetworkVariable<float> maxHealth = new NetworkVariable<float>(100f);
     private readonly NetworkVariable<bool> dead = new NetworkVariable<bool>(false);
     private readonly NetworkVariable<bool> ready = new NetworkVariable<bool>(false);
-    private readonly NetworkVariable<int> skin = new NetworkVariable<int>(-1); // -1 = no skin (single player)
+    private readonly NetworkVariable<int> look = new NetworkVariable<int>(-1); // Look.Pack(); -1 = not set yet
+    private readonly NetworkVariable<Unity.Collections.FixedString32Bytes> playerName =
+        new NetworkVariable<Unity.Collections.FixedString32Bytes>();
+
+    // Round trip to the host in milliseconds, measured by the owner (the host itself is 0).
+    private readonly NetworkVariable<int> ping = new NetworkVariable<int>(0,
+        NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
     private NetworkList<int> cores;
 
     private PlayerHealth playerHealth;
@@ -59,7 +68,9 @@ public class PlayerNetwork : NetworkBehaviour
     private CoreBridge coreBridge;
     private CoreInventory inventory;
     private bool placed;
-    private int pendingSkin = -1;
+    private int pendingLook = -1;
+    private string pendingName = "";
+    private float pingTimer;
 
     // Single player (no network).
     public bool Offline { get; private set; }
@@ -76,7 +87,20 @@ public class PlayerNetwork : NetworkBehaviour
     private bool offlineDead;
 
     public int Slot => Offline ? 0 : slot.Value;
-    public Color Color => skin.Value >= 0 && SkinCatalog.Instance != null ? SkinCatalog.Instance.Get(skin.Value).color
+
+    // The name typed in the menu (single player: the saved one).
+    public string Name => Offline ? PlayerProfile.Name : playerName.Value.ToString();
+
+    public int Ping => Offline ? 0 : ping.Value;
+
+    // The host's own player.
+    public bool IsHostPlayer => !Offline && OwnerClientId == NetworkManager.ServerClientId;
+    // Single player: the saved look. LAN: the one this player picked when joining.
+    public bool HasLook => Offline || look.Value >= 0;
+    public Look Look => Offline ? PlayerProfile.Look : Look.Unpack(Mathf.Max(0, look.Value));
+
+    // The skin color (the slot's color before the look has arrived).
+    public Color Color => HasLook && Wardrobe.Instance != null ? Wardrobe.Instance.ColorAt(Look.color).color
                         : Slot >= 0 ? SlotColor(Slot) : Color.white;
     public CoreBridge Cores => coreBridge;
     public PlayerRespawn Respawn => respawn;
@@ -122,7 +146,8 @@ public class PlayerNetwork : NetworkBehaviour
         if (IsServer)
         {
             slot.Value = FreeSlot();
-            skin.Value = pendingSkin;
+            look.Value = pendingLook;
+            playerName.Value = pendingName;
             maxHealth.Value = playerHealth.StartMaxHealth;
             health.Value = maxHealth.Value;
         }
@@ -147,8 +172,8 @@ public class PlayerNetwork : NetworkBehaviour
     {
         All.Add(this);
         slot.OnValueChanged += OnSlotChanged;
-        skin.OnValueChanged += OnSkinChanged;
-        ApplyColor();
+        look.OnValueChanged += OnLookChanged;
+        ApplyLook();
 
         // Cores this player already has (joining late), then every new one.
         foreach (int core in cores)
@@ -168,7 +193,12 @@ public class PlayerNetwork : NetworkBehaviour
         }
     }
 
-    public override void OnNetworkDespawn() => Cleanup();
+    public override void OnNetworkDespawn()
+    {
+        if (IsServer && MatchManager.Instance != null)
+            MatchManager.Instance.OnPlayerLeft(this); // "... left the room"
+        Cleanup();
+    }
 
     public override void OnDestroy()
     {
@@ -181,7 +211,7 @@ public class PlayerNetwork : NetworkBehaviour
     {
         All.Remove(this);
         slot.OnValueChanged -= OnSlotChanged;
-        skin.OnValueChanged -= OnSkinChanged;
+        look.OnValueChanged -= OnLookChanged;
         cores.OnListChanged -= OnCoresChanged;
         if (Local == this)
             Local = null;
@@ -189,12 +219,12 @@ public class PlayerNetwork : NetworkBehaviour
 
     private void OnSlotChanged(int previous, int current)
     {
-        ApplyColor();
+        ApplyLook();
         if (IsMine)
             PlaceAtSpawnPoint();
     }
 
-    private void OnSkinChanged(int previous, int current) => ApplyColor();
+    private void OnLookChanged(int previous, int current) => ApplyLook();
 
     private void OnCoresChanged(NetworkListEvent<int> change)
     {
@@ -223,6 +253,15 @@ public class PlayerNetwork : NetworkBehaviour
             float angle = gunPivot.eulerAngles.z;
             if (Mathf.Abs(Mathf.DeltaAngle(angle, aimAngle.Value)) >= aimSendThreshold)
                 aimAngle.Value = angle;
+
+            // Ping, once a second (the scoreboard shows it).
+            pingTimer -= Time.unscaledDeltaTime;
+            if (pingTimer <= 0f)
+            {
+                pingTimer = 1f;
+                var transport = NetworkManager.NetworkConfig.NetworkTransport as Unity.Netcode.Transports.UTP.UnityTransport;
+                ping.Value = IsServer || transport == null ? 0 : (int)transport.GetCurrentRtt(NetworkManager.ServerClientId);
+            }
         }
         else
         {
@@ -461,28 +500,22 @@ public class PlayerNetwork : NetworkBehaviour
         return 0;
     }
 
-    // Body color (the skin's, else the slot's) and the skin's accessory.
-    private void ApplyColor()
+    // Body in the skin color (the slot's before the look arrives), then the outfit and the hat over it.
+    private void ApplyLook()
     {
-        if (Slot >= 0 || skin.Value >= 0)
+        if (Slot >= 0 || HasLook)
             playerHealth.SetBodyColor(Color);
-        SkinCatalog.Skin chosen = SkinCatalog.Instance != null ? SkinCatalog.Instance.Get(skin.Value) : null;
-        accessory.sprite = chosen != null ? chosen.accessory : null;
+        Wardrobe wardrobe = Wardrobe.Instance;
+        bool dressed = HasLook && wardrobe != null;
+        outfit.sprite = dressed ? wardrobe.Outfit(Look.outfit).sprite : null;
+        hat.sprite = dressed ? wardrobe.Hat(Look.hat).sprite : null;
     }
 
-    // Host, before spawning the player: the skin it picked (set on the network once spawned).
-    public void SetSkinOnHost(int value)
+    // Host, before spawning the player: the look and name it picked (set on the network once spawned).
+    public void SetLookOnHost(int packedLook, string name)
     {
-        pendingSkin = value;
-    }
-
-    // Somebody in the session already wears that skin.
-    public static bool SkinTaken(int value)
-    {
-        foreach (PlayerNetwork player in All)
-            if (player.skin.Value == value)
-                return true;
-        return false;
+        pendingLook = packedLook;
+        pendingName = name;
     }
 
     // Each slot starts at its own spawn point of the current map, spread over the list.

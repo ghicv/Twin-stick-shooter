@@ -3,7 +3,8 @@ using UnityEngine;
 // Gently follows the players: the rig moves only part of the way toward them (Follow Amount), smoothly,
 // and never further than Max Offset from where it started, so the whole arena stays on screen.
 // With more than one player (LAN) the camera also zooms out so every player still in play is on screen.
-// A map can ask for a bigger picture (LevelMap.CameraSize): the big LAN maps are shown whole.
+// A map can ask for a bigger picture (LevelMap.CameraSize): the big LAN maps and the lobby are shown whole,
+// with the camera in the middle (no following).
 // Put it on the CameraRig; the CameraShake on the camera inside keeps working on top of it.
 public class CameraFollow : MonoBehaviour
 {
@@ -66,8 +67,12 @@ public class CameraFollow : MonoBehaviour
         if (count == 0)
             return;
 
+        if (maps == null)
+            maps = FindAnyObjectByType<MapManager>();
+        bool wholeMap = maps != null && maps.CurrentMap.CameraSize > 0f; // big maps are shown whole: no following
+
         Vector2 center = (min + max) * 0.5f;
-        Vector2 offset = (center - (Vector2)startPosition) * followAmount;
+        Vector2 offset = wholeMap ? Vector2.zero : (center - (Vector2)startPosition) * followAmount;
         offset.x = Mathf.Clamp(offset.x, -maxOffset.x, maxOffset.x);
         offset.y = Mathf.Clamp(offset.y, -maxOffset.y, maxOffset.y);
 
@@ -77,8 +82,6 @@ public class CameraFollow : MonoBehaviour
 
         // Never smaller than the map asks for (big LAN maps show whole); zoom out just enough to see everyone
         // (single player keeps that size).
-        if (maps == null)
-            maps = FindAnyObjectByType<MapManager>();
         float mapSize = maps != null ? Mathf.Max(baseSize, maps.CurrentMap.CameraSize) : baseSize;
         float size = mapSize;
         if (count > 1)

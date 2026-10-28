@@ -5,25 +5,38 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // LAN match (players against each other). The host runs it; every machine shows it.
-// Lobby: players run around the start map; the host presses START (at least Min Players).
+// Lobby: players walk around the lobby map. The host sets the room up at the lobby's stations (rounds, card time,
+// maps). Everybody standing in the READY zone (at least Min Players) starts a 3-2-1 countdown, then the match.
 // Rounds: every round is on another map. Everybody arrives with full health (the travel sequence also brings the
 // dead back). A player who dies stays out until the next round and picks a core right away (Card Time seconds,
 // then a random card); the last one standing wins the round. The next round waits until everyone has picked.
 // After Rounds rounds the most round wins takes the match; a tie plays tiebreak rounds (at most Max Tiebreaks).
 // Results: the ranking; the host goes back to the lobby, where everybody starts again without cores.
+// Also here: chat, the kill feed, "joined / left / kicked" notices, and kicking (host).
 // The host spawns it (a network prefab) when it starts a LAN game; its on-screen parts are the scene's MatchUI.
 public class MatchManager : NetworkBehaviour
 {
     public enum Phase { Lobby = 0, Round = 1, BetweenRounds = 2, Results = 3 }
 
-    [Min(1)]
-    [SerializeField] private int rounds = 8;
+    private enum Notice { Joined = 0, Left = 1, Kicked = 2 }
 
+    [Header("Room settings (the host changes them in the lobby)")]
+    [Tooltip("Rounds per match at first, and the choices of the lobby's ROUNDS station.")]
+    [SerializeField] private int[] roundChoices = { 3, 5, 8, 10, 15 };
+
+    [SerializeField] private int defaultRounds = 8;
+
+    [Tooltip("Seconds a dead player has to pick a card (then a random one is taken): the CARD TIME station's choices.")]
+    [SerializeField] private int[] cardTimeChoices = { 5, 10, 15, 20 };
+
+    [SerializeField] private int defaultCardTime = 10;
+
+    [Header("Match")]
     [Min(1)]
     [SerializeField] private int minPlayers = 2;
 
-    [Tooltip("Seconds a dead player has to pick a card; then a random one is taken.")]
-    [SerializeField] private float cardTime = 10f;
+    [Tooltip("Everybody in the READY zone this long (seconds, shown as 3-2-1) starts the match.")]
+    [SerializeField] private float countdownTime = 3f;
 
     [Tooltip("Seconds between the end of a round (one player left) and the travel to the next map.")]
     [SerializeField] private float roundEndDelay = 2f;
@@ -33,38 +46,48 @@ public class MatchManager : NetworkBehaviour
 
     [SerializeField] private int maxTiebreaks = 3;
 
+    [Tooltip("Longest chat message (letters).")]
+    [SerializeField] private int maxChatLength = 80;
+
     public static MatchManager Instance { get; private set; }
 
     // Part of the scene (this object is spawned over the network, so it looks them up).
     private MapManager maps;
     private MatchUI ui;
-    private Text bannerText;
-    private Text roundText;
-    private GameObject resultsPanel;
-    private Text resultsTitle;
-    private Text resultsList;
-    private Button lobbyButton;
-    private Text resultsWaitText;
 
     private readonly NetworkVariable<int> phase = new NetworkVariable<int>((int)Phase.Lobby);
     private readonly NetworkVariable<int> round = new NetworkVariable<int>(0);
     private readonly NetworkVariable<bool> tiebreak = new NetworkVariable<bool>(false);
+    private readonly NetworkVariable<int> rounds = new NetworkVariable<int>(8);
+    private readonly NetworkVariable<int> cardTime = new NetworkVariable<int>(10);
+    private readonly NetworkVariable<int> mapMask = new NetworkVariable<int>(0); // bit i = map i can be played
+    private readonly NetworkVariable<int> readyCount = new NetworkVariable<int>(0);
+    private readonly NetworkVariable<int> countdown = new NetworkVariable<int>(0); // 3, 2, 1 (0 = not counting)
+    private readonly NetworkVariable<Unity.Collections.FixedString64Bytes> roomName =
+        new NetworkVariable<Unity.Collections.FixedString64Bytes>();
     private NetworkList<int> wins; // round wins by slot (0-3)
 
     // Host only.
     private readonly HashSet<PlayerNetwork> picking = new HashSet<PlayerNetwork>();
+    private readonly HashSet<ulong> kicked = new HashSet<ulong>();
     private readonly List<int> mapBag = new List<int>();
     private int tiebreaks;
     private bool busy; // between the end of a round and the start of the next one
+    private float countdownTimer;
+
     private float bannerTimer;
 
     public Phase CurrentPhase => (Phase)phase.Value;
     public bool InMatch => IsSpawned && CurrentPhase != Phase.Lobby;
     public bool RoundOn => IsSpawned && CurrentPhase == Phase.Round;
     public int Round => round.Value;
-    public int Rounds => rounds;
-    public float CardTime => cardTime;
+    public int Rounds => rounds.Value;
+    public float CardTime => cardTime.Value;
+    public int ReadyCount => readyCount.Value;
+    public int Countdown => countdown.Value;
+    public string RoomName => roomName.Value.ToString();
     public int Wins(int slot) => slot >= 0 && slot < wins.Count ? wins[slot] : 0;
+    public bool MapEnabled(int index) => (mapMask.Value & (1 << index)) != 0;
 
     private void Awake()
     {
@@ -72,34 +95,36 @@ public class MatchManager : NetworkBehaviour
         wins = new NetworkList<int>();
         maps = FindAnyObjectByType<MapManager>();
         ui = FindAnyObjectByType<MatchUI>(FindObjectsInactive.Include);
-        bannerText = ui.BannerText;
-        roundText = ui.RoundText;
-        resultsPanel = ui.ResultsPanel;
-        resultsTitle = ui.ResultsTitle;
-        resultsList = ui.ResultsList;
-        lobbyButton = ui.LobbyButton;
-        resultsWaitText = ui.ResultsWaitText;
-        lobbyButton.onClick.AddListener(BackToLobby);
+        ui.LobbyButton.onClick.AddListener(BackToLobby);
     }
 
     public override void OnDestroy()
     {
         if (Instance == this)
             Instance = null;
-        if (lobbyButton != null)
-            lobbyButton.onClick.RemoveListener(BackToLobby);
-        if (bannerText != null)
-            bannerText.text = "";
-        if (roundText != null)
-            roundText.text = "";
+        if (ui != null)
+        {
+            ui.LobbyButton.onClick.RemoveListener(BackToLobby);
+            ui.BannerText.text = "";
+            ui.CountdownText.text = "";
+        }
         base.OnDestroy();
     }
 
     public override void OnNetworkSpawn()
     {
-        if (IsServer && wins.Count == 0)
+        if (!IsServer)
+            return;
+        if (wins.Count == 0)
             for (int i = 0; i < 4; i++)
                 wins.Add(0);
+        rounds.Value = defaultRounds;
+        cardTime.Value = defaultCardTime;
+        int mask = 0;
+        for (int i = 0; i < maps.Count; i++)
+            if (maps.IsRoundMap(i))
+                mask |= 1 << i;
+        mapMask.Value = mask;
     }
 
     private void Update()
@@ -108,26 +133,33 @@ public class MatchManager : NetworkBehaviour
         {
             bannerTimer -= Time.unscaledDeltaTime;
             if (bannerTimer <= 0f)
-                bannerText.text = "";
+                ui.BannerText.text = "";
         }
+        ui.CountdownText.text = CurrentPhase == Phase.Lobby && countdown.Value > 0 ? countdown.Value.ToString() : "";
 
-        bool showRound = GameMode.IsLan && InMatch && CurrentPhase != Phase.Results && round.Value > 0;
-        roundText.text = !showRound ? ""
-            : tiebreak.Value ? Lang.T("TIEBREAK ROUND", "VÒNG PHÂN ĐỊNH")
-            : Lang.T("ROUND ", "VÒNG ") + round.Value + " / " + rounds;
-
-        if (IsServer && RoundOn && !busy)
+        if (!IsServer)
+            return;
+        if (CurrentPhase == Phase.Lobby)
+            UpdateReady();
+        else if (RoundOn && !busy)
             CheckRoundOver();
     }
 
-    // ---------- Host ----------
+    // ---------- Host: lobby ----------
 
-    // Enough players, and every one of them has finished joining (else it could miss the start).
+    // The host names the room (from the menu) right after spawning this.
+    public void SetRoomOnHost(string name)
+    {
+        roomName.Value = name;
+    }
+
+    // Enough players, and every one has picked a skin and finished joining (else it could miss the start).
     public bool CanStart
     {
         get
         {
-            if (!IsSpawned || CurrentPhase != Phase.Lobby || PlayerNetwork.All.Count < minPlayers)
+            if (!IsSpawned || CurrentPhase != Phase.Lobby || PlayerNetwork.All.Count < minPlayers ||
+                PlayerNetwork.All.Count < NetworkManager.ConnectedClientsIds.Count)
                 return false;
             foreach (PlayerNetwork player in PlayerNetwork.All)
                 if (!player.Ready)
@@ -136,7 +168,32 @@ public class MatchManager : NetworkBehaviour
         }
     }
 
-    // The host's START button.
+    // Who stands in the READY zone; everybody there counts down, then the match starts.
+    private void UpdateReady()
+    {
+        int ready = 0;
+        foreach (PlayerNetwork player in PlayerNetwork.All)
+            if (ReadyZone.Instance != null && ReadyZone.Instance.Contains(player.transform.position))
+                ready++;
+        readyCount.Value = ready;
+
+        if (busy || !CanStart || ready < PlayerNetwork.All.Count)
+        {
+            countdownTimer = countdownTime;
+            countdown.Value = 0;
+            return;
+        }
+
+        countdownTimer -= Time.unscaledDeltaTime;
+        countdown.Value = Mathf.Max(1, Mathf.CeilToInt(countdownTimer));
+        if (countdownTimer <= 0f)
+        {
+            countdown.Value = 0;
+            StartMatch();
+        }
+    }
+
+    // Starts the match right away (the READY countdown, or a test bot).
     public void StartMatch()
     {
         if (!IsServer || !CanStart)
@@ -153,41 +210,105 @@ public class MatchManager : NetworkBehaviour
         StartCoroutine(NextRound());
     }
 
-    // ---------- Skins (LAN players spawn once they picked one) ----------
+    // The lobby's ROUNDS and CARD TIME stations: the next choice (after the last one, the first again).
+    public void CycleRounds()
+    {
+        if (IsServer && CurrentPhase == Phase.Lobby)
+            rounds.Value = NextChoice(roundChoices, rounds.Value);
+    }
 
-    // Any machine: asks the host to spawn this machine's player with that skin.
-    public void ChooseSkin(int skin) => ChooseSkinRpc(skin);
+    public void CycleCardTime()
+    {
+        if (IsServer && CurrentPhase == Phase.Lobby)
+            cardTime.Value = NextChoice(cardTimeChoices, cardTime.Value);
+    }
+
+    private static int NextChoice(int[] choices, int current)
+    {
+        for (int i = 0; i < choices.Length; i++)
+            if (choices[i] == current)
+                return choices[(i + 1) % choices.Length];
+        return choices[0];
+    }
+
+    // The map board: turns a map on or off for the rounds (at least one stays on).
+    public void ToggleMap(int index)
+    {
+        if (!IsServer || CurrentPhase != Phase.Lobby || !maps.IsRoundMap(index))
+            return;
+        int mask = mapMask.Value ^ (1 << index);
+        if (mask != 0)
+            mapMask.Value = mask;
+    }
+
+    // ---------- Looks and names (LAN players spawn once they made their character) ----------
+
+    // Any machine: asks the host to spawn this machine's player with its saved look and name.
+    public void EnterWithLook() => EnterRpc(PlayerProfile.Look.Pack(), PlayerProfile.Name);
 
     [Rpc(SendTo.Server)]
-    private void ChooseSkinRpc(int skin, RpcParams rpcParams = default)
+    private void EnterRpc(int look, string name, RpcParams rpcParams = default)
     {
         ulong client = rpcParams.Receive.SenderClientId;
         if (NetworkManager.ConnectedClients[client].PlayerObject != null)
             return; // already playing
-        if (PlayerNetwork.SkinTaken(skin))
-        {
-            SkinRefusedRpc(RpcTarget.Single(client, RpcTargetUse.Temp));
-            return;
-        }
 
+        name = PlayerProfile.Clean(name);
+        if (name.Length == 0)
+            name = "PLAYER";
+        foreach (PlayerNetwork other in PlayerNetwork.All)
+        {
+            if (other.Name == name)
+            {
+                NameTakenRpc(RpcTarget.Single(client, RpcTargetUse.Temp)); // two players with one name: change it first
+                return;
+            }
+        }
         GameObject player = Instantiate(NetworkManager.NetworkConfig.PlayerPrefab);
-        player.GetComponent<PlayerNetwork>().SetSkinOnHost(skin);
+        player.GetComponent<PlayerNetwork>().SetLookOnHost(look, name);
         player.GetComponent<NetworkObject>().SpawnAsPlayerObject(client);
+        NoticeRpc((int)Notice.Joined, name, Wardrobe.Instance.ColorAt(Look.Unpack(look).color).color);
     }
 
     [Rpc(SendTo.SpecifiedInParams)]
-    private void SkinRefusedRpc(RpcParams rpcParams)
+    private void NameTakenRpc(RpcParams rpcParams)
     {
-        SkinPanel panel = FindAnyObjectByType<SkinPanel>();
+        CharacterPanel panel = FindAnyObjectByType<CharacterPanel>();
         if (panel != null)
-            panel.Refused();
+            panel.NameTaken();
     }
 
-    // Host: a player died during a round. It stays out and picks a card (unless it owns every core).
-    public void OnPlayerDiedInRound(PlayerNetwork player)
+    // Host: a player's object went away (left, kicked or lost the connection).
+    public void OnPlayerLeft(PlayerNetwork player)
     {
-        if (IsServer && !player.Cores.OwnsEverything)
+        if (!IsServer || !IsSpawned || NetworkManager.ShutdownInProgress)
+            return;
+        if (!kicked.Remove(player.OwnerClientId))
+            NoticeRpc((int)Notice.Left, player.Name, player.Color);
+    }
+
+    // Host: sends that player back to the main menu ("you were kicked").
+    public void Kick(PlayerNetwork player)
+    {
+        if (!IsServer || player == null || player.IsHostPlayer)
+            return;
+        kicked.Add(player.OwnerClientId);
+        NoticeRpc((int)Notice.Kicked, player.Name, player.Color);
+        NetworkManager.DisconnectClient(player.OwnerClientId, MainMenu.ReasonKicked);
+    }
+
+    // ---------- Host: rounds ----------
+
+    // A player died during a round: the kill feed tells everybody, and the player picks a card (unless it owns
+    // every core). killer: whoever hurt it last (null: nobody).
+    public void OnPlayerDiedInRound(PlayerNetwork player, PlayerNetwork killer, bool fellOff)
+    {
+        if (!IsServer)
+            return;
+        if (!player.Cores.OwnsEverything)
             picking.Add(player);
+        bool hasKiller = killer != null && killer != player;
+        KillFeedRpc(hasKiller ? killer.Name : "", hasKiller ? killer.Color : Color.white, player.Name, player.Color, fellOff);
     }
 
     // Host: that player picked its card (or had nothing to pick).
@@ -222,12 +343,11 @@ public class MatchManager : NetworkBehaviour
         if (winner != null)
         {
             wins[winner.Slot] = wins[winner.Slot] + 1;
-            string player = "P" + (winner.Slot + 1);
-            BannerRpc(player + " WINS THE ROUND!", player + " THẮNG VÒNG NÀY!", winner.Slot, roundEndDelay + 1f);
+            BannerRpc(winner.Name + " WINS THE ROUND!", winner.Name + " THẮNG VÒNG NÀY!", winner.Color, roundEndDelay + 1f);
         }
         else
         {
-            BannerRpc("DRAW!", "HÒA!", -1, roundEndDelay + 1f);
+            BannerRpc("DRAW!", "HÒA!", Color.white, roundEndDelay + 1f);
         }
         yield return new WaitForSecondsRealtime(roundEndDelay);
 
@@ -248,7 +368,7 @@ public class MatchManager : NetworkBehaviour
     // After the last round: one leader = decided. A shared lead plays a tiebreak round (a few at most).
     private bool MatchDecided()
     {
-        if (round.Value < rounds)
+        if (round.Value < rounds.Value)
             return false;
         if (LeaderCount() == 1 || tiebreaks >= maxTiebreaks)
             return true;
@@ -287,9 +407,9 @@ public class MatchManager : NetworkBehaviour
         }
 
         if (tiebreak.Value)
-            BannerRpc("TIEBREAK!", "PHÂN ĐỊNH!", -1, 1.2f);
+            BannerRpc("TIEBREAK!", "PHÂN ĐỊNH!", Color.white, 1.2f);
         else
-            BannerRpc("ROUND " + round.Value, "VÒNG " + round.Value, -1, 1.2f);
+            BannerRpc("ROUND " + round.Value, "VÒNG " + round.Value, Color.white, 1.2f);
         phase.Value = (int)Phase.Round;
         busy = false;
     }
@@ -298,25 +418,26 @@ public class MatchManager : NetworkBehaviour
     {
         busy = true;
         phase.Value = (int)Phase.Results;
-        int best = -1, winner = -1;
+        int best = -1;
+        PlayerNetwork winner = null;
         foreach (PlayerNetwork player in PlayerNetwork.All)
         {
             int playerWins = Wins(player.Slot);
             if (playerWins > best)
             {
                 best = playerWins;
-                winner = player.Slot;
+                winner = player;
             }
             else if (playerWins == best)
             {
-                winner = -1; // still shared after the tiebreaks
+                winner = null; // still shared after the tiebreaks
             }
         }
-        ResultsRpc(winner);
+        ResultsRpc(winner != null ? winner.Name : "", winner != null ? winner.Color : Color.white);
         yield break;
     }
 
-    // The host's button on the results: everybody back to the start map without cores.
+    // The host's button on the results: everybody back to the lobby without cores.
     private void BackToLobby()
     {
         if (!IsServer || CurrentPhase != Phase.Results)
@@ -334,13 +455,13 @@ public class MatchManager : NetworkBehaviour
         busy = false;
     }
 
-    // A shuffled bag of maps: every map once before any comes again, never the same twice in a row.
+    // A shuffled bag of the maps turned on: every one once before any comes again, never the same twice in a row.
     private int NextMap()
     {
         if (mapBag.Count == 0)
         {
             for (int i = 0; i < maps.Count; i++)
-                if (maps.IsRoundMap(i))
+                if (maps.IsRoundMap(i) && MapEnabled(i))
                     mapBag.Add(i); // PvP maps only, never the lobby
             for (int i = mapBag.Count - 1; i > 0; i--)
             {
@@ -371,6 +492,62 @@ public class MatchManager : NetworkBehaviour
         return false;
     }
 
+    // ---------- Chat ----------
+
+    // Any machine: sends a chat line (the host adds who wrote it).
+    public void SendChat(string text)
+    {
+        text = text.Replace("<", "").Replace(">", "").Trim();
+        if (text.Length > maxChatLength)
+            text = text.Substring(0, maxChatLength);
+        if (text.Length > 0)
+            SendChatRpc(text);
+    }
+
+    [Rpc(SendTo.Server)]
+    private void SendChatRpc(string text, RpcParams rpcParams = default)
+    {
+        NetworkObject sender = NetworkManager.ConnectedClients[rpcParams.Receive.SenderClientId].PlayerObject;
+        PlayerNetwork player = sender != null ? sender.GetComponent<PlayerNetwork>() : null;
+        if (player == null)
+            return; // not in the room yet (still picking a skin)
+        if (text.Length > maxChatLength)
+            text = text.Substring(0, maxChatLength);
+        ChatRpc(player.Name, player.Color, text.Replace("<", "").Replace(">", ""));
+    }
+
+    [Rpc(SendTo.Everyone)]
+    private void ChatRpc(string name, Color color, string text)
+    {
+        ui.Chat.AddLine(Colored(name, color) + ": " + text);
+    }
+
+    // The words are made on each machine, in its own language.
+    [Rpc(SendTo.Everyone)]
+    private void NoticeRpc(int notice, string name, Color color)
+    {
+        string who = Colored(name, color);
+        string line = notice == (int)Notice.Joined ? who + Lang.T(" joined the room", " đã vào phòng")
+                    : notice == (int)Notice.Left ? who + Lang.T(" left the room", " đã rời phòng")
+                    : who + Lang.T(" was kicked", " đã bị đuổi khỏi phòng");
+        ui.Chat.AddLine("<color=#9AA3C7>" + line + "</color>");
+    }
+
+    [Rpc(SendTo.Everyone)]
+    private void KillFeedRpc(string killer, Color killerColor, string victim, Color victimColor, bool fellOff)
+    {
+        string v = Colored(victim, victimColor);
+        string line;
+        if (killer.Length > 0)
+            line = Colored(killer, killerColor) + (fellOff ? Lang.T(" knocked ", " hất ") + v + Lang.T(" off", " xuống vực")
+                                                           : Lang.T(" took down ", " hạ gục ") + v);
+        else
+            line = v + (fellOff ? Lang.T(" fell off", " rơi khỏi map") : Lang.T(" went down", " gục ngã"));
+        ui.KillFeed.Add(line);
+    }
+
+    public static string Colored(string text, Color color) => "<color=#" + ColorUtility.ToHtmlStringRGB(color) + ">" + text + "</color>";
+
     // ---------- Every machine ----------
 
     // Every player travels to that map: the players stop, the screen fades to black, the map is swapped, and
@@ -399,46 +576,28 @@ public class MatchManager : NetworkBehaviour
             yield return fade.FadeIn();
     }
 
-    // The text in both languages (each machine shows its own). slot >= 0: the text takes that player's color.
+    // The text in both languages (each machine shows its own), in that color.
     [Rpc(SendTo.Everyone)]
-    private void BannerRpc(string english, string vietnamese, int slot, float seconds)
+    private void BannerRpc(string english, string vietnamese, Color color, float seconds)
     {
-        bannerText.text = Lang.T(english, vietnamese);
-        bannerText.color = slot >= 0 ? PlayerNetwork.SlotColor(slot) : Color.white;
+        ui.BannerText.text = Lang.T(english, vietnamese);
+        ui.BannerText.color = color;
         bannerTimer = seconds;
     }
 
     [Rpc(SendTo.Everyone)]
-    private void ResultsRpc(int winnerSlot)
+    private void ResultsRpc(string winnerName, Color winnerColor)
     {
-        bannerText.text = ""; // the results say it all
+        ui.BannerText.text = ""; // the results say it all
         bannerTimer = 0f;
-        resultsTitle.text = winnerSlot >= 0 ? "P" + (winnerSlot + 1) + Lang.T(" WINS THE MATCH!", " THẮNG CẢ TRẬN!")
-                                            : Lang.T("IT'S A DRAW!", "HÒA CẢ TRẬN!");
-        resultsTitle.color = winnerSlot >= 0 ? PlayerNetwork.SlotColor(winnerSlot) : Color.white;
-
-        // Ranking: most round wins first.
-        var players = new List<PlayerNetwork>(PlayerNetwork.All);
-        players.Sort((a, b) => Wins(b.Slot).CompareTo(Wins(a.Slot)));
-        var lines = new System.Text.StringBuilder();
-        for (int i = 0; i < players.Count; i++)
-        {
-            PlayerNetwork player = players[i];
-            string you = player == PlayerNetwork.Local ? Lang.T("  (YOU)", "  (BẠN)") : "";
-            lines.AppendLine((i + 1) + ".  <color=#" + ColorUtility.ToHtmlStringRGB(player.Color) + ">P" + (player.Slot + 1) + "</color>   " +
-                             Wins(player.Slot) + Lang.T(" WINS   ", " THẮNG   ") + player.Cores.OwnedCount + Lang.T(" CORES", " CORE") + you);
-        }
-        resultsList.text = lines.ToString();
-
-        bool host = NetworkManager.Singleton.IsServer;
-        lobbyButton.gameObject.SetActive(host);
-        resultsWaitText.text = host ? "" : Lang.T("WAITING FOR THE HOST...", "ĐANG CHỜ CHỦ PHÒNG...");
-        resultsPanel.SetActive(true);
+        var ranking = new List<PlayerNetwork>(PlayerNetwork.All);
+        ranking.Sort((a, b) => Wins(b.Slot).CompareTo(Wins(a.Slot)));
+        ui.ShowResults(winnerName, winnerColor, ranking, NetworkManager.Singleton.IsServer);
     }
 
     [Rpc(SendTo.Everyone)]
     private void HideResultsRpc()
     {
-        resultsPanel.SetActive(false);
+        ui.HideResults();
     }
 }

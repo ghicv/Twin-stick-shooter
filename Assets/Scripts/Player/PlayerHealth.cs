@@ -127,6 +127,11 @@ public class PlayerHealth : MonoBehaviour
         MatchManager match = MatchManager.Instance;
         if (GameMode.IsLan && match != null && match.InMatch && !match.RoundOn)
             return false; // LAN: nobody gets hurt once the round is decided (bullets still flying)
+        if (GameMode.IsLan && match != null && !match.InMatch)
+        {
+            net.PlayHurt(0f);
+            return true; // LAN lobby: shooting each other is just for fun: hits push and flash, no health is lost
+        }
 
         net.Health = Mathf.Max(0f, Health - amount);
         invulnerableTimer = GameMode.IsLan ? lanInvulnerableTime : invulnerableTime;
