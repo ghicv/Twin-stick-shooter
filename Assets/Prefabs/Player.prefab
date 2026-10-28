@@ -454,6 +454,7 @@ GameObject:
   - component: {fileID: 759047752990307770}
   - component: {fileID: 2299568239264722967}
   - component: {fileID: 652163047813783592}
+  - component: {fileID: 890928807774870592}
   m_Layer: 8
   m_Name: Player
   m_TagString: Player
@@ -556,18 +557,23 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMovement
   moveSpeed: 8
-  acceleration: 18
-  deceleration: 25
+  acceleration: 22
+  deceleration: 30
   airControl: 0.8
+  iceGrip: 0.12
   jumpForce: 16
   doubleJumpForce: 14
   airJumps: 1
   jumpCutMultiplier: 0.5
   apexHangSpeed: 2.5
   apexGravityMultiplier: 0.5
-  fallGravityMultiplier: 1.3
-  coyoteTime: 0.1
-  jumpBufferTime: 0.1
+  fallGravityMultiplier: 1.6
+  maxFallSpeed: 22
+  fastFallGravityMultiplier: 2.4
+  maxFastFallSpeed: 30
+  coyoteTime: 0.12
+  jumpBufferTime: 0.13
+  cornerCorrection: 0.3
   wallSlideSpeed: 2.5
   wallJumpForce: 15
   wallJumpPush: 7
@@ -577,13 +583,12 @@ MonoBehaviour:
   dashTime: 0.15
   dashCooldown: 1.2
   upgradedDashCooldown: 0.6
-  body: {fileID: 3557905451738706582}
-  jumpStretch: {x: 0.9, y: 1.12}
-  landSquash: {x: 1.15, y: 0.85}
-  squashRecovery: 12
+  dashExitSpeed: 11
   dustPuff: {fileID: 9081391445861028296, guid: 0b9ff28fd5193ae41b0c65a4e96e9881, type: 3}
   jumpDustScale: 0.8
   landDustScale: 1.3
+  runDustInterval: 0.22
+  runDustScale: 0.35
   jumpSound: {fileID: 8300000, guid: 39c2febf996cef34f819f6d11ea91969, type: 3}
   jumpVolume: 0.3
   landSound: {fileID: 8300000, guid: 1420c4443851da741b08239e0851c05a, type: 3}
@@ -638,6 +643,37 @@ MonoBehaviour:
   hitConfirmSound: {fileID: 8300000, guid: 8e11f22a2682983419e579870d8edb30, type: 3}
   hitConfirmVolume: 0.5
   shootPitchVariation: 0.08
+  specialGuns:
+  - name: SHOTGUN
+    fireRate: 1.4
+    damage: 8
+    speed: 26
+    lifetime: 0.35
+    pellets: 6
+    spread: 14
+    ammo: 6
+    gunScale: {x: 1.25, y: 1.4}
+    gunColor: {r: 0.75, g: 0.5, b: 0.25, a: 1}
+  - name: SNIPER
+    fireRate: 0.9
+    damage: 40
+    speed: 60
+    lifetime: 2
+    pellets: 1
+    spread: 0
+    ammo: 4
+    gunScale: {x: 1.7, y: 1}
+    gunColor: {r: 0.4, g: 0.65, b: 0.4, a: 1}
+  - name: MINIGUN
+    fireRate: 14
+    damage: 5
+    speed: 32
+    lifetime: 1.2
+    pellets: 1
+    spread: 6
+    ammo: 50
+    gunScale: {x: 1.4, y: 1.5}
+    gunColor: {r: 0.65, g: 0.68, b: 0.75, a: 1}
 --- !u!114 &6780011380052750896
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1386,6 +1422,30 @@ MonoBehaviour:
   - 45
   - 15
   cardsAtStart: 0
+--- !u!114 &890928807774870592
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3121727891143946174}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e71e9367bfcbecb4ebe2d64b9de49217, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerBodyAnimator
+  body: {fileID: 3557905451738706582}
+  breatheAmount: 0.045
+  breatheSpeed: 1.1
+  runBounce: 0.09
+  stepsPerUnit: 0.55
+  airStretch: 0.006
+  maxAirStretch: 0.14
+  landSquash: {x: 1.25, y: 0.75}
+  jumpStretch: {x: 0.82, y: 1.2}
+  dashStretch: {x: 1.3, y: 0.78}
+  hardLanding: 20
+  recovery: 14
 --- !u!1 &4200084464538221135
 GameObject:
   m_ObjectHideFlags: 0

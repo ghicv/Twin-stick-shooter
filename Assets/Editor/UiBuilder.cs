@@ -966,14 +966,16 @@ public static class UiBuilder
         UiKit.Clear(settings);
         RectTransform panel = UiKit.Stretch(settings, "Panel");
         UiKit.Dim(panel, "Backdrop", 0.7f).raycastTarget = true;
-        Transform card = UiKit.Panel(panel, "Card", C, Vector2.zero, new Vector2(700, 900)).transform;
+        Transform card = UiKit.Panel(panel, "Card", C, Vector2.zero, new Vector2(700, 1040)).transform;
         UiKit.Label(card, "Title", "SETTINGS", "CÀI ĐẶT", 60, UiKit.Orange, Mid, Top, new Vector2(0, -70), new Vector2(640, 80), true);
         Button resume = UiKit.Button(card, "ResumeButton", "RESUME", null, Top, new Vector2(0, -175), new Vector2(520, 88), K.Primary, 32);
         Slider music = VolumeRow(card, "Music", "MUSIC", "NHẠC", -262, out Text musicValue);
         Slider sfx = VolumeRow(card, "Sfx", "SOUND EFFECTS", "HIỆU ỨNG", -372, out Text sfxValue);
-        Button fullScreen = UiKit.Button(card, "FullScreenButton", "FULL SCREEN: ON", null, Top, new Vector2(0, -510), new Vector2(520, 80), K.Normal, 28);
-        UiKit.Label(card, "LanguageLabel", "LANGUAGE", "NGÔN NGỮ", 40, Color.white, MidLeft, Top, new Vector2(-60, -595), new Vector2(400, 50));
-        LanguageRow(card, Top, new Vector2(0, -660), 254, 24);
+        Button fullScreen = UiKit.Button(card, "FullScreenButton", "FULL SCREEN: ON", null, Top, new Vector2(0, -500), new Vector2(520, 76), K.Normal, 28);
+        Button vSync = UiKit.Button(card, "VSyncButton", "VSYNC: ON", null, Top, new Vector2(0, -585), new Vector2(520, 76), K.Normal, 28);
+        Button effects = UiKit.Button(card, "EffectsButton", "EFFECTS: ON", null, Top, new Vector2(0, -670), new Vector2(520, 76), K.Normal, 28);
+        UiKit.Label(card, "LanguageLabel", "LANGUAGE", "NGÔN NGỮ", 40, Color.white, MidLeft, Top, new Vector2(-60, -752), new Vector2(400, 50));
+        LanguageRow(card, Top, new Vector2(0, -815), 254, 24);
         Button leave = UiKit.Button(card, "LeaveButton", "LEAVE ROOM", null, Bottom, new Vector2(0, 80), new Vector2(520, 84), K.Danger, 28);
         UiKit.Wire(menu, "panel", panel.gameObject);
         UiKit.Wire(menu, "resumeButton", resume);
@@ -982,6 +984,8 @@ public static class UiBuilder
         UiKit.Wire(menu, "sfxSlider", sfx);
         UiKit.Wire(menu, "sfxValueText", sfxValue);
         UiKit.Wire(menu, "fullScreenButton", fullScreen);
+        UiKit.Wire(menu, "vSyncButton", vSync);
+        UiKit.Wire(menu, "effectsButton", effects);
         UiKit.Wire(menu, "leaveButton", leave);
         panel.gameObject.SetActive(false);
     }

@@ -97,6 +97,7 @@ public class ExplosiveBarrel : NetworkBehaviour
     {
         CoreEffects.Blast(blastEffect, effectScale, center, 0f, 0f, 0f, null, false, null); // just the effect
         GameAudio.PlayAt(blastSound, center, volume, 0.05f);
+        CRTScreen.Blur(center, 1f);
         CameraShake shake = Camera.main.GetComponent<CameraShake>();
         if (shake != null)
             shake.Shake(shakeStrength, 0.25f);

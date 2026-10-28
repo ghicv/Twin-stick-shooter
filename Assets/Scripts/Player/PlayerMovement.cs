@@ -5,7 +5,10 @@ using UnityEngine.InputSystem;
 // S to drop through one-way platforms, and wall slide / wall jump when touching a wall in the air.
 // Horizontal speed eases toward the target speed every physics step: it reacts right away,
 // then settles gently at full speed or at a stop, so there are no hard corners in the motion.
+// Falling is heavier than rising and has a top speed; holding S in the air falls faster. Rising into the corner of a
+// block slides around it instead of bumping the head. Jump buffer and coyote time forgive early / late presses.
 // Every jump (ground, wall and double jump) plays the jump sound; only hard landings play the landing sound.
+// The body's squash, stretch and bounce are PlayerBodyAnimator's (it plays on every machine).
 // Cores (CoreBridge on the player, optional) can add air jumps, unlock a Shift dash and react to hard landings.
 // Only runs on the machine that controls this player (PlayerNetwork turns it off elsewhere).
 [RequireComponent(typeof(Rigidbody2D))]
@@ -16,10 +19,10 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private float moveSpeed = 8f;
 
     [Tooltip("How quickly speed follows A/D (higher = snappier). Speed eases in: fast at first, gentle near full speed.")]
-    [SerializeField] private float acceleration = 18f;
+    [SerializeField] private float acceleration = 22f;
 
     [Tooltip("How quickly you stop after releasing A/D (higher = shorter slide). Also how quickly you brake onto a wall.")]
-    [SerializeField] private float deceleration = 25f;
+    [SerializeField] private float deceleration = 30f;
 
     [Tooltip("Share of the ground acceleration/deceleration kept in the air. 0 = no air control, 1 = same as on the ground.")]
     [Range(0f, 1f)]
@@ -53,14 +56,26 @@ public class PlayerMovement : MonoBehaviour
 
     [Tooltip("Gravity multiplier while falling, for a snappier descent.")]
     [Min(1f)]
-    [SerializeField] private float fallGravityMultiplier = 1.3f;
+    [SerializeField] private float fallGravityMultiplier = 1.6f;
+
+    [Tooltip("Falling never gets faster than this (units/sec).")]
+    [SerializeField] private float maxFallSpeed = 22f;
+
+    [Tooltip("Holding S in the air falls faster: gravity multiplier and top speed while doing it.")]
+    [Min(1f)]
+    [SerializeField] private float fastFallGravityMultiplier = 2.4f;
+    [SerializeField] private float maxFastFallSpeed = 30f;
 
     [Tooltip("A ground jump (or wall jump) still works this long after leaving the ground (or wall) (seconds).")]
-    [SerializeField] private float coyoteTime = 0.1f;
+    [SerializeField] private float coyoteTime = 0.12f;
 
     [Tooltip("Space pressed this long before landing still jumps on landing (seconds).")]
     [Min(0.01f)]
-    [SerializeField] private float jumpBufferTime = 0.1f;
+    [SerializeField] private float jumpBufferTime = 0.13f;
+
+    [Tooltip("Rising into the corner of a block above: slide around it by up to this much sideways instead of " +
+             "bumping the head (units).")]
+    [SerializeField] private float cornerCorrection = 0.3f;
 
     [Header("Wall")]
     [Tooltip("Falling while holding toward a wall you touch slows you down to this speed: you slide down the wall " +
@@ -96,18 +111,8 @@ public class PlayerMovement : MonoBehaviour
     [Tooltip("Seconds from one dash to the next with the Dash+ core.")]
     [SerializeField] private float upgradedDashCooldown = 0.6f;
 
-    [Header("Squash & Stretch")]
-    [Tooltip("Body sprite that gets squashed and stretched (visual only, the collider doesn't change).")]
-    [SerializeField] private Transform body;
-
-    [Tooltip("Body scale right after a jump (x thinner, y taller).")]
-    [SerializeField] private Vector2 jumpStretch = new Vector2(0.9f, 1.12f);
-
-    [Tooltip("Body scale after a hard landing (x wider, y shorter). Soft landings squash less.")]
-    [SerializeField] private Vector2 landSquash = new Vector2(1.15f, 0.85f);
-
-    [Tooltip("How quickly the body gets back to its normal shape (higher = snappier).")]
-    [SerializeField] private float squashRecovery = 12f;
+    [Tooltip("Sideways speed kept when a dash ends (it then eases back to running), so it doesn't stop dead.")]
+    [SerializeField] private float dashExitSpeed = 11f;
 
     [Header("Dust")]
     [Tooltip("Dust puff spawned when jumping off the ground or a wall, and when landing. It destroys itself.")]
@@ -118,6 +123,10 @@ public class PlayerMovement : MonoBehaviour
 
     [Tooltip("Size of the dust puff after a hard landing. Softer landings make smaller puffs.")]
     [SerializeField] private float landDustScale = 1.3f;
+
+    [Tooltip("Running near full speed on the ground leaves a small puff this often (seconds; 0 = never).")]
+    [SerializeField] private float runDustInterval = 0.22f;
+    [SerializeField] private float runDustScale = 0.35f;
 
     [Header("Sound")]
     [Tooltip("Played on every jump: ground, wall and double jump.")]
@@ -180,11 +189,9 @@ public class PlayerMovement : MonoBehaviour
     private readonly Collider2D[] groundColliders = new Collider2D[4];
     private bool onIce;
     private Vector2 groundVelocity; // how the ground under the feet moves (moving platform, conveyor, crate)
-
-    private Vector3 bodyBaseScale;
-    private Vector3 bodyBasePosition;
-    private float bodyHalfHeight;
-    private Vector2 bodyShape = Vector2.one; // current squash/stretch factor, (1, 1) = normal
+    private float runDustTimer;
+    private readonly RaycastHit2D[] ceilingHits = new RaycastHit2D[4];
+    private ContactFilter2D solidFilter; // everything but players and triggers (corner correction)
 
     // Grounded = touching any collider whose surface faces up (floor, top of a platform, ...).
     private ContactFilter2D groundFilter;
@@ -208,10 +215,8 @@ public class PlayerMovement : MonoBehaviour
         dashAction = InputSystem.actions.FindAction("Player/Sprint"); // Left Shift
 
         groundFilter.SetNormalAngle(45f, 135f);
-
-        bodyBaseScale = body.localScale;
-        bodyBasePosition = body.localPosition;
-        bodyHalfHeight = body.GetComponent<SpriteRenderer>().sprite.bounds.extents.y * bodyBaseScale.y;
+        solidFilter.SetLayerMask(Physics2D.GetLayerCollisionMask(gameObject.layer) & ~(1 << gameObject.layer));
+        solidFilter.useTriggers = false;
     }
 
     private void Update()
@@ -229,8 +234,6 @@ public class PlayerMovement : MonoBehaviour
             dashRequested = true;
         if (moveInput != 0f)
             facing = moveInput > 0f ? 1 : -1;
-
-        UpdateSquashStretch();
     }
 
     private void FixedUpdate()
@@ -250,7 +253,8 @@ public class PlayerMovement : MonoBehaviour
         {
             dashTimer -= Time.fixedDeltaTime;
             rb.gravityScale = 0f;
-            rb.linearVelocity = new Vector2(dashDirection * dashSpeed, 0f);
+            // The last step of the dash keeps only some of its speed, then running eases it back.
+            rb.linearVelocity = new Vector2(dashDirection * (dashTimer > 0f ? dashSpeed : dashExitSpeed), 0f);
             lastVelocityY = 0f;
             return;
         }
@@ -288,7 +292,61 @@ public class PlayerMovement : MonoBehaviour
         if (rb.linearVelocity.y <= 0f)
             canCutJump = false;
 
+        // Never fall faster than the top speed (holding S allows a faster one).
+        float topFallSpeed = FastFalling ? maxFastFallSpeed : maxFallSpeed;
+        if (rb.linearVelocity.y < -topFallSpeed && !sliding)
+            rb.linearVelocity = new Vector2(rb.linearVelocity.x, -topFallSpeed);
+
+        CorrectCorner();
+        RunDust();
         lastVelocityY = rb.linearVelocity.y;
+    }
+
+    // Holding S in the air on the way down (not on a wall).
+    private bool FastFalling => downHeld && !IsGrounded && wallPush == 0 && rb.linearVelocity.y < 0f;
+
+    // Rising with the head about to hit the corner of a block: slide around it a little instead of bumping.
+    // One-way platforms let the player through anyway, so only solid blocks count.
+    private void CorrectCorner()
+    {
+        if (rb.linearVelocity.y <= 0f || cornerCorrection <= 0f)
+            return;
+        float distance = rb.linearVelocity.y * Time.fixedDeltaTime + 0.02f;
+        if (!HeadBlocked(Vector2.zero, distance))
+            return;
+        for (float shift = 0.05f; shift <= cornerCorrection; shift += 0.05f)
+            foreach (int side in new[] { -1, 1 })
+            {
+                var offset = new Vector2(side * shift, 0f);
+                if (!HeadBlocked(offset, distance) && !HeadBlocked(offset, 0.01f))
+                {
+                    rb.position += offset;
+                    return;
+                }
+            }
+    }
+
+    private bool HeadBlocked(Vector2 offset, float distance)
+    {
+        Bounds bounds = bodyCollider.bounds;
+        var origin = (Vector2)bounds.center + offset;
+        int count = Physics2D.BoxCast(origin, bounds.size * new Vector2(0.95f, 1f), 0f, Vector2.up, solidFilter, ceilingHits, distance);
+        for (int i = 0; i < count; i++)
+            if (ceilingHits[i].collider != bodyCollider && ceilingHits[i].normal.y < -0.5f &&
+                ceilingHits[i].collider.GetComponent<PlatformEffector2D>() == null)
+                return true;
+        return false;
+    }
+
+    // A little dust under the feet while running fast on the ground.
+    private void RunDust()
+    {
+        runDustTimer -= Time.fixedDeltaTime;
+        bool running = IsGrounded && Mathf.Abs(rb.linearVelocity.x - groundVelocity.x) > moveSpeed * 0.85f;
+        if (!running || runDustInterval <= 0f || runDustTimer > 0f)
+            return;
+        runDustTimer = runDustInterval;
+        SpawnDust(FeetPosition, runDustScale);
     }
 
     // Gravity for this step: none while wall sliding, lighter near the top of a jump while Space is held
@@ -299,6 +357,8 @@ public class PlayerMovement : MonoBehaviour
             return 0f;
 
         float verticalSpeed = rb.linearVelocity.y;
+        if (FastFalling)
+            return baseGravityScale * fastFallGravityMultiplier;
         if (!IsGrounded && jumpHeld && Mathf.Abs(verticalSpeed) < apexHangSpeed)
             return baseGravityScale * apexGravityMultiplier;
         if (verticalSpeed < 0f)
@@ -341,10 +401,10 @@ public class PlayerMovement : MonoBehaviour
 
             if (!wasGrounded)
             {
-                // Landing: squash and dust, stronger the faster we were falling (full at 20 units/sec).
+                // Landing: dust, bigger the faster we were falling (full at 20 units/sec). The squash is
+                // PlayerBodyAnimator's.
                 float fallSpeed = -lastVelocityY;
                 float impact = Mathf.InverseLerp(2f, 20f, fallSpeed);
-                bodyShape = Vector2.Lerp(Vector2.one, landSquash, impact);
                 if (impact > 0f)
                     SpawnDust(FeetPosition, landDustScale * Mathf.Lerp(0.5f, 1f, impact));
 
@@ -352,6 +412,7 @@ public class PlayerMovement : MonoBehaviour
                 if (fallSpeed >= hardLandingSpeed)
                 {
                     PlaySound(landSound, landVolume * Mathf.Lerp(0.5f, 1f, Mathf.InverseLerp(hardLandingSpeed, hardLandingSpeed + 8f, fallSpeed)));
+                    CRTScreen.Blur(FeetPosition, 0.3f);
                     if (cores != null)
                         cores.OnHardLanding(FeetPosition);
                 }
@@ -503,8 +564,8 @@ public class PlayerMovement : MonoBehaviour
         bool upgraded = cores != null && cores.DashUpgraded;
         dashCooldownTimer = upgraded ? upgradedDashCooldown : dashCooldown;
         canCutJump = false;
-        bodyShape = new Vector2(1.25f, 0.8f); // stretched sideways
         SpawnDust(FeetPosition, jumpDustScale);
+        CRTScreen.Blur(rb.position, 0.25f);
         PlaySound(jumpSound, jumpVolume);
         if (upgraded && health != null)
             health.MakeInvulnerable(dashTime + 0.05f); // Dash+: can't be hurt while dashing
@@ -516,7 +577,6 @@ public class PlayerMovement : MonoBehaviour
     {
         rb.linearVelocity = velocity;
         canCutJump = true;
-        bodyShape = jumpStretch;
         PlaySound(jumpSound, jumpVolume);
     }
 
@@ -529,15 +589,5 @@ public class PlayerMovement : MonoBehaviour
     {
         ParticleSystem dust = Instantiate(dustPuff, position, Quaternion.identity);
         dust.transform.localScale = Vector3.one * scale; // the prefab scales with its transform
-    }
-
-    // Eases the body back to its normal shape and keeps its feet in place while squashed/stretched.
-    private void UpdateSquashStretch()
-    {
-        float t = 1f - Mathf.Exp(-squashRecovery * Time.deltaTime); // same speed at any FPS
-        bodyShape = Vector2.Lerp(bodyShape, Vector2.one, t);
-
-        body.localScale = new Vector3(bodyBaseScale.x * bodyShape.x, bodyBaseScale.y * bodyShape.y, bodyBaseScale.z);
-        body.localPosition = bodyBasePosition + Vector3.down * (bodyHalfHeight * (1f - bodyShape.y));
     }
 }

@@ -1,7 +1,9 @@
 // Old-TV (CRT) look over the whole screen: curved glass, color fringing, scanlines, RGB phosphor columns,
-// darker corners. Used by the "CRT Screen" Full Screen Pass renderer feature
+// darker corners. Also the impact blur (a short radial smear from a point: blasts, deaths, hard landings).
+// Used by the "CRT Screen" Full Screen Pass renderer feature
 // (material Assets/Materials/CRTScreen.mat). All values are global and set every frame by CRTScreen.cs,
-// so nothing on the material asset changes at runtime. _CRT_Intensity 0 = the picture is left untouched.
+// so nothing on the material asset changes at runtime. _CRT_Intensity 0 and _Blur_Strength 0 = the picture is left
+// untouched.
 Shader "Hidden/CRTScreen"
 {
     SubShader
@@ -27,6 +29,19 @@ Shader "Hidden/CRTScreen"
             float _CRT_MaskStrength;
             float _CRT_ColorFringe;
             float _CRT_Vignette;
+            float _Blur_Strength;   // impact blur: 0 = none
+            float2 _Blur_Center;    // where it bursts from (0..1 screen)
+
+            // Impact blur: the picture smeared outward from a point, like a shock wave (a few samples toward it).
+            float4 ImpactBlur(float2 uv)
+            {
+                float2 toCenter = _Blur_Center - uv;
+                float4 sum = 0.0;
+                const int samples = 8;
+                for (int i = 0; i < samples; i++)
+                    sum += SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, uv + toCenter * (_Blur_Strength * i / samples));
+                return sum / samples;
+            }
 
             float4 Frag(Varyings input) : SV_Target
             {
@@ -34,7 +49,7 @@ Shader "Hidden/CRTScreen"
                 float2 uv = input.texcoord;
                 float k = saturate(_CRT_Intensity);
                 if (k <= 0.0)
-                    return SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_PointClamp, uv);
+                    return _Blur_Strength > 0.0 ? ImpactBlur(uv) : SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_PointClamp, uv);
 
                 // Curved glass: the picture bulges toward the corners; outside the tube is black.
                 float2 centered = uv * 2.0 - 1.0;

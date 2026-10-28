@@ -2,7 +2,8 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
-// The ESC menu during a game (also the main menu's SETTINGS): resume, music and sound effects volumes, full screen,
+// The ESC menu during a game (also the main menu's SETTINGS): resume, music and sound effects volumes, full screen, VSync,
+// effects (EffectsSetting),
 // language, and leave
 // (back to the main menu).
 // On LAN the match keeps running behind it (the others keep playing); only this player's controls stop
@@ -23,6 +24,14 @@ public class SettingsMenu : MonoBehaviour
     [Tooltip("Window size when leaving full screen.")]
     [SerializeField] private Vector2Int windowSize = new Vector2Int(1280, 720);
 
+    [Tooltip("VSync on/off (remembered on this PC). On: frames in step with the screen, smooth and no tearing.")]
+    [SerializeField] private Button vSyncButton;
+
+    private const string VSyncKey = "VSync";
+
+    [Tooltip("EFFECTS on/off (EffectsSetting): bloom, motion blur and impact blur in a game. Off for slow PCs.")]
+    [SerializeField] private Button effectsButton;
+
     [Tooltip("Back to the main menu. On LAN it leaves the room (the host's leaving closes it for everyone).")]
     [SerializeField] private Button leaveButton;
 
@@ -33,6 +42,17 @@ public class SettingsMenu : MonoBehaviour
     {
         IsOpen = false;
         panel.SetActive(false);
+        QualitySettings.vSyncCount = PlayerPrefs.GetInt(VSyncKey, 1);
+        vSyncButton.onClick.AddListener(() =>
+        {
+            QualitySettings.vSyncCount = QualitySettings.vSyncCount > 0 ? 0 : 1;
+            PlayerPrefs.SetInt(VSyncKey, QualitySettings.vSyncCount);
+        });
+        effectsButton.onClick.AddListener(() =>
+        {
+            EffectsSetting.On = !EffectsSetting.On;
+            EffectsSetting.Apply(GameMode.Current == GameMode.Mode.None); // the menu keeps its blurred backdrop
+        });
 
         AudioListener.volume = 1f; // the two volumes below do it all
         musicSlider.SetValueWithoutNotify(GameAudio.MusicVolume);
@@ -107,6 +127,12 @@ public class SettingsMenu : MonoBehaviour
         fullScreenButton.GetComponentInChildren<Text>().text = Screen.fullScreen
             ? Lang.T("FULL SCREEN: ON", "TOÀN MÀN HÌNH: BẬT")
             : Lang.T("FULL SCREEN: OFF", "TOÀN MÀN HÌNH: TẮT");
+        vSyncButton.GetComponentInChildren<Text>().text = QualitySettings.vSyncCount > 0
+            ? Lang.T("VSYNC: ON", "VSYNC: BẬT")
+            : Lang.T("VSYNC: OFF", "VSYNC: TẮT");
+        effectsButton.GetComponentInChildren<Text>().text = EffectsSetting.On
+            ? Lang.T("EFFECTS: ON", "HIỆU ỨNG: BẬT")
+            : Lang.T("EFFECTS: OFF", "HIỆU ỨNG: TẮT");
 
         bool host = GameMode.IsLan && Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsServer;
         leaveButton.GetComponentInChildren<Text>().text = !GameMode.IsLan ? Lang.T("MAIN MENU", "VỀ MENU")

@@ -5,6 +5,7 @@ using UnityEngine;
 // renderer feature on the URP renderer (shader Assets/Shaders/CRTScreen.shader); this component only
 // sends the values below to it. Intensity 0 = normal picture (the default); PlayerRespawn turns it up
 // during the respawn transition. Put it on the main camera.
+// It also plays the impact blur (Blur: a short radial smear from a point), drawn by the same pass.
 public class CRTScreen : MonoBehaviour
 {
     [Tooltip("0 = normal picture, 1 = full CRT effect. PlayerRespawn drives it; drag it in Play Mode to preview the look.")]
@@ -35,10 +36,40 @@ public class CRTScreen : MonoBehaviour
     [Range(0f, 1f)]
     [SerializeField] private float vignette = 0.55f;
 
+    [Header("Impact blur")]
+    [Tooltip("Seconds an impact blur takes to fade out.")]
+    [SerializeField] private float blurTime = 0.25f;
+
+    [Tooltip("Impact blurs are this strong at most (share of the way to the center).")]
+    [Range(0f, 0.3f)]
+    [SerializeField] private float maxBlur = 0.08f;
+
+    private static CRTScreen instance;
+    private float blur;
+    private Vector2 blurCenter = new Vector2(0.5f, 0.5f);
+
     public float Intensity
     {
         get => intensity;
         set => intensity = Mathf.Clamp01(value);
+    }
+
+    // A short radial smear out of that point of the world (a blast, a death, a hard landing). Strength 1 = the
+    // strongest; a weaker one doesn't cut a stronger one short.
+    public static void Blur(Vector2 worldPosition, float strength)
+    {
+        if (instance == null || !EffectsSetting.On)
+            return;
+        float wanted = Mathf.Clamp01(strength) * instance.maxBlur;
+        if (wanted < instance.blur)
+            return;
+        instance.blur = wanted;
+        instance.blurCenter = Camera.main.WorldToViewportPoint(worldPosition);
+    }
+
+    private void Awake()
+    {
+        instance = this;
     }
 
     private static readonly int IntensityId = Shader.PropertyToID("_CRT_Intensity");
@@ -48,9 +79,15 @@ public class CRTScreen : MonoBehaviour
     private static readonly int MaskStrengthId = Shader.PropertyToID("_CRT_MaskStrength");
     private static readonly int ColorFringeId = Shader.PropertyToID("_CRT_ColorFringe");
     private static readonly int VignetteId = Shader.PropertyToID("_CRT_Vignette");
+    private static readonly int BlurStrengthId = Shader.PropertyToID("_Blur_Strength");
+    private static readonly int BlurCenterId = Shader.PropertyToID("_Blur_Center");
 
     private void LateUpdate()
     {
+        blur = Mathf.MoveTowards(blur, 0f, maxBlur / blurTime * Time.unscaledDeltaTime);
+        Shader.SetGlobalFloat(BlurStrengthId, blur);
+        Shader.SetGlobalVector(BlurCenterId, blurCenter);
+
         Shader.SetGlobalFloat(IntensityId, intensity);
         Shader.SetGlobalFloat(CurvatureId, curvature);
         Shader.SetGlobalFloat(ScanlineCountId, scanlineCount);
@@ -64,5 +101,6 @@ public class CRTScreen : MonoBehaviour
     private void OnDisable()
     {
         Shader.SetGlobalFloat(IntensityId, 0f);
+        Shader.SetGlobalFloat(BlurStrengthId, 0f);
     }
 }

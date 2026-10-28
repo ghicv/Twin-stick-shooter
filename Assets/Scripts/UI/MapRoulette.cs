@@ -324,6 +324,7 @@ public class MapRoulette : MonoBehaviour
                 CameraShake shake = gameCamera.GetComponent<CameraShake>();
                 if (shake != null)
                     shake.Shake(landShakeStrength, 0.2f);
+                CRTScreen.Blur(gameCamera.transform.position, 0.6f);
             }
             float left = 1f - Mathf.Clamp01(landed / landFlashTime);
             SetAlpha(landFlash, Mathf.Ceil(left * 4f) / 4f * 0.7f);

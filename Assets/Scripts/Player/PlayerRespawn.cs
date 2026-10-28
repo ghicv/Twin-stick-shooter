@@ -206,6 +206,7 @@ public class PlayerRespawn : MonoBehaviour
             transform.position = deathPoint; // physics is off, so moving the transform is fine
         SetVisible(false);
         SpawnEffect(explosionEffect, deathPoint, Quaternion.Euler(0f, 0f, 90f), 1f); // burst points up, into the arena
+        CRTScreen.Blur(deathPoint, 0.8f);
         if (cameraShake != null)
             cameraShake.Shake(explosionShakeStrength, explosionShakeDuration);
         PlaySound(explosionSound, explosionVolume);

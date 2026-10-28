@@ -1,9 +1,8 @@
 using UnityEngine;
-using UnityEngine.Rendering.Universal;
 
 // Behind the main menu: one of the game's maps, blurred (a post-processing volume) so the menu stays easy to read.
 // On while the menu shows (this object turns on). When a game starts (the menu turns it off) the blur goes away and
-// the camera stops post-processing, which costs nothing then.
+// the camera keeps post-processing only if the EFFECTS setting is on (EffectsSetting).
 public class MenuBackdrop : MonoBehaviour
 {
     [SerializeField] private MapManager maps;
@@ -29,9 +28,6 @@ public class MenuBackdrop : MonoBehaviour
     {
         if (blur != null)
             blur.enabled = on;
-        Camera camera = Camera.main;
-        UniversalAdditionalCameraData cameraData = camera != null ? camera.GetComponent<UniversalAdditionalCameraData>() : null;
-        if (cameraData != null)
-            cameraData.renderPostProcessing = on;
+        EffectsSetting.Apply(on);
     }
 }
