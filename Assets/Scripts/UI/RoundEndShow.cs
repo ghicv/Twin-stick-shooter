@@ -47,6 +47,7 @@ public class RoundEndShow : MonoBehaviour
     {
         pipTemplate.gameObject.SetActive(false);
         panel.SetActive(false);
+        NameTag.HideAll = false; // a new scene (a show cut short by leaving must not keep them hidden)
     }
 
     // Winner = null for a draw. Wins = the winner's round wins now; Rounds = rounds in the match (the pips);
@@ -88,6 +89,7 @@ public class RoundEndShow : MonoBehaviour
         GameAudio.Play(winner != null ? winSound : drawSound, volume);
         timer = 0f;
         panel.SetActive(true);
+        NameTag.HideAll = true;
     }
 
     private void Update()
@@ -128,6 +130,7 @@ public class RoundEndShow : MonoBehaviour
             return;
         timer = -1f;
         panel.SetActive(false);
+        NameTag.HideAll = false;
         cameraRig.ClearFocus();
         if (slowed && hitStop != null)
             hitStop.SetSlowMotion(1f);

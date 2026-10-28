@@ -642,6 +642,14 @@ MonoBehaviour:
   otherShotsVolume: 0.5
   hitConfirmSound: {fileID: 8300000, guid: 8e11f22a2682983419e579870d8edb30, type: 3}
   hitConfirmVolume: 0.5
+  damageNumberPrefab: {fileID: 5906022067298102564, guid: 474d0426c4b36df49a7556eb4f7414be, type: 3}
+  knockoutColor: {r: 1, g: 0.3, b: 0.25, a: 1}
+  knockoutFreeze: 0.07
+  knockoutSound: {fileID: 8300000, guid: 46f35f2882f6e1541bf12e3395b964c0, type: 3}
+  knockoutVolume: 0.6
+  bigHitDamage: 25
+  shellMaterial: {fileID: 2100000, guid: 9f41beacea14e4840a8798fcef0b9d54, type: 2}
+  shellColor: {r: 0.9, g: 0.7, b: 0.25, a: 1}
   shootPitchVariation: 0.08
   specialGuns:
   - name: SHOTGUN
@@ -722,8 +730,8 @@ MonoBehaviour:
   lanInvulnerableTime: 0
   spawnProtectionTime: 1
   body: {fileID: 7107644010471966630}
-  knockback: {x: 6, y: 4}
-  lanKnockbackScale: 0.5
+  knockback: {x: 7, y: 5}
+  lanKnockbackScale: 0.8
   hitFlashColor: {r: 1, g: 1, b: 1, a: 1}
   hitFlashTime: 0.06
   hitShakeStrength: 0.2

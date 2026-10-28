@@ -81,11 +81,11 @@ TrailRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 2
   m_MaskInteraction: 0
-  m_Time: 0.06
+  m_Time: 0.1
   m_PreviewTimeScale: 1
   m_Parameters:
     serializedVersion: 3
-    widthMultiplier: 0.0625
+    widthMultiplier: 0.125
     widthCurve:
       serializedVersion: 2
       m_Curve:
@@ -289,6 +289,7 @@ MonoBehaviour:
   impactEffect: {fileID: 2594568554617404146, guid: 0ecc476074faa9446bb31bdf0ad3ec8b, type: 3}
   wallHitSound: {fileID: 8300000, guid: 7732bc66851a1d74981844defa43580d, type: 3}
   wallHitVolume: 0.15
+  pushImpulse: 3
 --- !u!58 &5209804466895811970
 CircleCollider2D:
   m_ObjectHideFlags: 0

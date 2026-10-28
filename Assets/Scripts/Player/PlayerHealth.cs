@@ -27,10 +27,10 @@ public class PlayerHealth : MonoBehaviour
     [SerializeField] private SpriteRenderer body;
 
     [Tooltip("Speed the player is pushed with when hit: X away from the hit, Y up (units/sec).")]
-    [SerializeField] private Vector2 knockback = new Vector2(6f, 4f);
+    [SerializeField] private Vector2 knockback = new Vector2(7f, 5f);
 
     [Tooltip("LAN: pushes from other players are multiplied by this (cores like Hammer multiply it again).")]
-    [SerializeField] private float lanKnockbackScale = 0.5f;
+    [SerializeField] private float lanKnockbackScale = 0.8f;
 
     [SerializeField] private Color hitFlashColor = Color.white;
     [SerializeField] private float hitFlashTime = 0.06f;
@@ -132,17 +132,18 @@ public class PlayerHealth : MonoBehaviour
         if (GameMode.IsLan && match != null && !match.InMatch)
         {
             net.PlayHurt(0f);
-            ConfirmHit(source);
+            ConfirmHit(source, 0f, false);
             return true; // LAN lobby: shooting each other is just for fun: hits push and flash, no health is lost
         }
 
+        float dealt = Mathf.Min(amount, Health);
         net.Health = Mathf.Max(0f, Health - amount);
         invulnerableTimer = GameMode.IsLan ? lanInvulnerableTime : invulnerableTime;
         LastDamageTime = Time.time;
         if (source != null)
             LastAttacker = source;
         net.PlayHurt(invulnerableTimer);
-        ConfirmHit(source);
+        ConfirmHit(source, dealt, Health <= 0f);
 
         if (Health <= 0f)
         {
@@ -152,12 +153,13 @@ public class PlayerHealth : MonoBehaviour
         return true;
     }
 
-    // Host: the player whose bullet or core hit this one hears a short tick on its own machine.
-    private void ConfirmHit(CoreBridge source)
+    // Host: the player whose bullet or core hit this one gets the hit feedback on its own machine (damage 0 = no
+    // number, e.g. the lobby).
+    private void ConfirmHit(CoreBridge source, float damage, bool knockout)
     {
         PlayerNetwork attacker = source != null ? source.GetComponent<PlayerNetwork>() : null;
         if (attacker != null && attacker != net)
-            attacker.ConfirmHit();
+            attacker.ConfirmHit((Vector2)transform.position + Vector2.up * 0.9f, damage, knockout);
     }
 
     // Every machine: sound, flash, blink (and a shake on the hurt player's own screen).

@@ -40,6 +40,15 @@ public class DamageNumber : MonoBehaviour
     private Vector3 exactPosition;
     private Vector3 velocity;
     private float age;
+    private float size = 1f;
+
+    // In another color and size (e.g. a knockout: bigger, red).
+    public void Show(float damage, Color tint, float scale)
+    {
+        color = tint;
+        size = scale;
+        Show(damage);
+    }
 
     public void Show(float damage)
     {
@@ -78,7 +87,7 @@ public class DamageNumber : MonoBehaviour
         transform.position = new Vector3(Snap(exactPosition.x), Snap(exactPosition.y), exactPosition.z);
 
         // Pop: big for the first 10% of its life, then normal size (no smooth tween).
-        transform.localScale = Vector3.one * (t < 0.1f ? popScale : 1f);
+        transform.localScale = Vector3.one * size * (t < 0.1f ? popScale : 1f);
 
         // Blink on and off near the end.
         bool visible = t < blinkStart || Mathf.Repeat(age, blinkInterval * 2f) < blinkInterval;

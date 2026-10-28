@@ -365,17 +365,18 @@ public class PlayerNetwork : NetworkBehaviour
     [Rpc(SendTo.Everyone)]
     private void BlinkRpc(float blinkTime) => playerHealth.PlayBlink(blinkTime);
 
-    // This player hit another one: its own machine plays the hit tick.
-    public void ConfirmHit()
+    // This player hit another one (at that point, for that much; knockout = it was the last hit): its own machine
+    // plays the hit feedback (tick, damage number, a jolt on a knockout).
+    public void ConfirmHit(Vector2 point, float damage, bool knockout)
     {
         if (Offline)
-            weapon.PlayHitConfirm();
+            weapon.PlayHitConfirm(point, damage, knockout);
         else
-            HitConfirmRpc();
+            HitConfirmRpc(point, damage, knockout);
     }
 
     [Rpc(SendTo.Owner)]
-    private void HitConfirmRpc() => weapon.PlayHitConfirm();
+    private void HitConfirmRpc(Vector2 point, float damage, bool knockout) => weapon.PlayHitConfirm(point, damage, knockout);
 
     public void PushOwner(Vector2 velocity, bool set)
     {

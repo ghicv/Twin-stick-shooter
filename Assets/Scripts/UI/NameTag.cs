@@ -17,6 +17,9 @@ public class NameTag : MonoBehaviour
 
     private Vector3 baseScale;
 
+    // Every name tag hides while true (the round's end show puts big text above the winner).
+    public static bool HideAll { get; set; }
+
     private void Awake()
     {
         baseScale = transform.localScale;
@@ -24,7 +27,7 @@ public class NameTag : MonoBehaviour
 
     private void LateUpdate()
     {
-        bool show = GameMode.IsLan && player.IsSpawned && player.InPlay;
+        bool show = GameMode.IsLan && player.IsSpawned && player.InPlay && !HideAll;
         if (content.activeSelf != show)
             content.SetActive(show);
         if (!show)

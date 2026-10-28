@@ -121,6 +121,25 @@ public class PlayerWeapon : MonoBehaviour
     [Range(0f, 1f)]
     [SerializeField] private float hitConfirmVolume = 0.5f;
 
+    [Header("Hit feedback (PvP, on the shooter's screen)")]
+    [Tooltip("Pops up where another player was hit, with the damage.")]
+    [SerializeField] private DamageNumber damageNumberPrefab;
+
+    [Tooltip("The last hit on a player: its number in this color, a short freeze, a jolt and this sound.")]
+    [SerializeField] private Color knockoutColor = new Color(1f, 0.3f, 0.25f);
+    [SerializeField] private float knockoutFreeze = 0.07f;
+    [SerializeField] private AudioClip knockoutSound;
+    [Range(0f, 1f)]
+    [SerializeField] private float knockoutVolume = 0.6f;
+
+    [Tooltip("A hit doing at least this much damage shakes the screen a little.")]
+    [SerializeField] private float bigHitDamage = 25f;
+
+    [Header("Shells")]
+    [Tooltip("Spent shells fly out of the gun on every shot (ShellCasings). Their material and color.")]
+    [SerializeField] private Material shellMaterial;
+    [SerializeField] private Color shellColor = new Color(0.9f, 0.7f, 0.25f);
+
     [Tooltip("Random pitch change per shot, so rapid fire doesn't sound identical.")]
     [Range(0f, 0.3f)]
     [SerializeField] private float shootPitchVariation = 0.08f;
@@ -294,7 +313,28 @@ public class PlayerWeapon : MonoBehaviour
     // Gun kick, muzzle flash and sound (also played for other machines' players when they shoot).
     // shake = shake this screen (only for the player's own shots).
     // This player's bullet hit another player (the host tells this player's machine).
-    public void PlayHitConfirm() => GameAudio.Play(hitConfirmSound, hitConfirmVolume, 0.05f);
+    // Damage 0 = a hit that hurts nobody (the lobby): just the tick.
+    public void PlayHitConfirm(Vector2 point, float damage, bool knockout)
+    {
+        GameAudio.Play(hitConfirmSound, hitConfirmVolume, 0.05f, knockout ? 0.75f : 1f);
+        if (damage > 0f && damageNumberPrefab != null)
+            Instantiate(damageNumberPrefab, point, Quaternion.identity).Show(damage, knockout ? knockoutColor : Color.white, knockout ? 1.6f : 1f);
+
+        if (knockout)
+        {
+            GameAudio.Play(knockoutSound, knockoutVolume);
+            HitStop hitStop = Camera.main.GetComponent<HitStop>();
+            if (hitStop != null)
+                hitStop.Freeze(knockoutFreeze);
+            if (cameraShake != null)
+                cameraShake.Shake(0.3f, 0.2f);
+            CRTScreen.Blur(point, 0.5f);
+        }
+        else if (damage >= bigHitDamage && cameraShake != null)
+        {
+            cameraShake.Shake(0.15f, 0.12f); // a big hit (a sniper shot) is felt
+        }
+    }
 
     public void PlayShotFeedback(float spreadAngle, bool shake)
     {
@@ -302,6 +342,10 @@ public class PlayerWeapon : MonoBehaviour
         gunVisual.localRotation = gunRestRotation * Quaternion.Euler(0f, 0f, spreadAngle);  // gun jerks toward where the bullet went
         muzzleFlash.SetActive(true);
         muzzleFlashTimer = muzzleFlashDuration;
+        // Every flash a little different: a quarter turn and a size step.
+        muzzleFlash.transform.localRotation = Quaternion.Euler(0f, 0f, 90f * Random.Range(0, 4));
+        muzzleFlash.transform.localScale = Vector3.one * (Random.Range(0, 2) == 0 ? 1.1f : 1.4f);
+        ShellCasings.Eject(gunVisual.position, -(Vector2)firePoint.right, shellMaterial, shellColor);
 
         if (shake && cameraShake != null)
             cameraShake.Shake(cameraShakeStrength, cameraShakeDuration);

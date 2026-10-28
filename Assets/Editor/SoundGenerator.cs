@@ -113,23 +113,26 @@ public static class SoundGenerator
 
     private static float Triangle(float phase) => 4f * Mathf.Abs(Mathf.Repeat(phase, 1f) - 0.5f) - 1f;
 
-    // A shot: a short "pew" that drops in pitch, with a soft click of noise at the start.
+    // A shot: a short "pew" that drops in pitch, a crack of noise at the start and a low punch under it, so it
+    // sounds solid without getting harsh.
     private static float[] Shoot()
     {
-        int length = (int)(Rate * 0.09f);
+        int length = (int)(Rate * 0.12f);
         var data = new float[length];
         var random = new System.Random(1);
-        float phase = 0f, noise = 0f;
+        float phase = 0f, punchPhase = 0f, noise = 0f;
         for (int i = 0; i < length; i++)
         {
             float t = (float)i / Rate;
-            float frequency = Mathf.Lerp(620f, 260f, t / 0.09f);
+            float frequency = Mathf.Lerp(620f, 240f, t / 0.09f);
             phase += frequency / Rate;
             float tone = Triangle(phase) * Mathf.Exp(-t * 38f);
-            noise = Mathf.Lerp(noise, (float)random.NextDouble() * 2f - 1f, 0.25f); // low-passed noise
-            float click = noise * Mathf.Exp(-t * 160f) * 0.6f;
-            float attack = Mathf.Min(1f, t / 0.002f);
-            data[i] = (tone * 0.7f + click) * attack * 0.8f;
+            noise = Mathf.Lerp(noise, (float)random.NextDouble() * 2f - 1f, 0.3f); // low-passed noise
+            float crack = noise * Mathf.Exp(-t * 110f) * 0.7f;
+            punchPhase += Mathf.Lerp(150f, 60f, t / 0.12f) / Rate;
+            float punch = Mathf.Sin(punchPhase * 2f * Mathf.PI) * Mathf.Exp(-t * 30f) * 0.7f;
+            float attack = Mathf.Min(1f, t / 0.0015f);
+            data[i] = (tone * 0.6f + crack + punch) * attack * 0.7f;
         }
         return data;
     }
