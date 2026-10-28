@@ -304,6 +304,9 @@ public class BulletCores : MonoBehaviour
     [SerializeField] private float blackHoleBlastRadius = 1.5f;
     [SerializeField] private Sprite blackHoleSprite;
 
+    [Tooltip("The whirling purple spiral around the black hole (pixel art).")]
+    [SerializeField] private Sprite blackHoleSwirlSprite;
+
     [Header("END · Shrapnel")]
     [SerializeField] private int shrapnelCount = 3;
 
@@ -839,25 +842,13 @@ public class BulletCores : MonoBehaviour
         }
     }
 
-    // A dark core inside a purple ring (both from Black Hole Sprite).
+    // A dark core in a whirling swirl (CoreBlackHole draws it from these sprites).
     private CoreBlackHole PlaceBlackHole(Vector2 position, bool lookAlike)
     {
         var go = new GameObject("BlackHole");
         go.transform.position = position;
-        var ring = new GameObject("Ring").AddComponent<SpriteRenderer>();
-        ring.transform.SetParent(go.transform, false);
-        ring.transform.localScale = Vector3.one * 2.6f;
-        ring.sprite = blackHoleSprite;
-        ring.color = new Color(0.6f, 0.3f, 1f, 0.55f);
-        ring.sortingOrder = 4;
-        var core = new GameObject("Core").AddComponent<SpriteRenderer>();
-        core.transform.SetParent(go.transform, false);
-        core.transform.localScale = Vector3.one * 1.3f;
-        core.sprite = blackHoleSprite;
-        core.color = new Color(0.05f, 0f, 0.1f);
-        core.sortingOrder = 5;
         var hole = go.AddComponent<CoreBlackHole>();
-        hole.Setup(this, self, ring.transform, blackHoleTime, blackHoleRadius, blackHolePull, lookAlike);
+        hole.Setup(this, self, blackHoleSwirlSprite, blackHoleSprite, blackHoleTime, blackHoleRadius, blackHolePull, lookAlike);
         return hole;
     }
 

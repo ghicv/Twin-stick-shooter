@@ -133,6 +133,9 @@ public class MapRoulette : MonoBehaviour
 
     public bool Playing => timer >= 0f;
 
+    // Seconds the camera takes to fly into the map (the players appear once it has landed).
+    public float FlyTime => flyTime;
+
     // Stopped and shown: the map can be put in place behind it now (then Enter Map).
     public bool WaitingForMap => Playing && timer >= Duration && enterTimer < 0f;
 

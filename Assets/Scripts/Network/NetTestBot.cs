@@ -5,7 +5,8 @@ using UnityEngine.UI;
 // jumps, shoots at the nearest other player, picks the first card when one is offered) and logs every player's
 // position and health once a second, so a session can be checked without anyone at the keyboard. In the lobby it
 // walks into the READY zone, so the match starts the normal way (3-2-1).
-// With -shots <folder> the host also saves pictures (mid-round, round end, map roulette, dive, results).
+// With -shots <folder> it also saves pictures (mid-round, round end, map roulette, dive, results), and with
+// -cores A,B,... it takes those cores when the match starts (testing cores over the network).
 // MainMenu adds it.
 public class NetTestBot : MonoBehaviour
 {
@@ -16,6 +17,7 @@ public class NetTestBot : MonoBehaviour
     private float roundTimer;
     private MatchManager.Phase lastPhase;
     private bool rouletteSeen;
+    private string[] startCores;
     private readonly System.Collections.Generic.List<(float time, string name)> shots = new System.Collections.Generic.List<(float, string)>();
 
     // Every test copy on this PC gets its own name (they share the saved one, and a room refuses a name twice).
@@ -28,6 +30,8 @@ public class NetTestBot : MonoBehaviour
         {
             if (args[i] == "-shots")
                 shotFolder = args[i + 1];
+            if (args[i] == "-cores") // cores taken when the match starts, e.g. -cores Thunder,BlackHole (testing them)
+                startCores = args[i + 1].Split(',');
             if (args[i] == "-scale") // the RESOLUTION setting, e.g. -scale 0.5 (measuring speed)
             {
                 PlayerPrefs.SetFloat("RenderScale", float.Parse(args[i + 1], System.Globalization.CultureInfo.InvariantCulture));
@@ -56,6 +60,14 @@ public class NetTestBot : MonoBehaviour
         MatchManager room = MatchManager.Instance;
         roundTimer = room != null && room.CurrentPhase == MatchManager.Phase.Round && !local.Dead ? roundTimer + Time.unscaledDeltaTime : 0f;
         bool lobby = room != null && !room.InMatch;
+        if (startCores != null && room != null && room.InMatch)
+        {
+            foreach (string name in startCores)
+                if (System.Enum.TryParse(name, out CoreType type))
+                    local.PickCore(type);
+            Debug.Log("[BOT] start cores " + string.Join(",", startCores));
+            startCores = null;
+        }
         if (rb.simulated && lobby && ReadyZone.Instance != null)
         {
             // Lobby: walk into the READY zone like a player would (everybody there starts the match).
@@ -106,10 +118,10 @@ public class NetTestBot : MonoBehaviour
             Debug.Log("[BOT] picked a card, cores now " + local.Cores.OwnedCount);
         }
 
-        // -shots <folder>: the host saves pictures of the shows: the round's end, the map roulette and the dive into
-        // the map, the results.
+        // -shots <folder>: pictures of the round (twice), its end, the map roulette and the dive into the map, the
+        // results (on every machine given a folder, so the host's and a client's pictures can be compared).
         MatchManager current = MatchManager.Instance;
-        if (shotFolder != null && current != null && current.IsServer)
+        if (shotFolder != null && current != null && current.IsSpawned)
             TakeShots(current);
 
         framesSinceLog++;
@@ -140,7 +152,10 @@ public class NetTestBot : MonoBehaviour
             if (match.CurrentPhase == MatchManager.Phase.BetweenRounds && match.Round > 0)
                 shots.Add((now + 0.6f, "end_r" + match.Round));
             if (match.CurrentPhase == MatchManager.Phase.Round)
+            {
+                shots.Add((now + 3f, "mid_r" + match.Round));
                 shots.Add((now + 6f, "round_r" + match.Round));
+            }
             if (match.CurrentPhase == MatchManager.Phase.Results)
                 shots.Add((now + 2.5f, "results"));
             lastPhase = match.CurrentPhase;

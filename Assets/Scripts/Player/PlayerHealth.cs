@@ -119,6 +119,18 @@ public class PlayerHealth : MonoBehaviour
         net.PushOwner(impulse / rb.mass * OwnKnockbackTaken, false);
     }
 
+    // Every machine, every physics step: a small tug (a black hole). Only this player's own machine moves it (smooth,
+    // no messages); the host notes who pulled it (credit if it ends in a fall).
+    public void Pull(Vector2 impulse, CoreBridge source)
+    {
+        if (IsDead)
+            return;
+        if (net.IsHostSide && source != null)
+            LastAttacker = source;
+        if (net.IsMine)
+            rb.linearVelocity += impulse / rb.mass * OwnKnockbackTaken;
+    }
+
     // Host only. Moves slower for a while.
     public void Slow(float factor, float duration)
     {

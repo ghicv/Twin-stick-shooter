@@ -265,14 +265,18 @@ public class PlayerRespawn : MonoBehaviour
             TakeControlAway();
     }
 
-    // ...then, on the new map, it appears at its spawn point with full health (the dead come back too).
-    public void ArriveForRound(Vector2 spawn)
+    // ...then, on the new map, it appears at its spawn point with full health (the dead come back too), after Delay
+    // seconds (hidden meanwhile: the camera is still flying into the map).
+    public void ArriveForRound(Vector2 spawn, float delay)
     {
-        StartCoroutine(ArriveRoutine(spawn));
+        StartCoroutine(ArriveRoutine(spawn, delay));
     }
 
-    private IEnumerator ArriveRoutine(Vector2 spawn)
+    private IEnumerator ArriveRoutine(Vector2 spawn, float delay)
     {
+        SetVisible(false);
+        if (delay > 0f)
+            yield return new WaitForSecondsRealtime(delay);
         yield return Appear(spawn, true);
         traveling = false;
     }

@@ -66,7 +66,7 @@ public class PlayerWeapon : MonoBehaviour
     [Header("Gun")]
     [Tooltip("Max shots per second while Left Mouse is held.")]
     [Min(0.1f)]
-    [SerializeField] private float fireRate = 5f;
+    [SerializeField] private float fireRate = 3f;
 
     [Header("Recoil (spread)")]
     [Tooltip("Spread of an accurate shot: max random angle (degrees) each side of the aim.")]

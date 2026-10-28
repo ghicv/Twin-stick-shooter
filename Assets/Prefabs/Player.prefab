@@ -154,6 +154,8 @@ MonoBehaviour:
   nameText: {fileID: 4705943382053786650}
   healthFill: {fileID: 2323848727477857641}
   healthBar: {fileID: 214847256199808113}
+  youColor: {r: 0.3, g: 1, b: 0.3, a: 1}
+  youFontSize: 96
 --- !u!1 &1788834848652159450
 GameObject:
   m_ObjectHideFlags: 0
@@ -626,7 +628,7 @@ MonoBehaviour:
   firePoint: {fileID: 394257502416353809}
   gunVisual: {fileID: 3715816766596527898}
   muzzleFlash: {fileID: 4256841544112820263}
-  fireRate: 5
+  fireRate: 3
   minSpread: 1.5
   maxSpread: 12
   spreadPerShot: 3
@@ -1498,6 +1500,7 @@ MonoBehaviour:
   blackHoleDamage: 12
   blackHoleBlastRadius: 1.5
   blackHoleSprite: {fileID: 21300000, guid: b48b280e21cb86f4abfe264bcb7fc65e, type: 3}
+  blackHoleSwirlSprite: {fileID: 21300000, guid: 959275b70d4c34c4cab3e33ef80626f2, type: 3}
   shrapnelCount: 3
   shrapnelSpread: 90
   shrapnelDamage: 0.3
@@ -1623,6 +1626,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerOffscreenMarker
   arrowSprite: {fileID: 21300000, guid: f3faf4b599508464f917f0b5843f8d0f, type: 3}
   edgeInset: 0.6
+  topInset: 1.6
+  size: 1.6
   pulseSpeed: 4
   sortingOrder: 50
 --- !u!1 &4200084464538221135

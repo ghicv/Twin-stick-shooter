@@ -174,6 +174,7 @@ public class PlayerMovement : MonoBehaviour
     private Vector2 dashDirection;
     private int facing = 1;          // the way the player last moved: 1 = right, -1 = left
     private float baseGravityScale;
+    private bool frozen;             // stood still between rounds (gravity off)
 
     private float moveInput;        // -1 = left, 0 = none, 1 = right
     private float moveUpInput;      // -1 = down (S), 0 = none, 1 = up (W)
@@ -256,11 +257,13 @@ public class PlayerMovement : MonoBehaviour
         {
             rb.linearVelocity = Vector2.zero;
             rb.gravityScale = 0f;
+            frozen = true;
             dashTimer = 0f;
             dashRequested = false;
             jumpBufferTimer = 0f;
             return;
         }
+        Unfreeze();
 
         UpdateGrounded();
         UpdateWall();
@@ -326,6 +329,18 @@ public class PlayerMovement : MonoBehaviour
         RunDust();
         lastVelocityY = rb.linearVelocity.y;
     }
+
+    // Gravity back after the freeze. Also when this component is turned off meanwhile (a travel, a death), or the
+    // player would float away with no gravity.
+    private void Unfreeze()
+    {
+        if (!frozen)
+            return;
+        frozen = false;
+        rb.gravityScale = baseGravityScale;
+    }
+
+    private void OnDisable() => Unfreeze();
 
     // Holding S in the air on the way down (not on a wall).
     private bool FastFalling => downHeld && !IsGrounded && wallPush == 0 && rb.linearVelocity.y < 0f;

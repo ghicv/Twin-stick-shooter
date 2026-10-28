@@ -49,6 +49,14 @@ public class HitTarget : MonoBehaviour
             player.TakeDamage(amount, -normal, knockback, source);
     }
 
+    // Players only, every machine, every physics step: a small tug (impulse) toward something (a black hole). The
+    // player moves on its own machine (no messages: every machine has the black hole); the host notes who did it.
+    public void Pull(Vector2 impulse, CoreBridge source)
+    {
+        if (player != null)
+            player.Pull(impulse, source);
+    }
+
     // Damage without a hit reaction (burning).
     public void TakeTickDamage(float amount, CoreBridge source)
     {

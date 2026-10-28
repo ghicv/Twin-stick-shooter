@@ -49,6 +49,9 @@ public class MatchManager : NetworkBehaviour
     [Tooltip("Seconds between the end of a round (one player left) and the travel to the next map.")]
     [SerializeField] private float roundEndDelay = 2f;
 
+    [Tooltip("Seconds everybody stands still on the new map (after appearing) before the round starts.")]
+    [SerializeField] private float roundStartDelay = 1f;
+
     [Tooltip("At a card milestone the round waits at most Card Time plus this for the picks (seconds).")]
     [SerializeField] private float pickWaitExtra = 2f;
 
@@ -460,6 +463,7 @@ public class MatchManager : NetworkBehaviour
             BannerRpc("TIEBREAK!", "PHÂN ĐỊNH!", Color.white, 1.2f);
         else
             BannerRpc("ROUND " + round.Value, "VÒNG " + round.Value, Color.white, 1.2f);
+        yield return new WaitForSecondsRealtime(roundStartDelay); // everybody sees where they are, then it starts
         phase.Value = (int)Phase.Round;
         busy = false;
     }
@@ -636,13 +640,14 @@ public class MatchManager : NetworkBehaviour
         maps.SetMap(map);
         if (IsServer && maps.TryGetComponent(out MapProps props))
             props.SpawnFor(map, maps.CurrentMap); // the new map's crates (the old map's go away)
+        if (fromRoulette)
+            roulette.EnterMap();
+        float appearDelay = fromRoulette ? roulette.FlyTime : 0f; // the players appear once the camera has landed
         foreach (PlayerNetwork player in PlayerNetwork.All)
         {
             player.Cores.OnMapChanged();
-            player.Respawn.ArriveForRound(maps.SlotSpawn(map, player.Slot));
+            player.Respawn.ArriveForRound(maps.SlotSpawn(map, player.Slot), appearDelay);
         }
-        if (fromRoulette)
-            roulette.EnterMap();
         if (fade != null)
             yield return fade.FadeIn();
     }
