@@ -51,6 +51,9 @@ public class Scoreboard : MonoBehaviour
 
     [Header("Ping colors")]
     [SerializeField] private Color goodPing = new Color(0.4f, 0.9f, 0.5f);
+
+    [Tooltip("This machine's own name (the same green as the \"YOU\" over its head).")]
+    [SerializeField] private Color youColor = new Color(0.3f, 1f, 0.3f);
     [SerializeField] private Color okPing = new Color(1f, 0.85f, 0.3f);
     [SerializeField] private Color badPing = new Color(1f, 0.35f, 0.35f);
 
@@ -103,7 +106,7 @@ public class Scoreboard : MonoBehaviour
             row.colorBar.color = player.Color;
             row.name.text = player.Name + (player == PlayerNetwork.Local ? Lang.T(" (YOU)", " (BẠN)") : "") +
                             (player.Dead && match.InMatch ? Lang.T("  [OUT]", "  [LOẠI]") : "");
-            row.name.color = player.Color;
+            row.name.color = player == PlayerNetwork.Local ? youColor : player.Color; // this machine's own row: green, like "YOU"
             row.hostBadge.SetActive(player.IsHostPlayer);
             row.wins.text = match.Wins(player.Slot).ToString();
             row.ping.text = player.IsHostPlayer ? "HOST" : player.Ping + " ms";

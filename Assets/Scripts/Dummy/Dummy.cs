@@ -194,7 +194,7 @@ public class Dummy : MonoBehaviour
         SpawnEffect(bloodEffect, hitPoint + hitNormal * 0.05f, hitNormal);
 
         if (source != null)
-            source.OnDamageDealt(Mathf.Min(amount, health)); // Vampire
+            source.OnDamageDealt(Mathf.Min(amount, health), hitPoint); // Vampire
         health = Mathf.Max(0f, health - amount);
         chipTimer = chipDelay;
         UpdateHealthBar();
@@ -224,7 +224,7 @@ public class Dummy : MonoBehaviour
         if (source != null)
             lastSource = source;
         if (source != null)
-            source.OnDamageDealt(Mathf.Min(amount, health)); // Vampire
+            source.OnDamageDealt(Mathf.Min(amount, health), transform.position); // Vampire
         health = Mathf.Max(0f, health - amount);
         chipTimer = chipDelay;
         UpdateHealthBar();

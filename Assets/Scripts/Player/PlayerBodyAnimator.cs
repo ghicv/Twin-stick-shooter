@@ -111,9 +111,11 @@ public class PlayerBodyAnimator : MonoBehaviour
             afterimageTimer -= step;
             if (afterimageTimer <= 0f)
             {
-                afterimageTimer = afterimageInterval;
-                Color color = player != null ? player.Color : Color.white;
-                color.a = afterimageAlpha;
+                // Dash+: more and brighter ghosts, glowing white (it can't be hurt meanwhile).
+                bool upgraded = player != null && player.Cores != null && player.Cores.DashUpgraded;
+                afterimageTimer = upgraded ? afterimageInterval * 0.6f : afterimageInterval;
+                Color color = upgraded ? Color.white : player != null ? player.Color : Color.white;
+                color.a = upgraded ? 0.8f : afterimageAlpha;
                 PlayerAfterimage.Leave(bodySprites, color, afterimageLife);
             }
         }

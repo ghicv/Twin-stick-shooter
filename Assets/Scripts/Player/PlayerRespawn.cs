@@ -23,7 +23,8 @@ public class PlayerRespawn : MonoBehaviour
     // What happens after a death (sent by the host to every machine).
     // Revive: back after a moment. GameOver: single player run lost. Wait: LAN round, out until the next round.
     // Out: LAN, died after the round was already decided: out until the next round too.
-    public enum DeathOutcome { Revive = 0, GameOver = 1, Wait = 2, Out = 3 }
+    // ExtraLife: the Extra Life core brings the player back at once with a blast (and a pillar of light).
+    public enum DeathOutcome { Revive = 0, GameOver = 1, Wait = 2, Out = 3, ExtraLife = 4 }
 
     [Tooltip("Falling below this height (world Y) kills the player, when there is no MapManager (else the map's own).")]
     [SerializeField] private float fallLimitY = -8f;
@@ -50,6 +51,16 @@ public class PlayerRespawn : MonoBehaviour
 
     [Tooltip("Seconds between the explosion and the player appearing again (when it comes back).")]
     [SerializeField] private float reviveDelay = 1f;
+
+    [Header("Extra Life")]
+    [Tooltip("Coming back with the Extra Life core: a pillar of light, then a blast around the player that hurts and " +
+             "throws everybody back, and a few seconds no one can hurt the player.")]
+    [SerializeField] private float extraLifeBlastRadius = 3.5f;
+    [SerializeField] private float extraLifeBlastDamage = 15f;
+    [SerializeField] private float extraLifeKnockback = 3.5f;
+    [SerializeField] private float extraLifeProtection = 2f;
+    [SerializeField] private Color extraLifeColor = new Color(1f, 0.85f, 0.35f);
+    [SerializeField] private Material extraLifeMaterial;
 
     [Header("Appear")]
     [Tooltip("Pixels gathering at the spawn point. It should use Unscaled Time. Optional.")]
@@ -176,9 +187,11 @@ public class PlayerRespawn : MonoBehaviour
         DeathOutcome outcome = DeathOutcome.Revive;
         MatchManager match = MatchManager.Instance;
         bool extraLife = cores != null && cores.TryUseExtraLife();
-        if (!GameMode.IsLan && gameOverOnDeath && gameOverScreen != null && !extraLife)
+        if (extraLife)
+            outcome = DeathOutcome.ExtraLife;
+        else if (!GameMode.IsLan && gameOverOnDeath && gameOverScreen != null)
             outcome = DeathOutcome.GameOver;
-        else if (GameMode.IsLan && match != null && match.RoundOn && !extraLife)
+        else if (GameMode.IsLan && match != null && match.RoundOn)
         {
             outcome = DeathOutcome.Wait; // out of this round
             match.OnPlayerDiedInRound(net, killer != null ? killer.GetComponent<PlayerNetwork>() : null, fellOff);
@@ -221,8 +234,37 @@ public class PlayerRespawn : MonoBehaviour
         if (outcome == DeathOutcome.Wait || outcome == DeathOutcome.Out)
             yield break; // out until the next round, back with everybody (cards come at milestones, MatchManager)
 
-        yield return new WaitForSecondsRealtime(reviveDelay);
+        if (outcome == DeathOutcome.ExtraLife)
+        {
+            // A pillar of light comes down where the player will rise again.
+            yield return new WaitForSecondsRealtime(reviveDelay * 0.5f);
+            CoreEffects.Beam(extraLifeMaterial, new Color(extraLifeColor.r, extraLifeColor.g, extraLifeColor.b, 0.5f), Color.white,
+                             spawn + Vector2.up * 16f, spawn, 1.6f, reviveDelay * 0.8f);
+            yield return new WaitForSecondsRealtime(reviveDelay * 0.5f);
+        }
+        else
+        {
+            yield return new WaitForSecondsRealtime(reviveDelay);
+        }
         yield return Appear(spawn, true);
+        if (outcome == DeathOutcome.ExtraLife)
+            ExtraLifeBlast(spawn);
+    }
+
+    // Back from the dead: a blast that throws everybody around back (the host hurts them) and protects the player.
+    private void ExtraLifeBlast(Vector2 at)
+    {
+        CoreEffects.Ring(extraLifeMaterial, extraLifeColor, at, extraLifeBlastRadius * 1.3f, 0.45f, 0.45f);
+        CoreEffects.Ring(extraLifeMaterial, Color.white, at, extraLifeBlastRadius * 0.8f, 0.25f, 0.3f);
+        SpawnEffect(explosionEffect, at, Quaternion.Euler(0f, 0f, 90f), 1.3f);
+        PlaySound(explosionSound, explosionVolume);
+        CRTScreen.Blur(at, 1f);
+        if (cameraShake != null)
+            cameraShake.Shake(explosionShakeStrength, explosionShakeDuration);
+        if (!net.IsHostSide)
+            return;
+        CoreEffects.Blast(null, 0f, at, extraLifeBlastRadius, extraLifeBlastDamage, extraLifeKnockback, cores, true, target);
+        health.SetInvulnerable(extraLifeProtection);
     }
 
     // ---------- Map changes ----------

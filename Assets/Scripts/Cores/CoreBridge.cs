@@ -61,21 +61,24 @@ public class CoreBridge : MonoBehaviour
     // Multiplier for the gun's random spread.
     public float SpreadMultiplier => singleCores.SpreadMultiplier;
 
-    // Fires one shot: the cores decide how many bullets, in which directions, and how strong.
-    public void FireShot(Projectile prefab, Vector2 position, Quaternion aim, float speed, float damage, float lifetime, Rigidbody2D shooter)
+    // Fires one shot: the cores decide how many bullets, in which directions, and how strong. gun = what a special
+    // gun's bullets do besides (rockets, grenades...).
+    public void FireShot(Projectile prefab, Vector2 position, Quaternion aim, float speed, float damage, float lifetime, Rigidbody2D shooter,
+                         PlayerWeapon.GunEffect gun = PlayerWeapon.GunEffect.None)
     {
         projectilePrefab = prefab;
         float size;
         float damageMultiplier = singleCores.ShotDamage(out size);
-        net.Fire(position, aim.eulerAngles.z, speed, damage * damageMultiplier, lifetime, size);
+        net.Fire(position, aim.eulerAngles.z, speed, damage * damageMultiplier, lifetime, size, (int)gun);
     }
 
     // Spawns a shot's bullets on this machine (PlayerNetwork): the real ones on the host, look-alikes elsewhere.
-    public void SpawnShot(Vector2 position, float angle, float speed, float damage, float lifetime, float size, int seed, bool lookAlike)
+    public void SpawnShot(Vector2 position, float angle, float speed, float damage, float lifetime, float size, int seed, bool lookAlike, int gun)
     {
         if (projectilePrefab == null)
             projectilePrefab = GetComponent<PlayerWeapon>().ProjectilePrefab;
-        bulletCores.FireShot(projectilePrefab, position, Quaternion.Euler(0f, 0f, angle), speed, damage, lifetime, body, size, seed, lookAlike);
+        bulletCores.FireShot(projectilePrefab, position, Quaternion.Euler(0f, 0f, angle), speed, damage, lifetime, body, size, seed, lookAlike,
+                             (PlayerWeapon.GunEffect)gun);
     }
 
     // ---------- This player's bullets (Projectile, only bullets fired through FireShot) ----------
@@ -117,7 +120,7 @@ public class CoreBridge : MonoBehaviour
     public float SpecialAmmoMultiplier => singleCores.SpecialAmmoMultiplier;
 
     // Host: this player's bullets or cores dealt that much damage (Vampire).
-    public void OnDamageDealt(float amount) => singleCores.OnDamageDealt(amount);
+    public void OnDamageDealt(float amount, Vector2 at) => singleCores.OnDamageDealt(amount, at);
 
     // The machine that controls the player landed hard; the shockwave counts on the host.
     public void OnHardLanding(Vector2 feet)

@@ -21,10 +21,31 @@ using UnityEngine.InputSystem;
 [RequireComponent(typeof(Rigidbody2D))]
 public class PlayerWeapon : MonoBehaviour
 {
+    // What a special gun's bullets do besides hitting (BulletCores): rockets and grenades blow up, a rail shot goes
+    // through everyone as a beam, flames set on fire.
+    public enum GunEffect { None, Rocket, Grenade, Rail, Flame }
+
     [System.Serializable]
     public class SpecialGun
     {
         public string name = "GUN";
+
+        [Tooltip("What its bullets do besides hitting.")]
+        public GunEffect effect;
+
+        [Tooltip("Shots per trigger pull, one after another (a burst; one ammo for all of them).")]
+        [Min(1)]
+        public int burst = 1;
+        public float burstGap = 0.07f;
+
+        [Tooltip("How it looks, held and on its crate (pointing right). None = the normal gun, scaled and tinted.")]
+        public Sprite sprite;
+
+        [Tooltip("Its shot sound (none = the normal one).")]
+        public AudioClip sound;
+
+        [Tooltip("How hard the shooter's screen shakes with each shot (0 = the normal small shake).")]
+        public float shake;
 
         [Tooltip("Shots per second.")]
         [Min(0.1f)]
@@ -154,10 +175,23 @@ public class PlayerWeapon : MonoBehaviour
                          ammo = 4, gunScale = new Vector2(1.7f, 1f), gunColor = new Color(0.4f, 0.65f, 0.4f) },
         new SpecialGun { name = "MINIGUN", fireRate = 14f, damage = 5f, speed = 32f, lifetime = 1.2f, pellets = 1, spread = 6f,
                          ammo = 50, gunScale = new Vector2(1.4f, 1.5f), gunColor = new Color(0.65f, 0.68f, 0.75f) },
+        new SpecialGun { name = "BAZOOKA", effect = GunEffect.Rocket, fireRate = 0.8f, damage = 35f, speed = 16f, lifetime = 3f,
+                         pellets = 1, spread = 0f, ammo = 3 },
+        new SpecialGun { name = "GRENADE", effect = GunEffect.Grenade, fireRate = 1.6f, damage = 25f, speed = 17f, lifetime = 3f,
+                         pellets = 1, spread = 0f, ammo = 5 },
+        new SpecialGun { name = "RAILGUN", effect = GunEffect.Rail, fireRate = 0.7f, damage = 35f, speed = 90f, lifetime = 0.6f,
+                         pellets = 1, spread = 0f, ammo = 3 },
+        new SpecialGun { name = "FLAMER", effect = GunEffect.Flame, fireRate = 16f, damage = 2f, speed = 15f, lifetime = 0.32f,
+                         pellets = 1, spread = 12f, ammo = 60 },
+        new SpecialGun { name = "BURST", fireRate = 2.6f, damage = 9f, speed = 38f, lifetime = 1.5f, pellets = 1, spread = 2f,
+                         ammo = 10, burst = 3, burstGap = 0.07f },
     };
 
     public Projectile ProjectilePrefab => projectilePrefab;
     public int SpecialGunCount => specialGuns.Length;
+
+    // Special gun 1, 2, ... as it looks (its crate shows it too).
+    public Sprite GunSprite(int type) => type > 0 && type <= specialGuns.Length ? specialGuns[type - 1].sprite : null;
 
     // The owner's special gun and its shots left (null / 0 = the normal gun).
     public SpecialGun HeldGun => net != null && net.Gun > 0 && net.Gun <= specialGuns.Length && ammo > 0 ? specialGuns[net.Gun - 1] : null;
@@ -180,6 +214,7 @@ public class PlayerWeapon : MonoBehaviour
     private Vector3 gunBaseScale;
     private SpriteRenderer gunSprite;
     private Color gunBaseColor;
+    private Sprite gunBaseSprite;
 
     private void Awake()
     {
@@ -194,6 +229,7 @@ public class PlayerWeapon : MonoBehaviour
         gunBaseScale = gunVisual.localScale;
         gunSprite = gunVisual.GetComponentInChildren<SpriteRenderer>();
         gunBaseColor = gunSprite != null ? gunSprite.color : Color.white;
+        gunBaseSprite = gunSprite != null ? gunSprite.sprite : null;
         currentSpread = minSpread;
     }
 
@@ -212,9 +248,13 @@ public class PlayerWeapon : MonoBehaviour
             return;
         shownGun = held;
         SpecialGun special = held > 0 && held <= specialGuns.Length ? specialGuns[held - 1] : null;
-        gunVisual.localScale = special != null ? Vector3.Scale(gunBaseScale, new Vector3(special.gunScale.x, special.gunScale.y, 1f)) : gunBaseScale;
+        bool ownLook = special != null && special.sprite != null; // its own pixel art, at its real size
+        gunVisual.localScale = special != null && !ownLook ? Vector3.Scale(gunBaseScale, new Vector3(special.gunScale.x, special.gunScale.y, 1f)) : gunBaseScale;
         if (gunSprite != null)
-            gunSprite.color = special != null ? special.gunColor : gunBaseColor;
+        {
+            gunSprite.sprite = ownLook ? special.sprite : gunBaseSprite;
+            gunSprite.color = ownLook ? Color.white : special != null ? special.gunColor : gunBaseColor;
+        }
         if (held == 0)
             ammo = 0;
     }
@@ -303,21 +343,31 @@ public class PlayerWeapon : MonoBehaviour
         PlayShotFeedback(spreadAngle, true);
     }
 
-    // A special gun's shot: its bullets fanned out over its spread (one bullet: a random angle inside it), one ammo.
+    // A special gun's trigger pull: one ammo for its shots (a burst gun fires a few, one after another), each one its
+    // bullets fanned out over its spread (one bullet: a random angle inside it).
     private void ShootSpecial(SpecialGun special)
     {
-        float spread = special.spread * cores.SpreadMultiplier;
-        for (int i = 0; i < special.pellets; i++)
-        {
-            float angle = special.pellets > 1 ? Mathf.Lerp(-spread, spread, i / (special.pellets - 1f)) + Random.Range(-2f, 2f)
-                                              : Random.Range(-spread, spread);
-            Quaternion rotation = firePoint.rotation * Quaternion.Euler(0f, 0f, angle);
-            cores.FireShot(projectilePrefab, firePoint.position, rotation, special.speed, special.damage, special.lifetime, playerRigidbody);
-        }
-        PlayShotFeedback(0f, true);
-
         ammo--;
-        if (ammo <= 0)
+        StartCoroutine(Burst(special, ammo <= 0));
+    }
+
+    private System.Collections.IEnumerator Burst(SpecialGun special, bool last)
+    {
+        for (int shot = 0; shot < special.burst; shot++)
+        {
+            if (shot > 0)
+                yield return new WaitForSeconds(special.burstGap);
+            float spread = special.spread * cores.SpreadMultiplier;
+            for (int i = 0; i < special.pellets; i++)
+            {
+                float angle = special.pellets > 1 ? Mathf.Lerp(-spread, spread, i / (special.pellets - 1f)) + Random.Range(-2f, 2f)
+                                                  : Random.Range(-spread, spread);
+                Quaternion rotation = firePoint.rotation * Quaternion.Euler(0f, 0f, angle);
+                cores.FireShot(projectilePrefab, firePoint.position, rotation, special.speed, special.damage, special.lifetime, playerRigidbody, special.effect);
+            }
+            PlayShotFeedback(0f, true);
+        }
+        if (last)
             net.DropGun(); // back to the normal gun
     }
 
@@ -349,6 +399,8 @@ public class PlayerWeapon : MonoBehaviour
 
     public void PlayShotFeedback(float spreadAngle, bool shake)
     {
+        if (TryGetComponent(out CoreLooks looks))
+            looks.OnShot(); // Hot Barrel, Opener
         gunVisual.localPosition = gunRestPosition - Vector3.right * gunKickDistance;           // gun's local -X = backwards
         gunVisual.localRotation = gunRestRotation * Quaternion.Euler(0f, 0f, spreadAngle);  // gun jerks toward where the bullet went
         muzzleFlash.SetActive(true);
@@ -358,12 +410,21 @@ public class PlayerWeapon : MonoBehaviour
         muzzleFlash.transform.localScale = Vector3.one * (Random.Range(0, 2) == 0 ? 1.1f : 1.4f);
         ShellCasings.Eject(gunVisual.position, -(Vector2)firePoint.right, shellMaterial, shellColor);
 
+        // A special gun has its own sound, and a strong one (bazooka, shotgun...) shakes the screen harder.
+        int held = net != null ? net.Gun : 0;
+        SpecialGun special = held > 0 && held <= specialGuns.Length ? specialGuns[held - 1] : null;
         if (shake && cameraShake != null)
-            cameraShake.Shake(cameraShakeStrength, cameraShakeDuration);
+        {
+            if (special != null && special.shake > 0f)
+                cameraShake.Shake(special.shake, cameraShakeDuration * 2f);
+            else
+                cameraShake.Shake(cameraShakeStrength, cameraShakeDuration);
+        }
 
         // Other players' shots are quieter than this player's own.
         bool mine = net == null || net.IsMine;
-        GameAudio.PlayAt(shootSound, muzzleFlash.transform.position, shootVolume * (mine ? 1f : otherShotsVolume), shootPitchVariation);
+        AudioClip sound = special != null && special.sound != null ? special.sound : shootSound;
+        GameAudio.PlayAt(sound, muzzleFlash.transform.position, shootVolume * (mine ? 1f : otherShotsVolume), shootPitchVariation);
     }
 
     // The gun eases back to rest; the muzzle flash hides after a moment.

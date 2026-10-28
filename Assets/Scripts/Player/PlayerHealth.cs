@@ -108,13 +108,14 @@ public class PlayerHealth : MonoBehaviour
                            Vector2? wound = null)
     {
         float before = Health;
+        bool shielded = net.Shield > 0f; // the shield takes it: no blood, half the push
         bool alive = Hurt(amount, source);
-        if (wound.HasValue && (alive || Health < before)) // it landed (also the killing blow)
+        if (wound.HasValue && !shielded && (alive || Health < before)) // it landed (also the killing blow)
             net.PlayBleed(wound.Value, -direction.normalized);
         if (!alive)
             return;
 
-        float scale = knockbackScale * (GameMode.IsLan ? lanKnockbackScale : 1f) * OwnKnockbackTaken;
+        float scale = knockbackScale * (GameMode.IsLan ? lanKnockbackScale : 1f) * OwnKnockbackTaken * (shielded ? 0.5f : 1f);
         net.PushOwner(new Vector2(Mathf.Sign(direction.x) * knockback.x, knockback.y) * scale, true);
     }
 
@@ -168,6 +169,22 @@ public class PlayerHealth : MonoBehaviour
             return true; // LAN lobby: shooting each other is just for fun: hits push and flash, no health is lost
         }
 
+        // A shield takes the damage first (PlayerShield flashes and, once it is used up, shatters).
+        float shield = net.Shield;
+        if (shield > 0f)
+        {
+            float absorbed = Mathf.Min(shield, amount);
+            net.SetShield(shield - absorbed);
+            amount -= absorbed;
+            if (source != null)
+                LastAttacker = source;
+            if (amount <= 0f)
+            {
+                ConfirmHit(source, 0f, false); // the shooter hears the hit, no number
+                return true;
+            }
+        }
+
         float dealt = Mathf.Min(amount, Health);
         net.Health = Mathf.Max(0f, Health - amount);
         invulnerableTimer = GameMode.IsLan ? lanInvulnerableTime : invulnerableTime;
@@ -177,7 +194,7 @@ public class PlayerHealth : MonoBehaviour
         net.PlayHurt(invulnerableTimer);
         ConfirmHit(source, dealt, Health <= 0f);
         if (source != null && source != cores)
-            source.OnDamageDealt(dealt); // Vampire
+            source.OnDamageDealt(dealt, transform.position); // Vampire
 
         if (Health <= 0f)
         {
@@ -201,6 +218,8 @@ public class PlayerHealth : MonoBehaviour
     {
         flashTimer = hitFlashTime;
         blinkTimer = Mathf.Max(blinkTimer, blinkTime);
+        if (TryGetComponent(out CoreLooks looks))
+            looks.OnHurt(); // Anchor, Thick Skin
         if (cameraShake != null && net.IsMine)
             cameraShake.Shake(hitShakeStrength, hitShakeDuration);
         if (net.IsMine)

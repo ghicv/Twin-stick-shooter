@@ -165,6 +165,7 @@ public class PlayerMovement : MonoBehaviour
     private CoreBridge cores;
     private PlayerHealth health;
     private PlayerNetwork net;
+    private PlayerSword sword;
     private InputAction moveAction;
     private InputAction jumpAction;
     private InputAction dashAction;
@@ -220,6 +221,7 @@ public class PlayerMovement : MonoBehaviour
         cores = GetComponent<CoreBridge>();        // this player's own cores (null → none)
         health = GetComponent<PlayerHealth>();     // null → a dash gives no protection
         net = GetComponent<PlayerNetwork>();       // null → no dash ghosts for the other machines
+        sword = GetComponent<PlayerSword>();       // null → dashes never slash
         baseGravityScale = rb.gravityScale;
 
         // Actions come from the project-wide input asset: Assets/InputSystem_Actions.inputactions
@@ -604,6 +606,8 @@ public class PlayerMovement : MonoBehaviour
         {
             airJumpsLeft--;
             Jump(new Vector2(rb.linearVelocity.x, doubleJumpForce / rb.mass));
+            if (TotalAirJumps - airJumpsLeft > airJumps && net != null) // one of the Extra Jump core's: wind and wings
+                net.ShowOwnEffect(SingleCores.ExtraJumpEffectId, FeetPosition, 1f);
             return true;
         }
 
@@ -639,6 +643,8 @@ public class PlayerMovement : MonoBehaviour
             health.MakeInvulnerable(dashTime + 0.05f); // Dash+: can't be hurt while dashing
         if (net != null)
             net.PlayDash(dashTime); // the ghosts, on every machine
+        if (sword != null && sword.Active)
+            sword.DashSlash(dashDirection, dashTime); // Draw the Sword: the dash cuts through
     }
 
     // Sets the velocity directly (impulse / mass for the upward part) so every jump has the same height,

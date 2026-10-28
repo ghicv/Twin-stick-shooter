@@ -8,9 +8,30 @@ using UnityEngine;
 [RequireComponent(typeof(CoreInventory))]
 public class SingleCores : MonoBehaviour
 {
-    // Effects the host shows on the other machines too (PlayerNetwork.ShowEffect).
+    // Effects the host (or the player's own machine) shows on the other machines too (PlayerNetwork.ShowEffect).
     public const int DustEffectId = 0;
     public const int BlastEffectId = 1;
+    public const int VampireEffectId = 2;   // position = where the blood comes from, scale = health gained
+    public const int VoidFeastEffectId = 3; // scale = health gained
+    public const int MedicEffectId = 4;
+    public const int ExtraJumpEffectId = 5; // position = the feet
+    public const int CrashEffectId = 6;
+
+    [Header("Looks")]
+    [Tooltip("The pixel font of the words popping up in the world (CHÍ MẠNG!, +30...).")]
+    [SerializeField] private Font popFont;
+
+    [Tooltip("A small white square: the pixel specks of effects.")]
+    [SerializeField] private Sprite speckSprite;
+
+    [Tooltip("A pixel wing (pointing left): Extra Jump's wings.")]
+    [SerializeField] private Sprite wingSprite;
+
+    [SerializeField] private Material ringMaterial;
+
+    [Tooltip("A bright chime: health from Vampire, Void Feast and Medic.")]
+    [SerializeField] private AudioClip healSound;
+    [SerializeField] private AudioClip whooshSound;
 
     [Header("PLAYER · Ground Pound")]
     [Tooltip("Targets within this distance of the player's feet are hit by a hard landing (units).")]
@@ -35,16 +56,23 @@ public class SingleCores : MonoBehaviour
     [Tooltip("Max health added (and given right away) when the core is picked.")]
     [SerializeField] private float thickSkinHealth = 40f;
 
-    [Header("PLAYER · Orbit")]
-    [Tooltip("Two orbs circle the player at this distance, destroying other players' bullets and hurting whoever they touch.")]
+    [Header("PLAYER · Orbit (flying swords)")]
+    [Tooltip("Flying swords circle the player at this distance (degrees per second), cutting other players' bullets...")]
     [SerializeField] private float orbitRadius = 1.3f;
-    [SerializeField] private float orbitSpeed = 220f;
-    [SerializeField] private float orbitDamage = 8f;
+    [SerializeField] private float orbitSpeed = 160f;
 
-    [Tooltip("The same target can't be hurt by the orbs again for this long (seconds).")]
-    [SerializeField] private float orbitHitCooldown = 0.4f;
+    [Tooltip("...and fly off to a target within reach, hit it for this much and fly back...")]
+    [SerializeField] private float orbitDamage = 15f;
+
+    [Tooltip("...then rest this long before flying off again (seconds, each sword on its own).")]
+    [SerializeField] private float orbitHitCooldown = 1.2f;
+
+    [Tooltip("A small sword pointing right (the flying swords).")]
     [SerializeField] private Sprite orbSprite;
     [SerializeField] private Color orbColor = new Color(0.5f, 0.9f, 1f);
+
+    [Tooltip("The flying swords' light trails.")]
+    [SerializeField] private Material orbitTrailMaterial;
 
     [Header("PLAYER · Anchor")]
     [Tooltip("Knockback this player takes is multiplied by this.")]
@@ -149,6 +177,10 @@ public class SingleCores : MonoBehaviour
         self = GetComponent<HitTarget>();
         cameraShake = Camera.main.GetComponent<CameraShake>(); // null → no shake
         inventory.Added += OnAdded;
+        if (popFont != null)
+            CoreEffects.PopFont = popFont;
+        if (speckSprite != null)
+            CoreEffects.Speck = speckSprite;
     }
 
     private bool Has(CoreType type) => inventory.Has(type);
@@ -172,7 +204,7 @@ public class SingleCores : MonoBehaviour
             {
                 orbit = new GameObject("Orbit").AddComponent<CoreOrbit>();
                 orbit.transform.SetParent(transform, false);
-                orbit.Setup(this, net, self, orbSprite, orbColor, orbitRadius, orbitSpeed, orbitDamage, orbitHitCooldown);
+                orbit.Setup(this, net, self, orbSprite, orbColor, orbitTrailMaterial, orbitRadius, orbitSpeed, orbitDamage, orbitHitCooldown);
             }
             else
             {
@@ -281,6 +313,7 @@ public class SingleCores : MonoBehaviour
             {
                 playerHealth.Heal(voidFeastHeal);
                 net.ResetDash();
+                ShowEffect(VoidFeastEffectId, transform.position, voidFeastHeal);
             }
             return;
         }
@@ -292,11 +325,14 @@ public class SingleCores : MonoBehaviour
         }
     }
 
-    // Host: this player's bullets or cores dealt that much damage (Vampire heals a share of it).
-    public void OnDamageDealt(float amount)
+    // Host: this player's bullets or cores dealt that much damage there (Vampire heals a share of it, the blood flies
+    // over).
+    public void OnDamageDealt(float amount, Vector2 at)
     {
-        if (Has(CoreType.Vampire) && amount > 0f)
-            playerHealth.Heal(amount * vampireLifesteal);
+        if (!Has(CoreType.Vampire) || amount <= 0f)
+            return;
+        playerHealth.Heal(amount * vampireLifesteal);
+        ShowEffect(VampireEffectId, at, amount * vampireLifesteal);
     }
 
     // A target this player hit was knocked into a wall (other = null) or into another enemy.
@@ -309,7 +345,7 @@ public class SingleCores : MonoBehaviour
         if (other != null && other != self)
             hurt |= Crash(other, point);
         if (hurt)
-            ShowEffect(DustEffectId, point, 1f);
+            ShowEffect(CrashEffectId, point, 1f);
     }
 
     private bool Crash(HitTarget target, Vector2 point)
@@ -327,7 +363,7 @@ public class SingleCores : MonoBehaviour
     // ---------- Effects ----------
 
     // On this machine, and (from the host) on the other machines too.
-    private void ShowEffect(int effect, Vector2 position, float scale)
+    public void ShowEffect(int effect, Vector2 position, float scale)
     {
         PlayEffect(effect, position, scale);
         if (OnHost)
@@ -336,14 +372,67 @@ public class SingleCores : MonoBehaviour
 
     public void PlayEffect(int effect, Vector2 position, float scale)
     {
-        ParticleSystem prefab = effect == DustEffectId ? dustEffect : deathBlastEffect;
-        if (prefab != null)
+        Vector2 above = (Vector2)transform.position + Vector2.up * 1.4f;
+        Color green = new Color(0.45f, 1f, 0.5f);
+        switch (effect)
         {
-            ParticleSystem instance = Instantiate(prefab, position, Quaternion.identity);
-            instance.transform.localScale = Vector3.one * scale;
+            case DustEffectId:
+            case BlastEffectId:
+                ParticleSystem prefab = effect == DustEffectId ? dustEffect : deathBlastEffect;
+                if (prefab != null)
+                    Instantiate(prefab, position, Quaternion.identity).transform.localScale = Vector3.one * scale;
+                if (effect == BlastEffectId) // Death Blast: a big orange shock wave
+                {
+                    CoreEffects.Ring(ringMaterial, new Color(1f, 0.55f, 0.2f), position, scale * 1.3f, 0.4f, 0.4f);
+                    CoreEffects.Burst(position, new Color(1f, 0.7f, 0.3f), 16, 10f);
+                    CRTScreen.Blur(position, 0.8f);
+                }
+                if (cameraShake != null)
+                    cameraShake.Shake(effect == DustEffectId && scale > 1.5f ? groundPoundShakeStrength : 0.15f,
+                                      effect == DustEffectId && scale > 1.5f ? groundPoundShakeDuration : 0.12f);
+                break;
+
+            case VampireEffectId: // drops of blood fly from the victim into the player
+                for (int i = 0; i < 6; i++)
+                    FxSpeck.Spawn(speckSprite, new Color(0.85f, 0.05f, 0.15f), position + Random.insideUnitCircle * 0.3f,
+                                  Random.insideUnitCircle * 6f, 0f, 0.8f, 0.12f, 0f, transform);
+                CoreEffects.Pop("+" + Mathf.Max(1, Mathf.RoundToInt(scale)), above, green, 0.8f);
+                break;
+
+            case VoidFeastEffectId: // a green burst of life
+                CoreEffects.Ring(ringMaterial, green, transform.position, 2.2f, 0.35f, 0.4f);
+                CoreEffects.Burst(transform.position, green, 14, 7f);
+                CoreEffects.Pop("+" + Mathf.RoundToInt(scale), above, green, 1.2f);
+                GameAudio.PlayAt(healSound, transform.position, 0.5f, 0.05f);
+                break;
+
+            case MedicEffectId: // green crosses floating up, and a shimmer
+                for (int i = 0; i < 4; i++)
+                    CoreEffects.Pop("+", (Vector2)transform.position + new Vector2(Random.Range(-0.6f, 0.6f), Random.Range(0.2f, 1.2f)), green, 0.9f);
+                CoreEffects.Ring(ringMaterial, green, transform.position, 1.6f, 0.2f, 0.35f);
+                GameAudio.PlayAt(healSound, transform.position, 0.45f, 0.05f);
+                break;
+
+            case ExtraJumpEffectId: // a ring of wind under the feet and a flap of pixel wings
+                CoreEffects.Ring(ringMaterial, Color.white, position, 1.1f, 0.15f, 0.25f);
+                CoreEffects.Burst(position, new Color(1f, 1f, 1f, 0.8f), 6, 5f, Vector2.down, 0.08f);
+                for (int side = -1; side <= 1; side += 2)
+                {
+                    FxSpeck wing = FxSpeck.Spawn(wingSprite, Color.white, (Vector2)transform.position + new Vector2(side * 0.55f, 0.3f),
+                                                 new Vector2(side * 1.5f, -1f), 0f, 0.3f, 1f);
+                    wing.GetComponent<SpriteRenderer>().flipX = side > 0;
+                }
+                GameAudio.PlayAt(whooshSound, position, 0.35f, 0.1f);
+                break;
+
+            case CrashEffectId: // dust and a crack of a shock wave where it hit the wall
+                if (dustEffect != null)
+                    Instantiate(dustEffect, position, Quaternion.identity);
+                CoreEffects.Ring(ringMaterial, new Color(0.9f, 0.85f, 0.7f), position, 1.4f, 0.3f, 0.25f);
+                CoreEffects.Burst(position, new Color(0.65f, 0.6f, 0.55f), 10, 8f);
+                if (cameraShake != null)
+                    cameraShake.Shake(0.15f, 0.12f);
+                break;
         }
-        if (cameraShake != null)
-            cameraShake.Shake(effect == DustEffectId && scale > 1.5f ? groundPoundShakeStrength : 0.15f,
-                              effect == DustEffectId && scale > 1.5f ? groundPoundShakeDuration : 0.12f);
     }
 }

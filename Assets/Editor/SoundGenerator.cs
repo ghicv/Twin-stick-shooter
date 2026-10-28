@@ -26,7 +26,194 @@ public static class SoundGenerator
         Save("Assets/Audio/SwordSwoosh.wav", SwordSwoosh());
         Save("Assets/Audio/SwordClang.wav", SwordClang());
         Save("Assets/Audio/SwordDraw.wav", SwordDraw());
+        Save("Assets/Audio/Guns/Shotgun.wav", Blast(0.3f, 0.35f, 110f, 9));
+        Save("Assets/Audio/Guns/Sniper.wav", SniperCrack());
+        Save("Assets/Audio/Guns/Minigun.wav", Pew(900f, 380f, 0.07f, 10));
+        Save("Assets/Audio/Guns/Bazooka.wav", RocketLaunch());
+        Save("Assets/Audio/Guns/Grenade.wav", Bloop());
+        Save("Assets/Audio/Guns/Railgun.wav", RailZap());
+        Save("Assets/Audio/Guns/Flamer.wav", Blast(0.14f, 0.05f, 60f, 11));
+        Save("Assets/Audio/Guns/Burst.wav", Pew(760f, 260f, 0.09f, 12));
+        Save("Assets/Audio/ShieldUp.wav", ShieldUp());
+        Save("Assets/Audio/ShieldHit.wav", Ping(1760f, 0.18f, 0.45f));
+        Save("Assets/Audio/ShieldBreak.wav", Shatter());
         AssetDatabase.Refresh();
+    }
+
+    // A noisy blast (shotgun, flamer): noise darkening as it fades, with a low thump of Thump Hz; Low = how dark.
+    private static float[] Blast(float seconds, float low, float thump, int seed)
+    {
+        int length = (int)(Rate * seconds);
+        var data = new float[length];
+        var random = new System.Random(seed);
+        float noise = 0f, phase = 0f;
+        for (int i = 0; i < length; i++)
+        {
+            float t = (float)i / Rate;
+            noise = Mathf.Lerp(noise, (float)random.NextDouble() * 2f - 1f, Mathf.Lerp(0.6f, low, t / seconds));
+            phase += Mathf.Lerp(thump, thump * 0.5f, t / seconds) / Rate;
+            float body = Mathf.Sin(phase * 2f * Mathf.PI) * Mathf.Exp(-t * 18f);
+            data[i] = (noise * Mathf.Exp(-t * 9f / seconds * 0.4f) * 0.9f + body * 0.6f) * Mathf.Min(1f, t / 0.001f) * Mathf.Exp(-t * 3f / seconds) * 0.8f;
+        }
+        return data;
+    }
+
+    // A quick "pew" from High down to Low Hz in Seconds, with a crack of noise (minigun, burst rifle).
+    private static float[] Pew(float high, float low, float seconds, int seed)
+    {
+        int length = (int)(Rate * seconds);
+        var data = new float[length];
+        var random = new System.Random(seed);
+        float phase = 0f, noise = 0f;
+        for (int i = 0; i < length; i++)
+        {
+            float t = (float)i / Rate;
+            phase += Mathf.Lerp(high, low, t / seconds) / Rate;
+            noise = Mathf.Lerp(noise, (float)random.NextDouble() * 2f - 1f, 0.35f);
+            float square = Mathf.Repeat(phase, 1f) < 0.5f ? 1f : -1f;
+            data[i] = (square * 0.35f + Triangle(phase) * 0.4f + noise * Mathf.Exp(-t * 120f) * 0.6f) * Mathf.Exp(-t * 6f / seconds) * Mathf.Min(1f, t / 0.001f) * 0.6f;
+        }
+        return data;
+    }
+
+    // A sniper: a sharp crack and a long rolling echo.
+    private static float[] SniperCrack()
+    {
+        int length = (int)(Rate * 0.7f);
+        var data = new float[length];
+        var random = new System.Random(13);
+        float crack = 0f, echo = 0f;
+        for (int i = 0; i < length; i++)
+        {
+            float t = (float)i / Rate;
+            float white = (float)random.NextDouble() * 2f - 1f;
+            crack = Mathf.Lerp(crack, white, 0.85f);
+            echo = Mathf.Lerp(echo, white, 0.05f);
+            float roll = echo * 3f * Mathf.Exp(-t * 5f) * (0.6f + 0.4f * Mathf.Sin(t * 40f));
+            data[i] = (crack * Mathf.Exp(-t * 70f) + roll * 0.7f) * Mathf.Min(1f, t / 0.0005f) * 0.75f;
+        }
+        return data;
+    }
+
+    // A rocket leaving the tube: a hollow thump and a hissing whoosh trailing off.
+    private static float[] RocketLaunch()
+    {
+        int length = (int)(Rate * 0.6f);
+        var data = new float[length];
+        var random = new System.Random(14);
+        float hiss = 0f, dark = 0f, phase = 0f;
+        for (int i = 0; i < length; i++)
+        {
+            float t = (float)i / Rate;
+            float white = (float)random.NextDouble() * 2f - 1f;
+            hiss = Mathf.Lerp(hiss, white, 0.45f);
+            dark = Mathf.Lerp(dark, hiss, 0.1f);
+            phase += Mathf.Lerp(120f, 50f, t / 0.25f) / Rate;
+            float thump = Mathf.Sin(phase * 2f * Mathf.PI) * Mathf.Exp(-t * 14f);
+            float whoosh = (hiss - dark) * Mathf.Min(1f, t / 0.05f) * Mathf.Exp(-t * 4f);
+            data[i] = (thump * 0.8f + whoosh * 1.2f) * Mathf.Min(1f, t / 0.001f) * 0.7f;
+        }
+        return data;
+    }
+
+    // A grenade launcher: a round hollow "bloop" dropping in pitch, with a click.
+    private static float[] Bloop()
+    {
+        int length = (int)(Rate * 0.22f);
+        var data = new float[length];
+        float phase = 0f;
+        for (int i = 0; i < length; i++)
+        {
+            float t = (float)i / Rate;
+            phase += Mathf.Lerp(420f, 140f, t / 0.22f) / Rate;
+            float click = t < 0.004f ? Mathf.Sin(t * 2f * Mathf.PI * 2500f) : 0f;
+            data[i] = (Mathf.Sin(phase * 2f * Mathf.PI) * Mathf.Exp(-t * 12f) * 0.8f + click * 0.4f) * Mathf.Min(1f, t / 0.002f) * 0.75f;
+        }
+        return data;
+    }
+
+    // A railgun: an electric buzz rising, then a hard bright "zap" crashing down.
+    private static float[] RailZap()
+    {
+        int length = (int)(Rate * 0.45f);
+        var data = new float[length];
+        var random = new System.Random(15);
+        float phase = 0f;
+        for (int i = 0; i < length; i++)
+        {
+            float t = (float)i / Rate;
+            float frequency = t < 0.06f ? Mathf.Lerp(600f, 2400f, t / 0.06f) : Mathf.Lerp(3200f, 120f, (t - 0.06f) / 0.39f);
+            phase += frequency / Rate;
+            float square = Mathf.Repeat(phase, 1f) < 0.5f ? 1f : -1f;
+            float noise = ((float)random.NextDouble() * 2f - 1f) * (t > 0.06f ? Mathf.Exp(-(t - 0.06f) * 25f) : 0.2f);
+            float envelope = t < 0.06f ? t / 0.06f * 0.4f : Mathf.Exp(-(t - 0.06f) * 7f);
+            data[i] = (square * 0.45f + noise * 0.6f) * envelope * 0.6f;
+        }
+        return data;
+    }
+
+    // A shield coming up: a bright chord shimmering upward.
+    private static float[] ShieldUp()
+    {
+        int length = (int)(Rate * 0.45f);
+        var data = new float[length];
+        float[] notes = { 523f, 659f, 784f, 1047f };
+        for (int i = 0; i < length; i++)
+        {
+            float t = (float)i / Rate;
+            float sum = 0f;
+            for (int n = 0; n < notes.Length; n++)
+            {
+                float start = n * 0.05f;
+                if (t < start)
+                    continue;
+                float local = t - start;
+                sum += Mathf.Sin(2f * Mathf.PI * notes[n] * local * (1f + 0.01f * Mathf.Sin(local * 30f))) * Mathf.Exp(-local * 5f) * Mathf.Min(1f, local / 0.01f);
+            }
+            data[i] = sum * 0.22f;
+        }
+        return data;
+    }
+
+    // A glassy "ping" of that pitch.
+    private static float[] Ping(float frequency, float seconds, float level)
+    {
+        int length = (int)(Rate * seconds);
+        var data = new float[length];
+        for (int i = 0; i < length; i++)
+        {
+            float t = (float)i / Rate;
+            data[i] = (Mathf.Sin(2f * Mathf.PI * frequency * t) * 0.7f + Mathf.Sin(2f * Mathf.PI * frequency * 2.76f * t) * 0.3f)
+                      * Mathf.Exp(-t * 18f) * Mathf.Min(1f, t / 0.001f) * level;
+        }
+        return data;
+    }
+
+    // A shield breaking: glass shattering, many small high pings over a burst of noise.
+    private static float[] Shatter()
+    {
+        int length = (int)(Rate * 0.6f);
+        var data = new float[length];
+        var random = new System.Random(16);
+        var pings = new (float time, float frequency)[14];
+        for (int p = 0; p < pings.Length; p++)
+            pings[p] = ((float)random.NextDouble() * 0.25f, 2000f + (float)random.NextDouble() * 4000f);
+        float noise = 0f;
+        for (int i = 0; i < length; i++)
+        {
+            float t = (float)i / Rate;
+            noise = Mathf.Lerp(noise, (float)random.NextDouble() * 2f - 1f, 0.6f);
+            float sum = noise * Mathf.Exp(-t * 14f) * 0.6f;
+            foreach (var ping in pings)
+            {
+                if (t < ping.time)
+                    continue;
+                float local = t - ping.time;
+                sum += Mathf.Sin(2f * Mathf.PI * ping.frequency * local) * Mathf.Exp(-local * 30f) * 0.18f;
+            }
+            data[i] = sum * Mathf.Min(1f, t / 0.001f) * 0.8f;
+        }
+        return data;
     }
 
     // A sword slash: air torn by the blade, a hiss of noise whose pitch sweeps down fast, with a soft whistle on top.

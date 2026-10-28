@@ -79,20 +79,26 @@ public class NetTestBot : MonoBehaviour
             rb.position = new Vector2(rb.position.x, -30f); // stuck behind cover too long: fall off so the match goes on
             roundTimer = 0f;
         }
-        else if (rb.simulated)
-        {
-            float vy = rb.linearVelocity.y;
-            if (Mathf.Repeat(Time.time, 2f) < Time.deltaTime && Mathf.Abs(vy) < 0.1f)
-                vy = 14f; // hop every 2 seconds
-            rb.linearVelocity = new Vector2(Mathf.Sin(Time.time * 1.5f) * 3f, vy);
-        }
-
-        // Shoot at the nearest other player.
+        // The nearest other player: shot at (or, with the sword, run at and slashed).
         PlayerNetwork aimAt = null;
         foreach (PlayerNetwork player in PlayerNetwork.All)
             if (player != local && player.InPlay && (aimAt == null || Vector2.Distance(player.transform.position, local.transform.position) <
                                                                       Vector2.Distance(aimAt.transform.position, local.transform.position)))
                 aimAt = player;
+        PlayerSword sword = local.GetComponent<PlayerSword>();
+        bool swordOut = sword != null && sword.Active;
+
+        if (rb.simulated && !lobby && !(roundTimer > 15f))
+        {
+            float vy = rb.linearVelocity.y;
+            if (Mathf.Repeat(Time.time, 2f) < Time.deltaTime && Mathf.Abs(vy) < 0.1f)
+                vy = 14f; // hop every 2 seconds
+            float vx = Mathf.Sin(Time.time * 1.5f) * 3f;
+            if (swordOut && aimAt != null)
+                vx = Mathf.Clamp(aimAt.transform.position.x - local.transform.position.x, -1f, 1f) * 6f; // close in
+            rb.linearVelocity = new Vector2(vx, vy);
+        }
+
         Transform pivot = local.transform.Find("GunPivot");
         if (aimAt != null)
         {
@@ -100,7 +106,12 @@ public class NetTestBot : MonoBehaviour
             pivot.rotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(to.y, to.x) * Mathf.Rad2Deg);
             shootTimer -= Time.deltaTime;
             bool matchOn = MatchManager.Instance != null && MatchManager.Instance.InMatch; // no shooting in the lobby
-            if (shootTimer <= 0f && local.InPlay && matchOn)
+            if (swordOut)
+            {
+                if (local.InPlay && matchOn && to.magnitude < 2.2f)
+                    sword.Attack();
+            }
+            else if (shootTimer <= 0f && local.InPlay && matchOn)
             {
                 shootTimer = 0.25f;
                 Transform firePoint = pivot.Find("FirePoint");

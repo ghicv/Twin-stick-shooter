@@ -51,6 +51,8 @@ public class Projectile : MonoBehaviour
     private Rigidbody2D rb;
     private Collider2D bulletCollider;
     private SpriteRenderer sprite;
+    private Vector3 baseScale;    // the prefab's size (SizeTo)
+    private float baseTrailWidth;
     private Rigidbody2D shooter;
     private HitTarget shooterTarget;
     private CoreBridge cores; // null = plain bullet
@@ -63,6 +65,8 @@ public class Projectile : MonoBehaviour
         rb = GetComponent<Rigidbody2D>();
         bulletCollider = GetComponent<Collider2D>();
         sprite = GetComponent<SpriteRenderer>();
+        baseScale = transform.localScale;
+        baseTrailWidth = trail.widthMultiplier;
         Damage = damage;
         this.shooter = shooter;
         shooterTarget = shooter != null ? shooter.GetComponent<HitTarget>() : null;
@@ -95,10 +99,18 @@ public class Projectile : MonoBehaviour
     }
 
     // Bigger or smaller bullet (sprite, hit area and trail).
+    // Bigger by that factor (on top of any size change before).
     public void SetSize(float scale)
     {
         transform.localScale *= scale;
         trail.widthMultiplier *= scale;
+    }
+
+    // That size compared to the prefab (not growing on each call: for a size changing as it flies).
+    public void SizeTo(float size)
+    {
+        transform.localScale = baseScale * size;
+        trail.widthMultiplier = baseTrailWidth * size;
     }
 
     public void SetTint(Color color)

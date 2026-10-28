@@ -22,6 +22,10 @@ public class MapProps : MonoBehaviour
     [Tooltip("At most this many weapon crates at a time.")]
     [SerializeField] private int maxWeaponCrates = 2;
 
+    [Tooltip("Share of the crates that hold a shield instead of a gun.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float shieldChance = 0.25f;
+
     [Tooltip("Weapon crates drop from this height, anywhere this far left or right of the middle (units).")]
     [SerializeField] private float dropHeight = 10.5f;
     [SerializeField] private float dropHalfWidth = 13f;
@@ -100,6 +104,8 @@ public class MapProps : MonoBehaviour
             {
                 WeaponCrate crate = Spawn(weaponCratePrefab, new Vector2(Random.Range(-dropHalfWidth, dropHalfWidth), dropHeight));
                 crate.NetworkObject.Spawn(true);
+                int guns = PlayerNetwork.All.Count > 0 ? PlayerNetwork.All[0].GetComponent<PlayerWeapon>().SpecialGunCount : 1;
+                crate.Content = Random.value < shieldChance ? WeaponCrate.Shield : Random.Range(1, guns + 1);
                 weaponCrates.Add(crate);
             }
         }

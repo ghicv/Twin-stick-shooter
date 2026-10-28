@@ -49,6 +49,7 @@ public class PlayerNetwork : NetworkBehaviour
     private readonly NetworkVariable<float> aimAngle = new NetworkVariable<float>(0f,
         NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
     private readonly NetworkVariable<float> health = new NetworkVariable<float>(100f);
+    private readonly NetworkVariable<float> shield = new NetworkVariable<float>(0f); // shield left (PlayerShield)
     private readonly NetworkVariable<float> maxHealth = new NetworkVariable<float>(100f);
     private readonly NetworkVariable<bool> dead = new NetworkVariable<bool>(false);
     private readonly NetworkVariable<bool> ready = new NetworkVariable<bool>(false);
@@ -287,11 +288,32 @@ public class PlayerNetwork : NetworkBehaviour
     [Rpc(SendTo.Owner)]
     private void GiveGunRpc(int type) => weapon.EquipSpecial(type);
 
-    // Host: back to the normal gun (death, a new round).
+    // Host: back to the normal gun, and no shield (death, a new round).
     public void ClearGun()
     {
+        if (!IsServer)
+            return;
+        gun.Value = 0;
+        shield.Value = 0f;
+    }
+
+    // ---------- Shield (shield crates) ----------
+
+    // Damage the shield still takes before the player is hurt (0 = none). Every machine shows it (PlayerShield).
+    public float Shield => Offline ? 0f : shield.Value;
+
+    // Host: a fresh shield (PlayerShield knows how strong and how long).
+    public void GiveShield()
+    {
         if (IsServer)
-            gun.Value = 0;
+            GetComponent<PlayerShield>().RaiseOnHost();
+    }
+
+    // Host: the shield left.
+    public void SetShield(float amount)
+    {
+        if (IsServer)
+            shield.Value = Mathf.Max(0f, amount);
     }
 
     // Owner: out of ammo.
@@ -309,35 +331,36 @@ public class PlayerNetwork : NetworkBehaviour
     // ---------- Shots ----------
 
     // Owner: fires one shot. The host spawns the real bullets, every other machine look-alikes (same seed).
-    public void Fire(Vector2 position, float angle, float speed, float damage, float lifetime, float size)
+    // gun = a special gun's bullet effect (PlayerWeapon.GunEffect), sent with the shot so every machine agrees.
+    public void Fire(Vector2 position, float angle, float speed, float damage, float lifetime, float size, int gun)
     {
         int seed = Random.Range(1, int.MaxValue);
         if (IsHostSide)
         {
-            coreBridge.SpawnShot(position, angle, speed, damage, lifetime, size, seed, false);
+            coreBridge.SpawnShot(position, angle, speed, damage, lifetime, size, seed, false, gun);
             if (!Offline)
-                ShotLookAlikeRpc(position, angle, speed, damage, lifetime, size, seed);
+                ShotLookAlikeRpc(position, angle, speed, damage, lifetime, size, seed, gun);
         }
         else
         {
-            coreBridge.SpawnShot(position, angle, speed, damage, lifetime, size, seed, true); // no waiting for the host
-            FireRpc(position, angle, speed, damage, lifetime, size, seed);
+            coreBridge.SpawnShot(position, angle, speed, damage, lifetime, size, seed, true, gun); // no waiting for the host
+            FireRpc(position, angle, speed, damage, lifetime, size, seed, gun);
         }
     }
 
     [Rpc(SendTo.Server)]
-    private void FireRpc(Vector2 position, float angle, float speed, float damage, float lifetime, float size, int seed)
+    private void FireRpc(Vector2 position, float angle, float speed, float damage, float lifetime, float size, int seed, int gun)
     {
-        coreBridge.SpawnShot(position, angle, speed, damage, lifetime, size, seed, false);
-        ShotLookAlikeRpc(position, angle, speed, damage, lifetime, size, seed);
+        coreBridge.SpawnShot(position, angle, speed, damage, lifetime, size, seed, false, gun);
+        ShotLookAlikeRpc(position, angle, speed, damage, lifetime, size, seed, gun);
     }
 
     [Rpc(SendTo.NotServer)]
-    private void ShotLookAlikeRpc(Vector2 position, float angle, float speed, float damage, float lifetime, float size, int seed)
+    private void ShotLookAlikeRpc(Vector2 position, float angle, float speed, float damage, float lifetime, float size, int seed, int gun)
     {
         if (IsOwner)
             return; // the shooter made its own already
-        coreBridge.SpawnShot(position, angle, speed, damage, lifetime, size, seed, true);
+        coreBridge.SpawnShot(position, angle, speed, damage, lifetime, size, seed, true, gun);
         weapon.PlayShotFeedback(0f, false);
     }
 
@@ -594,6 +617,17 @@ public class PlayerNetwork : NetworkBehaviour
 
     [Rpc(SendTo.NotServer)]
     private void EffectRpc(int effect, Vector2 position, float scale) => coreBridge.PlayEffect(effect, position, scale);
+
+    // Owner: an effect this player's own machine noticed (an extra jump...), here and on every other machine.
+    public void ShowOwnEffect(int effect, Vector2 position, float scale)
+    {
+        coreBridge.PlayEffect(effect, position, scale);
+        if (!Offline)
+            OwnEffectRpc(effect, position, scale);
+    }
+
+    [Rpc(SendTo.NotMe)]
+    private void OwnEffectRpc(int effect, Vector2 position, float scale) => coreBridge.PlayEffect(effect, position, scale);
 
     // ---------- Setup ----------
 

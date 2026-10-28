@@ -47,7 +47,10 @@ public class HealthPack : NetworkBehaviour
         taken = true;
         player.GetComponent<PlayerHealth>().Heal(healAmount * player.Cores.HealthPackHeal);
         if (player.Cores.HealthPackProtection > 0f)
+        {
             player.GetComponent<PlayerHealth>().SetInvulnerable(player.Cores.HealthPackProtection); // Medic
+            player.GetComponent<SingleCores>().ShowEffect(SingleCores.MedicEffectId, player.transform.position, 1f);
+        }
         TakenRpc();
         NetworkObject.Despawn();
     }

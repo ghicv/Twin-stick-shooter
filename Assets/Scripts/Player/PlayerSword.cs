@@ -129,6 +129,21 @@ public class PlayerSword : MonoBehaviour
         net.Slash(pivot.eulerAngles.z);
     }
 
+    // Owner, a dash (Shift) with the sword out: a slash as it starts and another as it ends, the dash carrying the
+    // blade through whoever is in the way.
+    public void DashSlash(Vector2 direction, float dashTime)
+    {
+        StartCoroutine(DashSlashes(Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg, dashTime));
+    }
+
+    private IEnumerator DashSlashes(float angle, float dashTime)
+    {
+        net.Slash(angle);
+        yield return new WaitForSeconds(dashTime);
+        net.Slash(angle);
+        nextSlash = Time.time + cooldown;
+    }
+
     // Every machine: the swing, the crescent and the sound; this machine's bullets in the arc are cut.
     public void PlaySlash(float angle)
     {

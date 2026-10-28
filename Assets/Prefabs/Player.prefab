@@ -459,6 +459,8 @@ GameObject:
   - component: {fileID: 890928807774870592}
   - component: {fileID: 5283182453057135285}
   - component: {fileID: 6065724173718606820}
+  - component: {fileID: 1326928764112075697}
+  - component: {fileID: 4295650844028498137}
   m_Layer: 8
   m_Name: Player
   m_TagString: Player
@@ -658,6 +660,12 @@ MonoBehaviour:
   shootPitchVariation: 0.08
   specialGuns:
   - name: SHOTGUN
+    effect: 0
+    burst: 1
+    burstGap: 0.07
+    sprite: {fileID: 21300000, guid: 5f9309647b77a0c4caa7400e6b11200e, type: 3}
+    sound: {fileID: 8300000, guid: 63743954b3e0bfb4c89f6d03922516f8, type: 3}
+    shake: 0.28
     fireRate: 1.4
     damage: 8
     speed: 26
@@ -665,9 +673,15 @@ MonoBehaviour:
     pellets: 6
     spread: 14
     ammo: 6
-    gunScale: {x: 1.25, y: 1.4}
-    gunColor: {r: 0.75, g: 0.5, b: 0.25, a: 1}
+    gunScale: {x: 1, y: 1}
+    gunColor: {r: 1, g: 1, b: 1, a: 1}
   - name: SNIPER
+    effect: 0
+    burst: 1
+    burstGap: 0.07
+    sprite: {fileID: 21300000, guid: e6c34355d455403439cbd6257dae0bd1, type: 3}
+    sound: {fileID: 8300000, guid: 0f80b2ff4f1ce7640a7dac697af37e43, type: 3}
+    shake: 0.3
     fireRate: 0.9
     damage: 40
     speed: 60
@@ -675,9 +689,15 @@ MonoBehaviour:
     pellets: 1
     spread: 0
     ammo: 4
-    gunScale: {x: 1.7, y: 1}
-    gunColor: {r: 0.4, g: 0.65, b: 0.4, a: 1}
+    gunScale: {x: 1, y: 1}
+    gunColor: {r: 1, g: 1, b: 1, a: 1}
   - name: MINIGUN
+    effect: 0
+    burst: 1
+    burstGap: 0.07
+    sprite: {fileID: 21300000, guid: 3f8951c6dfd4e49458da02976981f513, type: 3}
+    sound: {fileID: 8300000, guid: 19f881f07a7b37244b9025d5673aca6b, type: 3}
+    shake: 0.07
     fireRate: 14
     damage: 5
     speed: 32
@@ -685,8 +705,88 @@ MonoBehaviour:
     pellets: 1
     spread: 6
     ammo: 50
-    gunScale: {x: 1.4, y: 1.5}
-    gunColor: {r: 0.65, g: 0.68, b: 0.75, a: 1}
+    gunScale: {x: 1, y: 1}
+    gunColor: {r: 1, g: 1, b: 1, a: 1}
+  - name: BAZOOKA
+    effect: 1
+    burst: 1
+    burstGap: 0.07
+    sprite: {fileID: 21300000, guid: ecaeee2162c8a4a47b6c3e0985d3cbc9, type: 3}
+    sound: {fileID: 8300000, guid: 46f10dbd6071d564397754a593c131ea, type: 3}
+    shake: 0.42
+    fireRate: 0.8
+    damage: 35
+    speed: 16
+    lifetime: 3
+    pellets: 1
+    spread: 0
+    ammo: 3
+    gunScale: {x: 1, y: 1}
+    gunColor: {r: 1, g: 1, b: 1, a: 1}
+  - name: GRENADE
+    effect: 2
+    burst: 1
+    burstGap: 0.07
+    sprite: {fileID: 21300000, guid: c11261b5d12bd754582dad78e747db76, type: 3}
+    sound: {fileID: 8300000, guid: 5856e247d64421342a73f0f5e3f223e0, type: 3}
+    shake: 0.15
+    fireRate: 1.6
+    damage: 25
+    speed: 17
+    lifetime: 3
+    pellets: 1
+    spread: 0
+    ammo: 5
+    gunScale: {x: 1, y: 1}
+    gunColor: {r: 1, g: 1, b: 1, a: 1}
+  - name: RAILGUN
+    effect: 3
+    burst: 1
+    burstGap: 0.07
+    sprite: {fileID: 21300000, guid: a30a14c3a27e51e47b38f2221f2fd5a9, type: 3}
+    sound: {fileID: 8300000, guid: be24c378f6115e246b775df3630584fd, type: 3}
+    shake: 0.32
+    fireRate: 0.7
+    damage: 35
+    speed: 90
+    lifetime: 0.6
+    pellets: 1
+    spread: 0
+    ammo: 3
+    gunScale: {x: 1, y: 1}
+    gunColor: {r: 1, g: 1, b: 1, a: 1}
+  - name: FLAMER
+    effect: 4
+    burst: 1
+    burstGap: 0.07
+    sprite: {fileID: 21300000, guid: 55e0c325596baf7448934a91548ca59b, type: 3}
+    sound: {fileID: 8300000, guid: d9f79ea870f918e4bac6047288403a88, type: 3}
+    shake: 0.05
+    fireRate: 16
+    damage: 2
+    speed: 15
+    lifetime: 0.32
+    pellets: 1
+    spread: 12
+    ammo: 60
+    gunScale: {x: 1, y: 1}
+    gunColor: {r: 1, g: 1, b: 1, a: 1}
+  - name: BURST
+    effect: 0
+    burst: 3
+    burstGap: 0.07
+    sprite: {fileID: 21300000, guid: f045ec99754e0cc43bcb85c55c034763, type: 3}
+    sound: {fileID: 8300000, guid: 12a548b4d9279ba4e8ceb998add35cfd, type: 3}
+    shake: 0.1
+    fireRate: 2.6
+    damage: 9
+    speed: 38
+    lifetime: 1.5
+    pellets: 1
+    spread: 2
+    ammo: 10
+    gunScale: {x: 1, y: 1}
+    gunColor: {r: 1, g: 1, b: 1, a: 1}
 --- !u!114 &6780011380052750896
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -708,6 +808,12 @@ MonoBehaviour:
   explosionShakeStrength: 0.4
   explosionShakeDuration: 0.35
   reviveDelay: 1
+  extraLifeBlastRadius: 3.5
+  extraLifeBlastDamage: 15
+  extraLifeKnockback: 3.5
+  extraLifeProtection: 2
+  extraLifeColor: {r: 1, g: 0.85, b: 0.35, a: 1}
+  extraLifeMaterial: {fileID: 2100000, guid: 9dfc825aed78fcd4ba02077103263b40, type: 2}
   reviveEffect: {fileID: 3666413085092708789, guid: 9371ff975f40649488738c249c823d39, type: 3}
   reviveEffectScale: 0.45
   appearTime: 0.45
@@ -884,13 +990,13 @@ MonoBehaviour:
   catalog:
   - type: 0
     rarity: 2
-    title: +1 BULLET
+    title: BULLET STORM
     tag: "BULLET \xB7 SPAWN"
-    description: Every shot fires 2 bullets. Each deals 70%.
-    titleVi: "+1 VI\xCAN \u0110\u1EA0N"
+    description: Every shot fires 3 bullets in a fan, each at full damage.
+    titleVi: "B\xC3O \u0110\u1EA0N"
     tagVi: "\u0110\u1EA0N \xB7 B\u1EAEN RA"
-    descriptionVi: "M\u1ED7i ph\xE1t b\u1EAFn ra 2 vi\xEAn. M\u1ED7i vi\xEAn g\xE2y
-      70% s\xE1t th\u01B0\u01A1ng."
+    descriptionVi: "M\u1ED7i ph\xE1t b\u1EAFn ra 3 vi\xEAn x\xF2e qu\u1EA1t, vi\xEAn
+      n\xE0o c\u0169ng \u0111\u1EE7 s\xE1t th\u01B0\u01A1ng."
     icon: {fileID: 21300000, guid: 67fb37306dd527646b2b5de709632150, type: 3}
     bulletCore: 1
   - type: 1
@@ -919,11 +1025,12 @@ MonoBehaviour:
     rarity: 2
     title: NOVA
     tag: "BULLET \xB7 SPAWN"
-    description: Every 6th shot also fires a ring of 8 bullets (50% damage).
+    description: Every 4th shot bursts a ring of 12 bullets (60% damage) with a shock
+      wave.
     titleVi: NOVA
     tagVi: "\u0110\u1EA0N \xB7 B\u1EAEN RA"
-    descriptionVi: "C\u1EE9 6 ph\xE1t l\u1EA1i b\u1EAFn th\xEAm m\u1ED9t v\xF2ng
-      8 vi\xEAn (50% s\xE1t th\u01B0\u01A1ng)."
+    descriptionVi: "C\u1EE9 4 ph\xE1t l\u1EA1i bung ra v\xF2ng 12 vi\xEAn (60% s\xE1t
+      th\u01B0\u01A1ng) k\xE8m s\xF3ng xung k\xEDch."
     icon: {fileID: 21300000, guid: 773ff46c0c5c17343a1cc1a361df16ad, type: 3}
     bulletCore: 1
   - type: 4
@@ -952,11 +1059,11 @@ MonoBehaviour:
     rarity: 2
     title: HOMING
     tag: "BULLET \xB7 FLY"
-    description: Bullets steer toward opponents ahead. -15% damage.
+    description: Bullets lock on to opponents in front (red mark) and chase them.
     titleVi: "T\u1EF0 D\u1EAAN"
     tagVi: "\u0110\u1EA0N \xB7 BAY"
-    descriptionVi: "\u0110\u1EA1n t\u1EF1 l\u01B0\u1EE3n theo \u0111\u1ED1i th\u1EE7
-      ph\xEDa tr\u01B0\u1EDBc. -15% s\xE1t th\u01B0\u01A1ng."
+    descriptionVi: "\u0110\u1EA1n kh\xF3a m\u1EE5c ti\xEAu ph\xEDa tr\u01B0\u1EDBc
+      (d\u1EA5u \u0111\u1ECF) v\xE0 t\u1EF1 l\u01B0\u1EE3n theo."
     icon: {fileID: 21300000, guid: 1bb64d4aeb96904428be63a52b058eb1, type: 3}
     bulletCore: 1
   - type: 7
@@ -1086,12 +1193,12 @@ MonoBehaviour:
     rarity: 2
     title: CHAIN
     tag: "BULLET \xB7 HIT"
-    description: Hits zap 2 nearby opponents (40% damage) and set off barrels nearby.
+    description: Hits send lightning to 3 nearby opponents (70% damage) and set off
+      barrels.
     titleVi: "CHU\u1ED6I \u0110I\u1EC6N"
     tagVi: "\u0110\u1EA0N \xB7 TR\xDANG"
-    descriptionVi: "Tr\xFAng \u0111\xEDch ph\xF3ng \u0111i\u1EC7n sang 2 \u0111\u1ED1i
-      th\u1EE7 g\u1EA7n \u0111\xF3 (40% s\xE1t th\u01B0\u01A1ng) v\xE0 k\xEDch n\u1ED5
-      th\xF9ng g\u1EA7n \u0111\xF3."
+    descriptionVi: "Tr\xFAng \u0111\xEDch ph\xF3ng s\xE9t sang 3 \u0111\u1ED1i th\u1EE7
+      g\u1EA7n \u0111\xF3 (70% s\xE1t th\u01B0\u01A1ng) v\xE0 k\xEDch n\u1ED5 th\xF9ng."
     icon: {fileID: 21300000, guid: ac2a8f83a18ec4246b7fb106f055c1df, type: 3}
     bulletCore: 1
   - type: 19
@@ -1155,12 +1262,13 @@ MonoBehaviour:
     rarity: 2
     title: THUNDER
     tag: "BULLET \xB7 HIT"
-    description: 'Every hit calls lightning down from the sky onto the target: +60%
-      damage.'
+    description: 'Every hit calls lightning down: +100% damage, and the shock hurts
+      everyone close.'
     titleVi: "S\u1EA4M S\xC9T"
     tagVi: "\u0110\u1EA0N \xB7 TR\xDANG"
-    descriptionVi: "M\u1ED7i ph\xE1t tr\xFAng g\u1ECDi s\xE9t t\u1EEB tr\u1EDDi \u0111\xE1nh
-      xu\u1ED1ng m\u1EE5c ti\xEAu: +60% s\xE1t th\u01B0\u01A1ng."
+    descriptionVi: "M\u1ED7i ph\xE1t tr\xFAng g\u1ECDi s\xE9t \u0111\xE1nh xu\u1ED1ng:
+      +100% s\xE1t th\u01B0\u01A1ng, gi\u1EADt lan c\u1EA3 ng\u01B0\u1EDDi \u0111\u1EE9ng
+      g\u1EA7n."
     icon: {fileID: 21300000, guid: cbed29f584d7c2c43a6a23dceb07dd32, type: 3}
     bulletCore: 1
   - type: 25
@@ -1189,13 +1297,13 @@ MonoBehaviour:
     rarity: 2
     title: BLACK HOLE
     tag: "BULLET \xB7 END"
-    description: Bullets may leave a black hole that pulls everyone in, then collapses
-      (12 damage).
+    description: Bullets hitting walls leave a black hole (every 2 s) that pulls
+      everyone in, then blows up (25 damage).
     titleVi: "H\u1ED0 \u0110EN"
     tagVi: "\u0110\u1EA0N \xB7 K\u1EBET TH\xDAC"
-    descriptionVi: "\u0110\u1EA1n c\xF3 th\u1EC3 \u0111\u1EC3 l\u1EA1i h\u1ED1 \u0111en
-      h\xFAt m\u1ECDi ng\u01B0\u1EDDi v\xE0o r\u1ED3i s\u1EE5p \u0111\u1ED5 (12 s\xE1t
-      th\u01B0\u01A1ng)."
+    descriptionVi: "\u0110\u1EA1n tr\xFAng t\u01B0\u1EDDng \u0111\u1EC3 l\u1EA1i
+      h\u1ED1 \u0111en (m\u1ED7i 2 gi\xE2y) h\xFAt m\u1ECDi ng\u01B0\u1EDDi v\xE0o
+      r\u1ED3i n\u1ED5 (25 s\xE1t th\u01B0\u01A1ng)."
     icon: {fileID: 21300000, guid: 197ea252f28c17044b433ba5278334f2, type: 3}
     bulletCore: 1
   - type: 28
@@ -1245,23 +1353,25 @@ MonoBehaviour:
     rarity: 2
     title: EXTRA LIFE
     tag: "SINGLE \xB7 PLAYER"
-    description: Once per match (per run in single player), come back after dying.
+    description: Come back once per match in a blast that throws everyone back, unhurtable
+      for 2 s.
     titleVi: "TH\xCAM M\u1EA0NG"
     tagVi: "\u0110\u01A0N \xB7 NH\xC2N V\u1EACT"
-    descriptionVi: "H\u1ED3i sinh 1 l\u1EA7n m\u1ED7i tr\u1EADn (ch\u01A1i \u0111\u01A1n:
-      m\u1ED7i l\u01B0\u1EE3t ch\u01A1i)."
+    descriptionVi: "H\u1ED3i sinh 1 l\u1EA7n m\u1ED7i tr\u1EADn b\u1EB1ng v\u1EE5
+      n\u1ED5 h\u1EA5t v\u0103ng m\u1ECDi ng\u01B0\u1EDDi, b\u1EA5t t\u1EED 2 gi\xE2y."
     icon: {fileID: 21300000, guid: e4f168e551e65f4499040f69ad92bb7d, type: 3}
     bulletCore: 0
   - type: 33
     rarity: 2
-    title: ORBIT
+    title: FLYING SWORDS
     tag: "SINGLE \xB7 PLAYER"
-    description: 'Two orbs circle you: they destroy bullets and hurt whoever they
-      touch (8 damage).'
-    titleVi: "QU\u1EF8 \u0110\u1EA0O"
+    description: 3 swords circle you, cut bullets and fly off to strike nearby opponents
+      (15 damage).
+    titleVi: "PHI KI\u1EBEM"
     tagVi: "\u0110\u01A0N \xB7 NH\xC2N V\u1EACT"
-    descriptionVi: "Hai qu\u1EA3 c\u1EA7u xoay quanh b\u1EA1n: ph\xE1 \u0111\u1EA1n
-      v\xE0 g\xE2y 8 s\xE1t th\u01B0\u01A1ng khi ch\u1EA1m."
+    descriptionVi: "3 thanh ki\u1EBFm bay quanh b\u1EA1n, ch\xE9m n\xE1t \u0111\u1EA1n
+      v\xE0 t\u1EF1 ph\xF3ng t\u1EDBi ch\xE9m \u0111\u1ED1i th\u1EE7 g\u1EA7n (15
+      s\xE1t th\u01B0\u01A1ng)."
     icon: {fileID: 21300000, guid: 8892802be5163b64ba2367481fc73809, type: 3}
     bulletCore: 0
   - type: 34
@@ -1411,13 +1521,13 @@ MonoBehaviour:
     rarity: 2
     title: DRAW THE SWORD
     tag: "SINGLE \xB7 GUN"
-    description: 'Your gun becomes a sword: slash everything in front (25 damage,
-      big push) and cut bullets to pieces.'
+    description: 'Your gun becomes a sword: slash everything in front (25 damage),
+      cut bullets, and dashes slash too.'
     titleVi: "R\xDAT KI\u1EBEM RA"
     tagVi: "\u0110\u01A0N \xB7 S\xDANG"
     descriptionVi: "S\xFAng th\xE0nh ki\u1EBFm: ch\xE9m m\u1ECDi th\u1EE9 tr\u01B0\u1EDBc
-      m\u1EB7t (25 s\xE1t th\u01B0\u01A1ng, \u0111\u1EA9y m\u1EA1nh) v\xE0 ch\xE9m
-      n\xE1t \u0111\u1EA1n."
+      m\u1EB7t (25 s\xE1t th\u01B0\u01A1ng), ch\xE9m n\xE1t \u0111\u1EA1n, l\u01B0\u1EDBt
+      (Shift) c\u0169ng ch\xE9m."
     icon: {fileID: 21300000, guid: 92a376be02f1f8e46b3661edf407e9e7, type: 3}
     bulletCore: 0
 --- !u!114 &759047752990307770
@@ -1432,16 +1542,33 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dce2ac72f73a4a04589d787f8d55e2f3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BulletCores
-  extraBulletAngle: 14
-  extraBulletDamage: 0.4
+  rocketBlastDamage: 30
+  rocketBlastRadius: 2.3
+  rocketKnockback: 3
+  rocketColor: {r: 1, g: 0.55, b: 0.2, a: 1}
+  grenadeBlastDamage: 25
+  grenadeBlastRadius: 2
+  grenadeKnockback: 2.5
+  grenadeFuse: 1.1
+  grenadeGravity: 3
+  grenadeBounce: 0.6
+  grenadeColor: {r: 0.45, g: 0.9, b: 0.35, a: 1}
+  railGlow: {r: 0.3, g: 0.85, b: 1, a: 0.7}
+  railCore: {r: 1, g: 1, b: 1, a: 1}
+  flameColor: {r: 1, g: 0.6, b: 0.15, a: 1}
+  gunBlastSound: {fileID: 8300000, guid: a4bdfc3534d9e1d46857925d640a7ba8, type: 3}
+  gunBlastVolume: 0.7
+  extraBulletAngle: 12
+  extraBulletDamage: 1
   backShotDamage: 0.6
   luckyChance: 0.12
   luckyDamage: 2.2
   luckySize: 1.4
   luckyColor: {r: 1, g: 0.42, b: 0.21, a: 1}
-  novaEvery: 6
-  novaCount: 8
-  novaDamage: 0.5
+  novaEvery: 4
+  novaCount: 12
+  novaDamage: 0.6
+  novaColor: {r: 0.5, g: 0.95, b: 1, a: 1}
   giantSize: 1.8
   giantDamage: 1.3
   giantSpeed: 0.8
@@ -1449,7 +1576,11 @@ MonoBehaviour:
   homingConeAngle: 60
   homingTurnSpeed: 300
   homingCloseBoost: 2
-  homingDamage: 0.85
+  homingDamage: 1
+  homingColor: {r: 1, g: 0.35, b: 0.45, a: 1}
+  reticleSprite: {fileID: 21300000, guid: 4e6b80e9109240941a11b1ff0762059c, type: 3}
+  lockSound: {fileID: 8300000, guid: 5484a339d6face44b8b4806a4a1344f7, type: 3}
+  critSound: {fileID: 8300000, guid: 1906f89ae79b1a94eb84c8a4c9049ad2, type: 3}
   bounceCount: 2
   bounceDamage: 0.75
   pierceCount: 2
@@ -1485,9 +1616,9 @@ MonoBehaviour:
   forkDamage: 0.35
   forkLifetime: 0.5
   forkSize: 0.7
-  chainJumps: 2
-  chainRange: 3.5
-  chainDamage: 0.4
+  chainJumps: 3
+  chainRange: 4.5
+  chainDamage: 0.7
   zapMaterial: {fileID: 2100000, guid: 9dfc825aed78fcd4ba02077103263b40, type: 2}
   zapColor: {r: 0.55, g: 0.95, b: 1, a: 1}
   chillSpeed: 0.5
@@ -1504,18 +1635,20 @@ MonoBehaviour:
   stickyKnockback: 3
   stickyColor: {r: 1, g: 0.35, b: 0.2, a: 1}
   thunderDelay: 0.12
-  thunderDamage: 0.6
+  thunderDamage: 1
+  thunderSplash: 1.4
   thunderGlow: {r: 0.6, g: 0.75, b: 1, a: 0.6}
   thunderCore: {r: 1, g: 1, b: 0.85, a: 1}
   thunderSound: {fileID: 8300000, guid: b2213dd20ce2cbd44a388498994fd81e, type: 3}
   thunderVolume: 0.45
-  blackHoleChance: 0.25
+  blackHoleCooldown: 2
   maxBlackHoles: 2
-  blackHoleTime: 1.2
-  blackHoleRadius: 2.8
-  blackHolePull: 1.6
-  blackHoleDamage: 12
-  blackHoleBlastRadius: 1.5
+  blackHoleTime: 1.4
+  blackHoleRadius: 3.2
+  blackHolePull: 2.6
+  blackHoleDamage: 25
+  blackHoleBlastRadius: 2
+  blackHoleColor: {r: 0.75, g: 0.4, b: 1, a: 1}
   blackHoleSprite: {fileID: 21300000, guid: b48b280e21cb86f4abfe264bcb7fc65e, type: 3}
   blackHoleSwirlSprite: {fileID: 21300000, guid: 959275b70d4c34c4cab3e33ef80626f2, type: 3}
   shrapnelCount: 3
@@ -1546,6 +1679,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 645efb5029bf25048b7573f05ed1294d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SingleCores
+  popFont: {fileID: 12800000, guid: 55d5404d14c73094391873b61a8a9158, type: 3}
+  speckSprite: {fileID: 21300000, guid: 7f962def3d79dd5469dd447342879dca, type: 3}
+  wingSprite: {fileID: 21300000, guid: 32084a778b6a8c141ac1d87056457ecc, type: 3}
+  ringMaterial: {fileID: 2100000, guid: 9dfc825aed78fcd4ba02077103263b40, type: 2}
+  healSound: {fileID: 8300000, guid: 55d5286c68e77a94e908c3b27976cc56, type: 3}
+  whooshSound: {fileID: 8300000, guid: 3ae8855415497e94eb98db92d8ef929a, type: 3}
   groundPoundRadius: 2.5
   groundPoundDamage: 20
   groundPoundKnockback: 3
@@ -1556,11 +1695,12 @@ MonoBehaviour:
   extraJumps: 1
   thickSkinHealth: 40
   orbitRadius: 1.3
-  orbitSpeed: 220
-  orbitDamage: 8
-  orbitHitCooldown: 0.4
-  orbSprite: {fileID: 21300000, guid: b48b280e21cb86f4abfe264bcb7fc65e, type: 3}
-  orbColor: {r: 0.5, g: 0.9, b: 1, a: 1}
+  orbitSpeed: 160
+  orbitDamage: 15
+  orbitHitCooldown: 1.2
+  orbSprite: {fileID: 21300000, guid: 982f099fe104a01418ed32725e632b79, type: 3}
+  orbColor: {r: 0.75, g: 0.97, b: 1, a: 1}
+  orbitTrailMaterial: {fileID: 2100000, guid: 9dfc825aed78fcd4ba02077103263b40, type: 2}
   anchorKnockback: 0.6
   medicHeal: 2
   medicProtection: 1
@@ -1679,6 +1819,52 @@ MonoBehaviour:
   clangVolume: 0.55
   drawSound: {fileID: 8300000, guid: a1b07d64245b5f4428b44f8ef255d18a, type: 3}
   drawVolume: 0.5
+--- !u!114 &1326928764112075697
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3121727891143946174}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3576ff16cd8529940be9d2267ad593c6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerShield
+  strength: 50
+  duration: 8
+  bubbleSprite: {fileID: 21300000, guid: 4be865fb48ce34244aa0b496fca791c8, type: 3}
+  color: {r: 0.45, g: 0.9, b: 1, a: 0.75}
+  size: 0.9
+  pieceSprite: {fileID: 21300000, guid: 7f962def3d79dd5469dd447342879dca, type: 3}
+  raiseSound: {fileID: 8300000, guid: 55d5286c68e77a94e908c3b27976cc56, type: 3}
+  hitSound: {fileID: 8300000, guid: 12cc077ea45e46c40ad6d99e847da1e7, type: 3}
+  breakSound: {fileID: 8300000, guid: 2a796edfc33efe249ae5738033138a3b, type: 3}
+  volume: 0.6
+--- !u!114 &4295650844028498137
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3121727891143946174}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9734164e6ead3d347903bfdb20c924c5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CoreLooks
+  pivot: {fileID: 429950332872637155}
+  firePoint: {fileID: 394257502416353809}
+  gunSprite: {fileID: 5571426769794054744}
+  body: {fileID: 7107644010471966630}
+  lineMaterial: {fileID: 2100000, guid: 9dfc825aed78fcd4ba02077103263b40, type: 2}
+  laserColor: {r: 1, g: 0.2, b: 0.25, a: 0.55}
+  auraSprite: {fileID: 21300000, guid: 4be865fb48ce34244aa0b496fca791c8, type: 3}
+  glintSprite: {fileID: 21300000, guid: 337572ae6e2dcde4cb5201428da31e9c, type: 3}
+  anchorSprite: {fileID: 21300000, guid: 9434447dd1099be4a94021c85279fe1b, type: 3}
+  heartbeatSound: {fileID: 8300000, guid: 294d32a50156897418f14e7e1b2ff240, type: 3}
+  clinkSound: {fileID: 8300000, guid: 12cc077ea45e46c40ad6d99e847da1e7, type: 3}
+  openerPause: 0.5
 --- !u!1 &4200084464538221135
 GameObject:
   m_ObjectHideFlags: 0
