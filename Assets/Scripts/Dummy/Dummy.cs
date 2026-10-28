@@ -80,14 +80,6 @@ public class Dummy : MonoBehaviour
     [Tooltip("Body color while slowed down (Slow).")]
     [SerializeField] private Color slowedColor = new Color(0.55f, 0.8f, 1f);
 
-    [Header("Crash")]
-    [Tooltip("Hitting a wall or another enemy at least this fast, shortly after being hit, counts as a crash " +
-             "(cores can react to it) (units/sec).")]
-    [SerializeField] private float crashSpeed = 5f;
-
-    [Tooltip("Only crashes this soon after a hit count, so walking and jumping into things never do (seconds).")]
-    [SerializeField] private float crashWindow = 0.6f;
-
     [Header("Death")]
     [Tooltip("Freeze frame on the killing blow (real-time seconds). Needs a HitStop on the main camera.")]
     [SerializeField] private float hitStopDuration = 0.06f;
@@ -261,19 +253,6 @@ public class Dummy : MonoBehaviour
         dyingTimer = deathBlinkTime;
         if (hitStop != null)
             hitStop.Freeze(hitStopDuration);
-    }
-
-    // Knocked into a wall (a surface facing sideways) or into another enemy, fast, right after a hit.
-    private void OnCollisionEnter2D(Collision2D collision)
-    {
-        if (lastSource == null || IsDying || Time.time - LastHitTime > crashWindow)
-            return;
-
-        Dummy other = collision.collider.GetComponentInParent<Dummy>();
-        ContactPoint2D contact = collision.GetContact(0);
-        bool wall = Mathf.Abs(contact.normal.x) > 0.5f;
-        if ((other != null || wall) && collision.relativeVelocity.magnitude >= crashSpeed)
-            lastSource.OnEnemyCrash(target, other != null ? other.GetComponent<HitTarget>() : null, contact.point);
     }
 
     private void Explode(Vector2 position)

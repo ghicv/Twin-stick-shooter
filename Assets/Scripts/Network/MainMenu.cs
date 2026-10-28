@@ -109,6 +109,12 @@ public class MainMenu : MonoBehaviour
     // Shown on the LAN screen after the scene was reloaded (why the connection was lost).
     private static string pendingMessage;
 
+    [Tooltip("Seconds a join waits for the host to answer before giving up (a wrong IP).")]
+    [SerializeField] private float connectTimeout = 6f;
+
+    private string connectingTo; // the IP being joined, until it answers or gives up
+    private float connectDeadline;
+
     // Host: the room as it was created.
     private string roomPassword = "";
     private int maxPlayers = 4;
@@ -402,6 +408,8 @@ public class MainMenu : MonoBehaviour
         createPanel.SetActive(false);
         joinPanel.SetActive(false);
         statusText.text = Lang.T("CONNECTING TO ", "ĐANG KẾT NỐI TỚI ") + ip + "...";
+        connectingTo = ip;
+        connectDeadline = Time.unscaledTime + connectTimeout;
         SetButtons(false);
         discovery.StopListening();
     }
@@ -424,7 +432,10 @@ public class MainMenu : MonoBehaviour
     private void OnClientConnected(ulong clientId)
     {
         if (GameMode.IsLan && clientId == network.LocalClientId && !network.IsServer)
+        {
+            connectingTo = null;
             EnterRoom();
+        }
     }
 
     // A client that lost the host (or was refused / kicked) goes back to the LAN screen with the reason.
@@ -466,6 +477,17 @@ public class MainMenu : MonoBehaviour
     {
         if (lanPanel.activeSelf)
             ShowRooms();
+
+        // Nobody answered at that address (a wrong IP): give up instead of trying for a minute.
+        if (connectingTo != null && Time.unscaledTime > connectDeadline)
+        {
+            string ip = connectingTo;
+            connectingTo = null;
+            if (network.IsConnectedClient)
+                return;
+            Fail(Lang.T("NO ROOM AT ", "KHÔNG CÓ PHÒNG NÀO Ở ") + ip);
+            network.Shutdown(true);
+        }
     }
 
     // One button per room heard (made from the template, reused while the list keeps its size).

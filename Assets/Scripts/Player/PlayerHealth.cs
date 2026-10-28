@@ -33,7 +33,7 @@ public class PlayerHealth : MonoBehaviour
     [SerializeField] private float lanKnockbackScale = 0.8f;
 
     [SerializeField] private Color hitFlashColor = Color.white;
-    [SerializeField] private float hitFlashTime = 0.06f;
+    [SerializeField] private float hitFlashTime = 0.1f;
 
     [SerializeField] private float hitShakeStrength = 0.2f;
     [SerializeField] private float hitShakeDuration = 0.15f;
@@ -60,11 +60,8 @@ public class PlayerHealth : MonoBehaviour
     [Range(0f, 1f)]
     [SerializeField] private float hitVolume = 0.6f;
 
-    [Header("Crash")]
-    [Tooltip("Pushed into a wall at least this fast, shortly after a hit, counts as a crash (cores can react) (units/sec).")]
-    [SerializeField] private float crashSpeed = 5f;
-
-    [SerializeField] private float crashWindow = 0.6f;
+    [Tooltip("The lines of the hit spark (an unlit glow material).")]
+    [SerializeField] private Material hitSparkMaterial;
 
     public float Health => net.Health;
     public float MaxHealth => net.MaxHealth;
@@ -74,8 +71,6 @@ public class PlayerHealth : MonoBehaviour
     // Host side: Time.time of the last hit that hurt, and the cores of the player who did it (kill credit).
     public float LastDamageTime { get; private set; } = -100f;
 
-    // Knockback this player takes is multiplied by this (the Anchor core lowers it).
-    private float OwnKnockbackTaken => cores != null ? cores.KnockbackTaken : 1f;
     public CoreBridge LastAttacker { get; private set; }
 
     private Rigidbody2D rb;
@@ -88,7 +83,6 @@ public class PlayerHealth : MonoBehaviour
     private float invulnerableTimer; // host side
     private float blinkTimer;        // every machine (shown)
     private float flashTimer;
-    private float pushTime = -100f;  // owner side: last push (for crashes)
 
     private void Awake()
     {
@@ -115,7 +109,7 @@ public class PlayerHealth : MonoBehaviour
         if (!alive)
             return;
 
-        float scale = knockbackScale * (GameMode.IsLan ? lanKnockbackScale : 1f) * OwnKnockbackTaken * (shielded ? 0.5f : 1f);
+        float scale = knockbackScale * (GameMode.IsLan ? lanKnockbackScale : 1f) * (shielded ? 0.5f : 1f);
         net.PushOwner(new Vector2(Mathf.Sign(direction.x) * knockback.x, knockback.y) * scale, true);
     }
 
@@ -132,7 +126,7 @@ public class PlayerHealth : MonoBehaviour
             return;
         if (source != null)
             LastAttacker = source;
-        net.PushOwner(impulse / rb.mass * OwnKnockbackTaken, false);
+        net.PushOwner(impulse / rb.mass, false);
     }
 
     // Every machine, every physics step: a small tug (a black hole). Only this player's own machine moves it (smooth,
@@ -144,7 +138,7 @@ public class PlayerHealth : MonoBehaviour
         if (net.IsHostSide && source != null)
             LastAttacker = source;
         if (net.IsMine)
-            rb.linearVelocity += impulse / rb.mass * OwnKnockbackTaken;
+            rb.linearVelocity += impulse / rb.mass;
     }
 
     // Host only. Moves slower for a while.
@@ -219,7 +213,7 @@ public class PlayerHealth : MonoBehaviour
         flashTimer = hitFlashTime;
         blinkTimer = Mathf.Max(blinkTimer, blinkTime);
         if (TryGetComponent(out CoreLooks looks))
-            looks.OnHurt(); // Anchor, Thick Skin
+            looks.OnHurt(); // Thick Skin
         if (cameraShake != null && net.IsMine)
             cameraShake.Shake(hitShakeStrength, hitShakeDuration);
         if (net.IsMine)
@@ -239,15 +233,32 @@ public class PlayerHealth : MonoBehaviour
             Destroy(blood.gameObject, 5f); // the effect doesn't destroy itself
         }
         GameAudio.PlayAt(hitSound, point, hitVolume, 0.1f);
+        HitSpark(point + normal * 0.1f, normal);
         if (TryGetComponent(out PlayerBodyAnimator animator))
             animator.PlayHit(); // squashed, like the dummies
+    }
+
+    // A fighting-game hit spark, drawn over the bullets' effects so a hit stands out among them: a white flash ring,
+    // a 4-point star (white rays edged in the hurt player's color, the longest back toward the shooter) and specks.
+    private void HitSpark(Vector2 at, Vector2 normal)
+    {
+        if (hitSparkMaterial == null)
+            return;
+        Color edge = new Color(bodyColor.r, bodyColor.g, bodyColor.b, 0.85f);
+        CoreEffects.Ring(hitSparkMaterial, Color.white, at, 0.85f, 0.16f, 0.12f);
+        for (int k = 0; k < 4; k++)
+        {
+            Vector2 ray = Quaternion.Euler(0f, 0f, 45f + k * 90f) * normal;
+            float length = Vector2.Dot(ray, normal) > 0f ? 0.75f : 0.45f;
+            CoreEffects.Beam(hitSparkMaterial, edge, Color.white, at, at + ray * length, 0.2f, 0.1f);
+        }
+        CoreEffects.Burst(at, edge, 6, 7f, normal, 0.12f);
     }
 
     // Owner: pushed by a hit or a pull. set = replace the speed (hit), otherwise add to it.
     // A hit gives the air jumps back, so a player knocked away can still get back to the map.
     public void ApplyPush(Vector2 velocity, bool set)
     {
-        pushTime = Time.time;
         rb.linearVelocity = set ? velocity : rb.linearVelocity + velocity;
         if (set)
             movement.RefreshAirJumps();
@@ -311,20 +322,6 @@ public class PlayerHealth : MonoBehaviour
     public void PlayBlink(float blinkTime)
     {
         blinkTimer = Mathf.Max(blinkTimer, blinkTime);
-    }
-
-    // Owner: pushed into a wall right after a hit → the host tells the attacker's cores (Crash).
-    private void OnCollisionEnter2D(Collision2D collision)
-    {
-        if (!net.IsMine || Time.time - pushTime > crashWindow)
-            return;
-
-        ContactPoint2D contact = collision.GetContact(0);
-        if (Mathf.Abs(contact.normal.x) > 0.5f && collision.relativeVelocity.magnitude >= crashSpeed)
-        {
-            pushTime = -100f; // once per push
-            net.ReportCrash(contact.point);
-        }
     }
 
     private void Update()

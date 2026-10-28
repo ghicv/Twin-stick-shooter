@@ -52,6 +52,9 @@ public class PlayerRespawn : MonoBehaviour
     [Tooltip("Seconds between the explosion and the player appearing again (when it comes back).")]
     [SerializeField] private float reviveDelay = 1f;
 
+    [Tooltip("LAN: coming back at a random spawn point at least this far from the other players (units).")]
+    [SerializeField] private float safeSpawnDistance = 6f;
+
     [Header("Extra Life")]
     [Tooltip("Coming back with the Extra Life core: a pillar of light, then a blast around the player that hurts and " +
              "throws everybody back, and a few seconds no one can hurt the player.")]
@@ -188,7 +191,10 @@ public class PlayerRespawn : MonoBehaviour
         MatchManager match = MatchManager.Instance;
         bool extraLife = cores != null && cores.TryUseExtraLife();
         if (extraLife)
+        {
             outcome = DeathOutcome.ExtraLife;
+            net.ComingBack = true; // still counts as alive for the round (MatchManager)
+        }
         else if (!GameMode.IsLan && gameOverOnDeath && gameOverScreen != null)
             outcome = DeathOutcome.GameOver;
         else if (GameMode.IsLan && match != null && match.RoundOn)
@@ -369,7 +375,8 @@ public class PlayerRespawn : MonoBehaviour
         weapon.enabled = false;
     }
 
-    // A random spawn point (never the same one twice in a row). On LAN: the one farthest from the other players.
+    // A random spawn point (never the same one twice in a row). On LAN: a random one of those not too close to the
+    // other players (the farthest if none is).
     private Vector3 PickSpawnPoint()
     {
         Transform[] points = maps != null ? maps.CurrentMap.SpawnPoints : spawnPoints;
@@ -378,21 +385,25 @@ public class PlayerRespawn : MonoBehaviour
 
         if (GameMode.IsLan)
         {
-            Transform best = points[0];
-            float bestDistance = -1f;
+            Transform farthest = points[0];
+            float farthestDistance = -1f;
+            var safe = new System.Collections.Generic.List<Transform>();
             foreach (Transform point in points)
             {
                 float nearest = float.MaxValue;
                 foreach (PlayerNetwork other in PlayerNetwork.All)
                     if (other != net && other.InPlay)
                         nearest = Mathf.Min(nearest, Vector2.Distance(other.transform.position, point.position));
-                if (nearest > bestDistance)
+                if (nearest > farthestDistance)
                 {
-                    best = point;
-                    bestDistance = nearest;
+                    farthest = point;
+                    farthestDistance = nearest;
                 }
+                if (nearest >= safeSpawnDistance && point != lastSpawnPoint)
+                    safe.Add(point);
             }
-            return best.position;
+            lastSpawnPoint = safe.Count > 0 ? safe[Random.Range(0, safe.Count)] : farthest;
+            return lastSpawnPoint.position;
         }
 
         int index = Random.Range(0, points.Length);

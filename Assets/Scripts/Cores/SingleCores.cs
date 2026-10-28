@@ -13,9 +13,7 @@ public class SingleCores : MonoBehaviour
     public const int BlastEffectId = 1;
     public const int VampireEffectId = 2;   // position = where the blood comes from, scale = health gained
     public const int VoidFeastEffectId = 3; // scale = health gained
-    public const int MedicEffectId = 4;
     public const int ExtraJumpEffectId = 5; // position = the feet
-    public const int CrashEffectId = 6;
 
     [Header("Looks")]
     [Tooltip("The pixel font of the words popping up in the world (CHÍ MẠNG!, +30...).")]
@@ -29,7 +27,7 @@ public class SingleCores : MonoBehaviour
 
     [SerializeField] private Material ringMaterial;
 
-    [Tooltip("A bright chime: health from Vampire, Void Feast and Medic.")]
+    [Tooltip("A bright chime: health from Vampire and Void Feast.")]
     [SerializeField] private AudioClip healSound;
     [SerializeField] private AudioClip whooshSound;
 
@@ -42,7 +40,7 @@ public class SingleCores : MonoBehaviour
     [Tooltip("Knockback multiplier of the shockwave (targets are thrown away and up).")]
     [SerializeField] private float groundPoundKnockback = 3f;
 
-    [Tooltip("Spawned at the feet (Ground Pound) and where targets crash (Crash), e.g. DustPuff. It should destroy itself.")]
+    [Tooltip("Spawned at the feet (Ground Pound), e.g. DustPuff. It should destroy itself.")]
     [SerializeField] private ParticleSystem dustEffect;
 
     [SerializeField] private float groundPoundEffectScale = 2.5f;
@@ -74,29 +72,12 @@ public class SingleCores : MonoBehaviour
     [Tooltip("The flying swords' light trails.")]
     [SerializeField] private Material orbitTrailMaterial;
 
-    [Header("PLAYER · Anchor")]
-    [Tooltip("Knockback this player takes is multiplied by this.")]
-    [Range(0f, 1f)]
-    [SerializeField] private float anchorKnockback = 0.6f;
-
-    [Header("PLAYER · Medic")]
-    [Tooltip("Health packs heal this many times more...")]
-    [SerializeField] private float medicHeal = 2f;
-
-    [Tooltip("...and protect for this many seconds.")]
-    [SerializeField] private float medicProtection = 1f;
-
     [Header("GUN · Hot Barrel")]
     [Tooltip("Fire rate multiplier after holding fire for Hot Barrel Ramp Time.")]
     [SerializeField] private float hotBarrelMaxRate = 1.6f;
 
     [Tooltip("Seconds of non-stop fire to reach the max rate. Letting go cools the gun down at once.")]
     [SerializeField] private float hotBarrelRampTime = 1.5f;
-
-    [Header("GUN · Steady Aim")]
-    [Tooltip("Spread multiplier (0 = perfectly straight).")]
-    [Range(0f, 1f)]
-    [SerializeField] private float steadyAimSpread = 0.2f;
 
     [Header("GUN · Air Gunner")]
     [Tooltip("Damage multiplier of shots fired while in the air.")]
@@ -110,23 +91,10 @@ public class SingleCores : MonoBehaviour
     [Tooltip("...the fire rate is multiplied by this.")]
     [SerializeField] private float adrenalineRate = 1.5f;
 
-    [Header("GUN · Opener")]
-    [Tooltip("A shot after not firing for this long (seconds)...")]
-    [SerializeField] private float openerPause = 0.5f;
-
-    [Tooltip("...deals this much more damage...")]
-    [SerializeField] private float openerDamage = 3f;
-
-    [Tooltip("...and its bullets are this much bigger.")]
-    [SerializeField] private float openerSize = 1.5f;
-
-    [Header("GUN · Demolition")]
-    [Tooltip("Bullet damage to barrels and the push on crates are multiplied by this.")]
-    [SerializeField] private float demolitionMultiplier = 3f;
-
-    [Header("GUN · Gun Nut")]
-    [Tooltip("Ammo of the special guns from weapon crates is multiplied by this.")]
-    [SerializeField] private float gunNutAmmo = 2f;
+    [Header("GUN · Gatling")]
+    [Tooltip("Fire rate multiplier (2.5 = +150%) and the spread's (its cost).")]
+    [SerializeField] private float gatlingRate = 2.5f;
+    [SerializeField] private float gatlingSpread = 1.5f;
 
     [Header("TARGETS · Void Feast")]
     [Tooltip("Health the player gets back for each target it knocked into the void (and the dash comes back).")]
@@ -142,13 +110,6 @@ public class SingleCores : MonoBehaviour
     [Tooltip("Spawned at the blast. It should destroy itself.")]
     [SerializeField] private ParticleSystem deathBlastEffect;
 
-    [Header("TARGETS · Crash")]
-    [Tooltip("Damage to a target knocked into a wall or another enemy (both enemies get it).")]
-    [SerializeField] private float crashDamage = 12f;
-
-    [Tooltip("The same target can't crash again for this long (seconds).")]
-    [SerializeField] private float crashCooldown = 0.5f;
-
     [Header("TARGETS · Vampire")]
     [Tooltip("Share of the damage this player deals that comes back as health.")]
     [Range(0f, 1f)]
@@ -161,11 +122,10 @@ public class SingleCores : MonoBehaviour
     private PlayerNetwork net;
     private HitTarget self;
     private CameraShake cameraShake;
-    private float lastShotTime = -100f;
     private bool extraLifeUsed;
+    private float lastVampireSound;
     private CoreOrbit orbit;
     private readonly List<HitTarget> poundHits = new List<HitTarget>();
-    private readonly Dictionary<HitTarget, float> lastCrash = new Dictionary<HitTarget, float>();
 
     private void Awake()
     {
@@ -219,12 +179,6 @@ public class SingleCores : MonoBehaviour
 
     public bool DashUpgraded => Has(CoreType.Dash); // Dash+: faster dashes that can't be hurt
 
-    public float KnockbackTaken => Has(CoreType.Anchor) ? anchorKnockback : 1f;
-
-    // Health packs (Medic): how many times more they heal, and the seconds of protection they give.
-    public float HealthPackHeal => Has(CoreType.Medic) ? medicHeal : 1f;
-    public float HealthPackProtection => Has(CoreType.Medic) ? medicProtection : 0f;
-
     public CoreBridge Bridge => bridge;
 
     // Host: Extra Life → true (once per run; on LAN once per match) = the player comes back right away.
@@ -275,32 +229,15 @@ public class SingleCores : MonoBehaviour
             rate *= Mathf.Lerp(1f, hotBarrelMaxRate, holdTime / hotBarrelRampTime);
         if (Has(CoreType.Adrenaline) && playerHealth.Health < playerHealth.MaxHealth * adrenalineHealth)
             rate *= adrenalineRate;
+        if (Has(CoreType.Gatling))
+            rate *= gatlingRate;
         return rate;
     }
 
-    public float SpreadMultiplier => Has(CoreType.SteadyAim) ? steadyAimSpread : 1f;
+    public float SpreadMultiplier => Has(CoreType.Gatling) ? gatlingSpread : 1f;
 
-    // Demolition: bullet damage to barrels and the push on crates.
-    public float PropMultiplier => Has(CoreType.Demolition) ? demolitionMultiplier : 1f;
-
-    // Gun Nut: ammo of the special guns.
-    public float SpecialAmmoMultiplier => Has(CoreType.GunNut) ? gunNutAmmo : 1f;
-
-    // Called for every shot: damage and bullet size multipliers for it.
-    public float ShotDamage(out float size)
-    {
-        float damage = 1f;
-        size = 1f;
-        if (Has(CoreType.Opener) && Time.time - lastShotTime >= openerPause)
-        {
-            damage *= openerDamage;
-            size *= openerSize;
-        }
-        if (Has(CoreType.AirGunner) && !playerMovement.IsGrounded)
-            damage *= airGunnerDamage;
-        lastShotTime = Time.time;
-        return damage;
-    }
+    // Called for every shot: its damage multiplier.
+    public float ShotDamage() => Has(CoreType.AirGunner) && !playerMovement.IsGrounded ? airGunnerDamage : 1f;
 
     // ---------- Enemies (host) ----------
 
@@ -335,31 +272,6 @@ public class SingleCores : MonoBehaviour
         ShowEffect(VampireEffectId, at, amount * vampireLifesteal);
     }
 
-    // A target this player hit was knocked into a wall (other = null) or into another enemy.
-    public void OnEnemyCrash(HitTarget victim, HitTarget other, Vector2 point)
-    {
-        if (!Has(CoreType.Crash))
-            return;
-
-        bool hurt = Crash(victim, point);
-        if (other != null && other != self)
-            hurt |= Crash(other, point);
-        if (hurt)
-            ShowEffect(CrashEffectId, point, 1f);
-    }
-
-    private bool Crash(HitTarget target, Vector2 point)
-    {
-        float last;
-        if (target.IsDying || (lastCrash.TryGetValue(target, out last) && Time.time - last < crashCooldown))
-            return false;
-
-        lastCrash[target] = Time.time;
-        Vector2 normal = (point - (Vector2)target.transform.position).normalized;
-        target.TakeDamage(crashDamage, point, normal, 0f, bridge); // no extra push, so it doesn't bounce back and forth
-        return true;
-    }
-
     // ---------- Effects ----------
 
     // On this machine, and (from the host) on the other machines too.
@@ -392,11 +304,20 @@ public class SingleCores : MonoBehaviour
                                       effect == DustEffectId && scale > 1.5f ? groundPoundShakeDuration : 0.12f);
                 break;
 
-            case VampireEffectId: // drops of blood fly from the victim into the player
-                for (int i = 0; i < 6; i++)
-                    FxSpeck.Spawn(speckSprite, new Color(0.85f, 0.05f, 0.15f), position + Random.insideUnitCircle * 0.3f,
-                                  Random.insideUnitCircle * 6f, 0f, 0.8f, 0.12f, 0f, transform);
-                CoreEffects.Pop("+" + Mathf.Max(1, Mathf.RoundToInt(scale)), above, green, 0.8f);
+            case VampireEffectId: // a thread of blood from the victim, big drops flying into the player, a red pulse on it
+                Color blood = new Color(0.9f, 0.05f, 0.15f);
+                CoreEffects.Zap(ringMaterial, new Color(blood.r, blood.g, blood.b, 0.7f), position, transform.position, 0.1f, 0.18f);
+                CoreEffects.Burst(position, blood, 6, 5f, default, 0.14f);
+                for (int i = 0; i < 10; i++)
+                    FxSpeck.Spawn(speckSprite, i % 3 == 0 ? new Color(1f, 0.35f, 0.4f) : blood, position + Random.insideUnitCircle * 0.4f,
+                                  Random.insideUnitCircle * 7f, 0f, 0.8f, 0.22f, 0f, transform);
+                CoreEffects.Ring(ringMaterial, blood, transform.position, 1.3f, 0.2f, 0.3f);
+                CoreEffects.Pop("+" + Mathf.Max(1, Mathf.RoundToInt(scale)), above, green, 1.05f);
+                if (Time.time - lastVampireSound > 0.2f) // fast guns: not a chime on every bullet
+                {
+                    lastVampireSound = Time.time;
+                    GameAudio.PlayAt(healSound, transform.position, 0.25f, 0.08f);
+                }
                 break;
 
             case VoidFeastEffectId: // a green burst of life
@@ -404,13 +325,6 @@ public class SingleCores : MonoBehaviour
                 CoreEffects.Burst(transform.position, green, 14, 7f);
                 CoreEffects.Pop("+" + Mathf.RoundToInt(scale), above, green, 1.2f);
                 GameAudio.PlayAt(healSound, transform.position, 0.5f, 0.05f);
-                break;
-
-            case MedicEffectId: // green crosses floating up, and a shimmer
-                for (int i = 0; i < 4; i++)
-                    CoreEffects.Pop("+", (Vector2)transform.position + new Vector2(Random.Range(-0.6f, 0.6f), Random.Range(0.2f, 1.2f)), green, 0.9f);
-                CoreEffects.Ring(ringMaterial, green, transform.position, 1.6f, 0.2f, 0.35f);
-                GameAudio.PlayAt(healSound, transform.position, 0.45f, 0.05f);
                 break;
 
             case ExtraJumpEffectId: // a ring of wind under the feet and a flap of pixel wings
@@ -423,15 +337,6 @@ public class SingleCores : MonoBehaviour
                     wing.GetComponent<SpriteRenderer>().flipX = side > 0;
                 }
                 GameAudio.PlayAt(whooshSound, position, 0.35f, 0.1f);
-                break;
-
-            case CrashEffectId: // dust and a crack of a shock wave where it hit the wall
-                if (dustEffect != null)
-                    Instantiate(dustEffect, position, Quaternion.identity);
-                CoreEffects.Ring(ringMaterial, new Color(0.9f, 0.85f, 0.7f), position, 1.4f, 0.3f, 0.25f);
-                CoreEffects.Burst(position, new Color(0.65f, 0.6f, 0.55f), 10, 8f);
-                if (cameraShake != null)
-                    cameraShake.Shake(0.15f, 0.12f);
                 break;
         }
     }

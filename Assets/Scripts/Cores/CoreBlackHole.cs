@@ -9,9 +9,10 @@ using UnityEngine;
 public class CoreBlackHole : MonoBehaviour
 {
     private const float PullStep = 0.1f; // the pull's strength is given per this many seconds
-    private const int SpeckCount = 14;
-    private const float SpeckSize = 0.14f;
-    private const float SwirlSize = 1.7f;
+    private const int SpeckCount = 20;
+    private const float SpeckSize = 0.18f;
+    private const float SwirlSize = 0.6f;  // times the pull radius
+    private const float CoreSize = 0.3f;   // times the pull radius
 
     private BulletCores owner;
     private HitTarget ownerTarget;
@@ -39,9 +40,9 @@ public class CoreBlackHole : MonoBehaviour
         this.pull = pull;
         this.lookAlike = lookAlike;
 
-        swirl = Part("Swirl", swirlSprite, Color.white, SwirlSize, 4);
-        innerSwirl = Part("Inner Swirl", swirlSprite, new Color(1f, 0.8f, 1f, 0.8f), SwirlSize * 0.55f, 5);
-        core = Part("Core", dotSprite, new Color(0.04f, 0f, 0.08f), 0.9f, 6);
+        swirl = Part("Swirl", swirlSprite, Color.white, SwirlSize * radius, 4);
+        innerSwirl = Part("Inner Swirl", swirlSprite, new Color(1f, 0.8f, 1f, 0.8f), SwirlSize * radius * 0.55f, 5);
+        core = Part("Core", dotSprite, new Color(0.04f, 0f, 0.08f), CoreSize * radius, 6);
         for (int i = 0; i < SpeckCount; i++)
         {
             Color color = i % 3 == 0 ? Color.white : new Color(0.85f, 0.6f, 1f);
@@ -71,7 +72,7 @@ public class CoreBlackHole : MonoBehaviour
         transform.localScale = Vector3.one * grow;
         swirl.localRotation = Quaternion.Euler(0f, 0f, -Mathf.Floor(age * 24f) * 15f);
         innerSwirl.localRotation = Quaternion.Euler(0f, 0f, Mathf.Floor(age * 36f) * 15f + 60f);
-        core.localScale = Vector3.one * (Mathf.Repeat(age * 6f, 1f) < 0.5f ? 0.9f : 1f);
+        core.localScale = Vector3.one * CoreSize * radius * (Mathf.Repeat(age * 6f, 1f) < 0.5f ? 0.9f : 1f);
 
         // Specks spiral in, faster near the middle, and start again at the edge.
         for (int i = 0; i < specks.Count; i++)

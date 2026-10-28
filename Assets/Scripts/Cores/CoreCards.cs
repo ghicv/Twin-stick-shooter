@@ -2,8 +2,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
-// Card offer: 3 different cores of one rarity (silver, gold or diamond) the player doesn't own yet, with a bullet
-// core among them while that rarity has any left. The cards take the rarity's color. Clicking a card gives that core
+// Card offer: 3 different cores of one rarity (silver, gold or diamond) the player doesn't own yet, two of them
+// bullet cores while that rarity has any left. The cards take the rarity's color. Clicking a card gives that core
 // to the player. Offers come at milestones (CoreBridge: after some waves; MatchManager: before some LAN rounds, where
 // a random card is taken when the time runs out). If the rarity runs short, the nearest rarity fills the offer.
 // Every card can be swapped (reroll) once for another core.
@@ -54,6 +54,10 @@ public class CoreCards : MonoBehaviour
     [Tooltip("\"CHOOSE A SILVER CARD\" above the cards.")]
     [SerializeField] private Text headerText;
 
+
+    [Tooltip("How many of the cards are bullet cores (while the offered rarity has that many left).")]
+    [Range(0, 3)]
+    [SerializeField] private int bulletCards = 2;
 
     [Tooltip("Diamond borders run through the rainbow at this speed (turns per second).")]
     [SerializeField] private float diamondHueSpeed = 0.35f;
@@ -171,7 +175,7 @@ public class CoreCards : MonoBehaviour
     }
 
     // 3 different cores not owned yet, all of the rarity (the nearest rarity fills in when it runs short),
-    // a bullet core among them when there is one. The cores offered least often on this PC come first (random among
+    // two bullet cores among them when there are. The cores offered least often on this PC come first (random among
     // equals), so the offers go round every core of a rarity before showing the same ones again.
     private void ChooseOffer(CoreInventory.Rarity rarity)
     {
@@ -189,17 +193,21 @@ public class CoreCards : MonoBehaviour
             pool.AddRange(ring);
         }
 
-        // A bullet core first (if the asked rarity has one), then the rest in order.
-        int bullet = pool.FindIndex(core => inventory.Info(core).bulletCore && inventory.Info(core).rarity == rarity);
-        if (bullet > 0)
-            (pool[0], pool[bullet]) = (pool[bullet], pool[0]);
+        // Bullet cores first (Bullet Cards of them, while the asked rarity has any), then the rest in order.
+        for (int slot = 0; slot < bulletCards && slot < pool.Count; slot++)
+        {
+            int bullet = pool.FindIndex(slot, core => inventory.Info(core).bulletCore && inventory.Info(core).rarity == rarity);
+            if (bullet < 0)
+                break;
+            (pool[slot], pool[bullet]) = (pool[bullet], pool[slot]);
+        }
         for (int i = 0; i < pool.Count && offered.Count < cards.Length; i++)
             offered.Add(pool[i]);
         // What a reroll swaps in: the rest of the pool (the asked rarity first).
         spare.Clear();
         for (int i = offered.Count; i < pool.Count; i++)
             spare.Add(pool[i]);
-        Shuffle(offered); // the bullet core isn't always the first card
+        Shuffle(offered); // the bullet cores aren't always the first cards
         foreach (CoreType core in offered)
             CountOffer(core);
         SaveOfferCounts();

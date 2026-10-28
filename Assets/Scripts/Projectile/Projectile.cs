@@ -151,11 +151,44 @@ public class Projectile : MonoBehaviour
     {
         if (cores != null && !finished)
             cores.OnBulletFly(this);
+        if (!finished)
+            SweepAhead();
     }
 
+    // A fast bullet (sniper, rail...) moves farther in one physics step than a player is wide, so it could jump over
+    // one without ever overlapping it: it looks along this step's way and hits whatever is there first.
+    private void SweepAhead()
+    {
+        float step = rb.linearVelocity.magnitude * Time.fixedDeltaTime;
+        if (step < SweepFrom)
+            return;
+        var filter = new ContactFilter2D { useTriggers = false };
+        filter.SetLayerMask(Physics2D.GetLayerCollisionMask(gameObject.layer));
+        int count = rb.Cast(rb.linearVelocity, filter, sweepHits, step);
+        for (int i = 1; i < count; i++) // nearest first
+            for (int j = i; j > 0 && sweepHits[j].distance < sweepHits[j - 1].distance; j--)
+                (sweepHits[j], sweepHits[j - 1]) = (sweepHits[j - 1], sweepHits[j]);
+        for (int i = 0; i < count && !finished; i++)
+        {
+            Collider2D other = sweepHits[i].collider;
+            if (swept.Contains(other))
+                continue; // already hit (flew on through it)
+            Vector2 before = rb.linearVelocity;
+            OnTriggerEnter2D(other);
+            if (finished || Vector2.Dot(rb.linearVelocity, before) <= 0f)
+                break; // stopped, or bounced off: this step's way is over
+            swept.Add(other); // flies on through it (Pierce, rail): not again
+        }
+    }
+
+    private const float SweepFrom = 0.3f; // units per physics step
+    private readonly RaycastHit2D[] sweepHits = new RaycastHit2D[6];
+    private readonly System.Collections.Generic.List<Collider2D> swept = new System.Collections.Generic.List<Collider2D>();
     // The projectile's collider is a trigger, so this runs when it overlaps a block or a dummy.
     private void OnTriggerEnter2D(Collider2D other)
     {
+        if (swept.Contains(other))
+            return; // the sweep already went through it
         // Ignore whoever fired it and other triggers (e.g. other bullets, mines).
         if (finished || other.isTrigger || other.attachedRigidbody == shooter)
             return;
@@ -184,7 +217,7 @@ public class Projectile : MonoBehaviour
         {
             // The target shows its own hit (blood, damage number, flash...). Only real bullets hurt.
             if (!IsLookAlike)
-                target.TakeDamage(Damage, hitPoint, normal, cores != null ? cores.BulletKnockback : 1f, cores);
+                target.TakeDamage(Damage, hitPoint, normal, cores != null ? cores.BulletKnockback(this) : 1f, cores);
             if (cores != null)
                 keepFlying = cores.OnBulletHitTarget(this, target, hitPoint, normal);
             if (keepFlying)
@@ -197,9 +230,9 @@ public class Projectile : MonoBehaviour
             GameAudio.PlayAt(wallHitSound, hitPoint, wallHitVolume, 0.1f);
             Rigidbody2D loose = other.attachedRigidbody;
             if (!IsLookAlike && loose != null && loose.bodyType == RigidbodyType2D.Dynamic)
-                loose.AddForceAtPosition(flightDirection * pushImpulse * (cores != null ? cores.PropMultiplier : 1f), hitPoint, ForceMode2D.Impulse);
+                loose.AddForceAtPosition(flightDirection * pushImpulse, hitPoint, ForceMode2D.Impulse);
             if (!IsLookAlike && other.TryGetComponent(out ExplosiveBarrel barrel))
-                barrel.Hit(Damage * (cores != null ? cores.PropMultiplier : 1f)); // Demolition: much more
+                barrel.Hit(Damage);
             if (cores != null)
                 keepFlying = cores.OnBulletHitWall(this, hitPoint, normal);
         }

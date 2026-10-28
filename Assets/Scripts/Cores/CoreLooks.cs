@@ -1,65 +1,35 @@
 using UnityEngine;
 
 // What some cores look like on the player, on every machine (the cores' lists are the same everywhere):
-// Steady Aim: a thin red laser sight from the gun to the first wall. Hot Barrel: the gun reddens as it fires fast and
-// steams. Adrenaline: below its health line, a red aura beats around the player (with a heartbeat for the player
-// itself). Thick Skin: a grey armor outline; hits clink. Opener: a glint at the muzzle while the next shot is the
-// strong one. Anchor: a hit drops an anchor over the head and kicks up dust.
+// Hot Barrel: the gun reddens as it fires fast and steams. Adrenaline: below its health line, a red aura beats around
+// the player (with a heartbeat for the player itself). Thick Skin: a grey armor outline; hits clink.
 public class CoreLooks : MonoBehaviour
 {
-    [SerializeField] private Transform pivot;
     [SerializeField] private Transform firePoint;
     [SerializeField] private SpriteRenderer gunSprite;
     [SerializeField] private SpriteRenderer body;
 
-    [SerializeField] private Material lineMaterial;
-    [SerializeField] private Color laserColor = new Color(1f, 0.2f, 0.25f, 0.55f);
-
     [Tooltip("A soft ring (the Adrenaline aura).")]
     [SerializeField] private Sprite auraSprite;
-
-    [Tooltip("A small white star (the Opener glint).")]
-    [SerializeField] private Sprite glintSprite;
-
-    [Tooltip("The Anchor core's icon, dropped over the head when hit.")]
-    [SerializeField] private Sprite anchorSprite;
 
     [SerializeField] private AudioClip heartbeatSound;
     [SerializeField] private AudioClip clinkSound;
 
-    [Tooltip("Opener: the strong shot is ready this long after the last one (seconds, as the core).")]
-    [SerializeField] private float openerPause = 0.5f;
-
     private PlayerNetwork net;
     private PlayerSword sword;
-    private LineRenderer laser;
     private SpriteRenderer aura;
-    private SpriteRenderer glint;
     private SpriteRenderer armor;
     private float heat;            // Hot Barrel: 0 cold .. 1 red hot
-    private float lastShot = -10f;
     private float steamTimer;
     private float heartTimer;
     private Color gunOwn = Color.white, gunSet = Color.white;
-    private readonly RaycastHit2D[] hits = new RaycastHit2D[6];
 
     private void Awake()
     {
         net = GetComponent<PlayerNetwork>();
         sword = GetComponent<PlayerSword>();
 
-        laser = new GameObject("LaserSight").AddComponent<LineRenderer>();
-        laser.transform.SetParent(transform, false);
-        laser.sharedMaterial = lineMaterial;
-        laser.widthMultiplier = 0.045f;
-        laser.positionCount = 2;
-        laser.startColor = laserColor;
-        laser.endColor = new Color(laserColor.r, laserColor.g, laserColor.b, laserColor.a * 0.3f);
-        laser.sortingOrder = 4;
-        laser.enabled = false;
-
         aura = Part("AdrenalineAura", auraSprite, transform, -1);
-        glint = Part("OpenerGlint", glintSprite, firePoint, 12);
         armor = Part("ArmorOutline", body.sprite, body.transform, body.sortingOrder - 1);
         armor.color = new Color(0.62f, 0.68f, 0.78f);
         armor.transform.localScale = new Vector3(1.18f, 1.1f, 1f);
@@ -80,18 +50,12 @@ public class CoreLooks : MonoBehaviour
     // Every machine: this player fired (PlayerWeapon's shot feedback).
     public void OnShot()
     {
-        lastShot = Time.time;
         heat = Mathf.Min(1f, heat + 0.12f);
     }
 
     // Every machine: this player was hit (PlayerHealth.PlayHurt).
     public void OnHurt()
     {
-        if (Has(CoreType.Anchor))
-        {
-            FxSpeck.Spawn(anchorSprite, Color.white, (Vector2)transform.position + Vector2.up * 1.9f, Vector2.down * 2f, 0f, 0.4f, 1.6f);
-            CoreEffects.Burst((Vector2)transform.position + Vector2.down * 0.6f, new Color(0.75f, 0.7f, 0.6f), 8, 4f, Vector2.up, 0.1f);
-        }
         if (Has(CoreType.ThickSkin))
         {
             GameAudio.PlayAt(clinkSound, transform.position, 0.35f, 0.15f);
@@ -104,22 +68,6 @@ public class CoreLooks : MonoBehaviour
         bool inPlay = net == null || net.InPlay;
         bool swordOut = sword != null && sword.Active;
         float dt = Time.deltaTime;
-
-        // Steady Aim: the laser sight, up to the first wall.
-        laser.enabled = inPlay && !swordOut && Has(CoreType.SteadyAim);
-        if (laser.enabled)
-        {
-            Vector2 from = firePoint.position;
-            Vector2 dir = pivot.right;
-            var filter = new ContactFilter2D { useTriggers = false };
-            filter.SetLayerMask(Physics2D.GetLayerCollisionMask(gameObject.layer) & ~(1 << gameObject.layer));
-            int count = Physics2D.Raycast(from, dir, filter, hits, 25f);
-            float length = 25f;
-            for (int i = 0; i < count; i++)
-                length = Mathf.Min(length, hits[i].distance);
-            laser.SetPosition(0, from);
-            laser.SetPosition(1, from + dir * length);
-        }
 
         // Hot Barrel: red hot while firing fast, cooling down, steaming when very hot.
         heat = Mathf.Max(0f, heat - dt * 0.6f);
@@ -155,15 +103,5 @@ public class CoreLooks : MonoBehaviour
 
         // Thick Skin: the armor outline.
         armor.enabled = inPlay && Has(CoreType.ThickSkin) && body.enabled;
-
-        // Opener: the muzzle glints while the next shot is the strong one.
-        glint.enabled = inPlay && !swordOut && Has(CoreType.Opener) && Time.time - lastShot >= openerPause;
-        if (glint.enabled)
-        {
-            bool on = Mathf.Repeat(Time.time * 3f, 1f) < 0.5f;
-            glint.transform.localScale = Vector3.one * (on ? 0.9f : 0.5f);
-            glint.transform.localRotation = Quaternion.Euler(0f, 0f, on ? 0f : 45f);
-            glint.color = new Color(1f, 0.95f, 0.7f, 0.9f);
-        }
     }
 }

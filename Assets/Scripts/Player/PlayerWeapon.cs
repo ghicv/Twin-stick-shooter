@@ -23,7 +23,7 @@ public class PlayerWeapon : MonoBehaviour
 {
     // What a special gun's bullets do besides hitting (BulletCores): rockets and grenades blow up, a rail shot goes
     // through everyone as a beam, flames set on fire.
-    public enum GunEffect { None, Rocket, Grenade, Rail, Flame }
+    public enum GunEffect { None, Rocket, Grenade, Rail, Flame, Shotgun, Sniper, SwordWave }
 
     [System.Serializable]
     public class SpecialGun
@@ -169,9 +169,9 @@ public class PlayerWeapon : MonoBehaviour
     [Header("Special guns")]
     [SerializeField] private SpecialGun[] specialGuns =
     {
-        new SpecialGun { name = "SHOTGUN", fireRate = 1.4f, damage = 8f, speed = 26f, lifetime = 0.35f, pellets = 6, spread = 14f,
+        new SpecialGun { name = "SHOTGUN", effect = GunEffect.Shotgun, fireRate = 1.4f, damage = 11f, speed = 48f, lifetime = 0.22f, pellets = 7, spread = 14f,
                          ammo = 6, gunScale = new Vector2(1.25f, 1.4f), gunColor = new Color(0.75f, 0.5f, 0.25f) },
-        new SpecialGun { name = "SNIPER", fireRate = 0.9f, damage = 40f, speed = 60f, lifetime = 2f, pellets = 1, spread = 0f,
+        new SpecialGun { name = "SNIPER", effect = GunEffect.Sniper, fireRate = 0.9f, damage = 100f, speed = 120f, lifetime = 1f, pellets = 1, spread = 0f,
                          ammo = 4, gunScale = new Vector2(1.7f, 1f), gunColor = new Color(0.4f, 0.65f, 0.4f) },
         new SpecialGun { name = "MINIGUN", fireRate = 14f, damage = 5f, speed = 32f, lifetime = 1.2f, pellets = 1, spread = 6f,
                          ammo = 50, gunScale = new Vector2(1.4f, 1.5f), gunColor = new Color(0.65f, 0.68f, 0.75f) },
@@ -237,7 +237,7 @@ public class PlayerWeapon : MonoBehaviour
     public void EquipSpecial(int type)
     {
         if (type > 0 && type <= specialGuns.Length)
-            ammo = Mathf.RoundToInt(specialGuns[type - 1].ammo * (cores != null ? cores.SpecialAmmoMultiplier : 1f)); // Gun Nut: more
+            ammo = specialGuns[type - 1].ammo;
     }
 
     // Every machine: the gun looks like the one held.
@@ -379,7 +379,7 @@ public class PlayerWeapon : MonoBehaviour
     {
         GameAudio.Play(hitConfirmSound, hitConfirmVolume, 0.05f, knockout ? 0.75f : 1f);
         if (damage > 0f && damageNumberPrefab != null)
-            Instantiate(damageNumberPrefab, point, Quaternion.identity).Show(damage, knockout ? knockoutColor : Color.white, knockout ? 1.6f : 1f);
+            Instantiate(damageNumberPrefab, point, Quaternion.identity).Show(damage, knockout ? knockoutColor : Color.white, knockout ? 1.8f : 1.3f); // big: easy to see among the bullets
 
         if (knockout)
         {
@@ -400,7 +400,7 @@ public class PlayerWeapon : MonoBehaviour
     public void PlayShotFeedback(float spreadAngle, bool shake)
     {
         if (TryGetComponent(out CoreLooks looks))
-            looks.OnShot(); // Hot Barrel, Opener
+            looks.OnShot(); // Hot Barrel
         gunVisual.localPosition = gunRestPosition - Vector3.right * gunKickDistance;           // gun's local -X = backwards
         gunVisual.localRotation = gunRestRotation * Quaternion.Euler(0f, 0f, spreadAngle);  // gun jerks toward where the bullet went
         muzzleFlash.SetActive(true);

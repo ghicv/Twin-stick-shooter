@@ -362,7 +362,7 @@ public class MatchManager : NetworkBehaviour
         PlayerNetwork last = null;
         foreach (PlayerNetwork player in PlayerNetwork.All)
         {
-            if (!player.Dead)
+            if (!player.Dead || player.ComingBack)
             {
                 alive++;
                 last = player;

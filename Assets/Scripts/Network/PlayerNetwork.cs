@@ -66,7 +66,6 @@ public class PlayerNetwork : NetworkBehaviour
     private PlayerHealth playerHealth;
     private PlayerRespawn respawn;
     private PlayerWeapon weapon;
-    private HitTarget target;
     private CoreBridge coreBridge;
     private CoreInventory inventory;
     private bool placed;
@@ -123,8 +122,16 @@ public class PlayerNetwork : NetworkBehaviour
     public bool Dead
     {
         get => Offline ? offlineDead : dead.Value;
-        set { if (Offline) offlineDead = value; else dead.Value = value; }
+        set
+        {
+            if (Offline) offlineDead = value; else dead.Value = value;
+            if (!value)
+                ComingBack = false;
+        }
     }
+
+    // Host: dead but on the way back (Extra Life), so the round isn't lost meanwhile.
+    public bool ComingBack { get; set; }
 
     // Its machine has finished joining (it gets every message from now on). A match only starts when all are ready.
     public bool Ready => ready.Value;
@@ -137,7 +144,6 @@ public class PlayerNetwork : NetworkBehaviour
         playerHealth = GetComponent<PlayerHealth>();
         respawn = GetComponent<PlayerRespawn>();
         weapon = GetComponent<PlayerWeapon>();
-        target = GetComponent<HitTarget>();
         coreBridge = GetComponent<CoreBridge>();
         inventory = GetComponent<CoreInventory>();
         cores = new NetworkList<int>();
@@ -332,35 +338,35 @@ public class PlayerNetwork : NetworkBehaviour
 
     // Owner: fires one shot. The host spawns the real bullets, every other machine look-alikes (same seed).
     // gun = a special gun's bullet effect (PlayerWeapon.GunEffect), sent with the shot so every machine agrees.
-    public void Fire(Vector2 position, float angle, float speed, float damage, float lifetime, float size, int gun)
+    public void Fire(Vector2 position, float angle, float speed, float damage, float lifetime, int gun)
     {
         int seed = Random.Range(1, int.MaxValue);
         if (IsHostSide)
         {
-            coreBridge.SpawnShot(position, angle, speed, damage, lifetime, size, seed, false, gun);
+            coreBridge.SpawnShot(position, angle, speed, damage, lifetime, seed, false, gun);
             if (!Offline)
-                ShotLookAlikeRpc(position, angle, speed, damage, lifetime, size, seed, gun);
+                ShotLookAlikeRpc(position, angle, speed, damage, lifetime, seed, gun);
         }
         else
         {
-            coreBridge.SpawnShot(position, angle, speed, damage, lifetime, size, seed, true, gun); // no waiting for the host
-            FireRpc(position, angle, speed, damage, lifetime, size, seed, gun);
+            coreBridge.SpawnShot(position, angle, speed, damage, lifetime, seed, true, gun); // no waiting for the host
+            FireRpc(position, angle, speed, damage, lifetime, seed, gun);
         }
     }
 
     [Rpc(SendTo.Server)]
-    private void FireRpc(Vector2 position, float angle, float speed, float damage, float lifetime, float size, int seed, int gun)
+    private void FireRpc(Vector2 position, float angle, float speed, float damage, float lifetime, int seed, int gun)
     {
-        coreBridge.SpawnShot(position, angle, speed, damage, lifetime, size, seed, false, gun);
-        ShotLookAlikeRpc(position, angle, speed, damage, lifetime, size, seed, gun);
+        coreBridge.SpawnShot(position, angle, speed, damage, lifetime, seed, false, gun);
+        ShotLookAlikeRpc(position, angle, speed, damage, lifetime, seed, gun);
     }
 
     [Rpc(SendTo.NotServer)]
-    private void ShotLookAlikeRpc(Vector2 position, float angle, float speed, float damage, float lifetime, float size, int seed, int gun)
+    private void ShotLookAlikeRpc(Vector2 position, float angle, float speed, float damage, float lifetime, int seed, int gun)
     {
         if (IsOwner)
             return; // the shooter made its own already
-        coreBridge.SpawnShot(position, angle, speed, damage, lifetime, size, seed, true, gun);
+        coreBridge.SpawnShot(position, angle, speed, damage, lifetime, seed, true, gun);
         weapon.PlayShotFeedback(0f, false);
     }
 
@@ -497,23 +503,6 @@ public class PlayerNetwork : NetworkBehaviour
 
     [Rpc(SendTo.Server)]
     private void InvulnerableRpc(float duration) => playerHealth.SetInvulnerable(duration);
-
-    public void ReportCrash(Vector2 point)
-    {
-        if (Offline)
-            Crash(point);
-        else
-            CrashRpc(point);
-    }
-
-    [Rpc(SendTo.Server)]
-    private void CrashRpc(Vector2 point) => Crash(point);
-
-    private void Crash(Vector2 point)
-    {
-        if (playerHealth.LastAttacker != null)
-            playerHealth.LastAttacker.OnEnemyCrash(target, null, point);
-    }
 
     public void ReportFell()
     {

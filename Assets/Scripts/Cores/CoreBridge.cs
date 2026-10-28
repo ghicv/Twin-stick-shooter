@@ -71,17 +71,15 @@ public class CoreBridge : MonoBehaviour
                          PlayerWeapon.GunEffect gun = PlayerWeapon.GunEffect.None)
     {
         projectilePrefab = prefab;
-        float size;
-        float damageMultiplier = singleCores.ShotDamage(out size);
-        net.Fire(position, aim.eulerAngles.z, speed, damage * damageMultiplier, lifetime, size, (int)gun);
+        net.Fire(position, aim.eulerAngles.z, speed, damage * singleCores.ShotDamage(), lifetime, (int)gun);
     }
 
     // Spawns a shot's bullets on this machine (PlayerNetwork): the real ones on the host, look-alikes elsewhere.
-    public void SpawnShot(Vector2 position, float angle, float speed, float damage, float lifetime, float size, int seed, bool lookAlike, int gun)
+    public void SpawnShot(Vector2 position, float angle, float speed, float damage, float lifetime, int seed, bool lookAlike, int gun)
     {
         if (projectilePrefab == null)
             projectilePrefab = GetComponent<PlayerWeapon>().ProjectilePrefab;
-        bulletCores.FireShot(projectilePrefab, position, Quaternion.Euler(0f, 0f, angle), speed, damage, lifetime, body, size, seed, lookAlike,
+        bulletCores.FireShot(projectilePrefab, position, Quaternion.Euler(0f, 0f, angle), speed, damage, lifetime, body, seed, lookAlike,
                              (PlayerWeapon.GunEffect)gun);
     }
 
@@ -90,7 +88,7 @@ public class CoreBridge : MonoBehaviour
     public void OnBulletFly(Projectile bullet) => bulletCores.OnFly(bullet);
 
     // Multiplier for the knockback of the bullet's hit.
-    public float BulletKnockback => bulletCores.Knockback();
+    public float BulletKnockback(Projectile bullet) => bulletCores.Knockback(bullet);
 
     // The bullet hit a target (a real one has already damaged it). True = it keeps flying.
     public bool OnBulletHitTarget(Projectile bullet, HitTarget target, Vector2 point, Vector2 normal) =>
@@ -109,19 +107,6 @@ public class CoreBridge : MonoBehaviour
     public int ExtraAirJumps => singleCores.ExtraAirJumps;
 
     public bool DashUpgraded => singleCores.DashUpgraded;
-
-    // Host: knockback this player takes is multiplied by this (Anchor).
-    public float KnockbackTaken => singleCores.KnockbackTaken;
-
-    // Host: health packs heal this many times more and protect this long (Medic).
-    public float HealthPackHeal => singleCores.HealthPackHeal;
-    public float HealthPackProtection => singleCores.HealthPackProtection;
-
-    // Bullet damage to barrels and the push on crates (Demolition).
-    public float PropMultiplier => singleCores.PropMultiplier;
-
-    // Ammo of the special guns from weapon crates (Gun Nut).
-    public float SpecialAmmoMultiplier => singleCores.SpecialAmmoMultiplier;
 
     // Host: this player's bullets or cores dealt that much damage (Vampire).
     public void OnDamageDealt(float amount, Vector2 at) => singleCores.OnDamageDealt(amount, at);
@@ -144,9 +129,6 @@ public class CoreBridge : MonoBehaviour
 
     // A target this player hit last is gone (killed, or knocked into the void).
     public void OnEnemyDied(HitTarget target, Vector2 position, bool fellOff) => singleCores.OnEnemyDied(target, position, fellOff);
-
-    // A target this player hit was knocked into a wall (other = null) or into another enemy.
-    public void OnEnemyCrash(HitTarget target, HitTarget other, Vector2 point) => singleCores.OnEnemyCrash(target, other, point);
 
     // An effect the host showed (PlayerNetwork passes it on).
     public void PlayEffect(int effect, Vector2 position, float scale) => singleCores.PlayEffect(effect, position, scale);
@@ -184,7 +166,7 @@ public class CoreBridge : MonoBehaviour
     }
 
     // The map was swapped (things the cores left on the old one go away).
-    public void OnMapChanged() => bulletCores.ClearMines();
+    public void OnMapChanged() => bulletCores.ClearBlackHoles();
 
     // Several offers in a row; onDone runs after the last pick.
     private bool OfferCards(int offers, CoreInventory.Rarity rarity, System.Action onDone)

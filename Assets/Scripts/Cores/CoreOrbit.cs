@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 // Flying swords (Orbit core, made by SingleCores), like a cultivator's: three small glowing swords circle the player,
-// points outward, cutting the bullets of others they touch. When a target comes within reach the swords fly off one
+// points outward (they don't stop bullets). When a target comes within reach the swords fly off one
 // after another, chase it, strike it and fly back to their place, then rest a moment. Every machine flies them (each
 // picks the nearest target, the same everywhere); only the host's strikes hurt. Hidden while the player is out of
 // play.
@@ -33,7 +33,6 @@ public class CoreOrbit : MonoBehaviour
     private SingleCores owner;
     private PlayerNetwork player;
     private HitTarget self;
-    private Rigidbody2D shooter;
     private float radius;
     private float speed;
     private float damage;
@@ -42,8 +41,6 @@ public class CoreOrbit : MonoBehaviour
     private float angle;
     private float launchTimer;
     private readonly List<Sword> swords = new List<Sword>();
-    private readonly List<Collider2D> touching = new List<Collider2D>();
-    private static readonly ContactFilter2D AnyCollider = new ContactFilter2D().NoFilter(); // triggers too
 
     public void Setup(SingleCores owner, PlayerNetwork player, HitTarget self, Sprite sprite, Color color, Material trailMaterial,
                       float radius, float speed, float damage, float restTime)
@@ -51,7 +48,6 @@ public class CoreOrbit : MonoBehaviour
         this.owner = owner;
         this.player = player;
         this.self = self;
-        shooter = owner.GetComponent<Rigidbody2D>();
         this.radius = radius;
         this.speed = speed;
         this.damage = damage;
@@ -193,22 +189,5 @@ public class CoreOrbit : MonoBehaviour
         if (player != null && !player.IsHostSide)
             return;
         sword.target.TakeDamage(damage, point, -sword.velocity.normalized, 0.8f, owner.Bridge);
-    }
-
-    // The swords cut the bullets of others they touch (each machine its own bullets).
-    private void FixedUpdate()
-    {
-        if (player != null && !player.InPlay)
-            return;
-        foreach (Sword sword in swords)
-        {
-            Physics2D.OverlapCircle(sword.body.position, 0.3f, AnyCollider, touching);
-            foreach (Collider2D hit in touching)
-            {
-                Projectile bullet = hit.GetComponent<Projectile>();
-                if (bullet != null && bullet.Shooter != shooter)
-                    bullet.Shatter();
-            }
-        }
     }
 }

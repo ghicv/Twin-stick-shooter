@@ -4,8 +4,8 @@ using UnityEngine;
 
 // The Draw the Sword core (diamond): the gun becomes a sword. Left Mouse slashes toward the aim, a wide arc in front:
 // a heavy hit with a big push on whatever is in it, crates and barrels too, and every bullet in it that isn't this
-// player's is cut to pieces. Pure melee: no shots (the bullet cores wait). A special gun picked up is used instead
-// until its ammo runs out.
+// player's is cut to pieces. Each slash also sends a sword wave flying: a shot like the gun's, so the bullet cores
+// ride on it (the wave doesn't cut bullets). A special gun picked up is used instead until its ammo runs out.
 // The owner swings at once; the host decides the hits (single player: this machine). Every machine shows the swing
 // and cuts its own bullets (the host's real ones, the others' look-alikes).
 public class PlayerSword : MonoBehaviour
@@ -45,6 +45,12 @@ public class PlayerSword : MonoBehaviour
     [Tooltip("Push on crates hit by a slash.")]
     [SerializeField] private float propPush = 6f;
 
+    [Header("Sword wave")]
+    [Tooltip("Every slash (not the dash ones) sends a crescent flying: a bullet with the bullet cores.")]
+    [SerializeField] private float waveDamage = 12f;
+    [SerializeField] private float waveSpeed = 22f;
+    [SerializeField] private float waveLifetime = 0.4f;
+
     [Header("Sound")]
     [SerializeField] private AudioClip swooshSound;
     [Range(0f, 1f)]
@@ -61,6 +67,7 @@ public class PlayerSword : MonoBehaviour
     [SerializeField] private float drawVolume = 0.5f;
 
     private PlayerNetwork net;
+    private PlayerWeapon weapon;
     private Rigidbody2D rb;
     private HitTarget self;
     private CameraShake cameraShake;
@@ -81,6 +88,7 @@ public class PlayerSword : MonoBehaviour
     private void Awake()
     {
         net = GetComponent<PlayerNetwork>();
+        weapon = GetComponent<PlayerWeapon>();
         rb = GetComponent<Rigidbody2D>();
         self = GetComponent<HitTarget>();
         cameraShake = Camera.main != null ? Camera.main.GetComponent<CameraShake>() : null;
@@ -126,7 +134,13 @@ public class PlayerSword : MonoBehaviour
         if (Time.time < nextSlash)
             return;
         nextSlash = Time.time + cooldown;
-        net.Slash(pivot.eulerAngles.z);
+        float angle = pivot.eulerAngles.z;
+        net.Slash(angle);
+
+        // The sword wave: a shot like the gun's, so it carries every bullet core (bounces, homes, explodes...).
+        if (net.Cores != null && weapon != null)
+            net.Cores.FireShot(weapon.ProjectilePrefab, Hands, Quaternion.Euler(0f, 0f, angle), waveSpeed, waveDamage, waveLifetime, rb,
+                               PlayerWeapon.GunEffect.SwordWave);
     }
 
     // Owner, a dash (Shift) with the sword out: a slash as it starts and another as it ends, the dash carrying the

@@ -660,32 +660,32 @@ MonoBehaviour:
   shootPitchVariation: 0.08
   specialGuns:
   - name: SHOTGUN
-    effect: 0
+    effect: 5
     burst: 1
     burstGap: 0.07
     sprite: {fileID: 21300000, guid: 5f9309647b77a0c4caa7400e6b11200e, type: 3}
     sound: {fileID: 8300000, guid: 63743954b3e0bfb4c89f6d03922516f8, type: 3}
     shake: 0.28
     fireRate: 1.4
-    damage: 8
-    speed: 26
-    lifetime: 0.35
-    pellets: 6
+    damage: 11
+    speed: 48
+    lifetime: 0.22
+    pellets: 7
     spread: 14
     ammo: 6
     gunScale: {x: 1, y: 1}
     gunColor: {r: 1, g: 1, b: 1, a: 1}
   - name: SNIPER
-    effect: 0
+    effect: 6
     burst: 1
     burstGap: 0.07
     sprite: {fileID: 21300000, guid: e6c34355d455403439cbd6257dae0bd1, type: 3}
     sound: {fileID: 8300000, guid: 0f80b2ff4f1ce7640a7dac697af37e43, type: 3}
     shake: 0.3
     fireRate: 0.9
-    damage: 40
-    speed: 60
-    lifetime: 2
+    damage: 100
+    speed: 120
+    lifetime: 1
     pellets: 1
     spread: 0
     ammo: 4
@@ -808,6 +808,7 @@ MonoBehaviour:
   explosionShakeStrength: 0.4
   explosionShakeDuration: 0.35
   reviveDelay: 1
+  safeSpawnDistance: 6
   extraLifeBlastRadius: 3.5
   extraLifeBlastDamage: 15
   extraLifeKnockback: 3.5
@@ -844,7 +845,7 @@ MonoBehaviour:
   knockback: {x: 7, y: 5}
   lanKnockbackScale: 0.8
   hitFlashColor: {r: 1, g: 1, b: 1, a: 1}
-  hitFlashTime: 0.06
+  hitFlashTime: 0.1
   hitShakeStrength: 0.2
   hitShakeDuration: 0.15
   blinkInterval: 0.06
@@ -854,8 +855,7 @@ MonoBehaviour:
   bloodEffect: {fileID: 3008225546054007256, guid: 4e751a3a2ef140f47a7dc11ab934389c, type: 3}
   hitSound: {fileID: 8300000, guid: 336450b6703bcc6428a511794cc732fc, type: 3}
   hitVolume: 0.6
-  crashSpeed: 5
-  crashWindow: 0.6
+  hitSparkMaterial: {fileID: 2100000, guid: 9dfc825aed78fcd4ba02077103263b40, type: 2}
 --- !u!114 &693889228183217943
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1003,10 +1003,10 @@ MonoBehaviour:
     rarity: 0
     title: BACK SHOT
     tag: "BULLET \xB7 SPAWN"
-    description: Every shot also fires backwards (60% damage).
+    description: Every shot also fires backwards (25% damage).
     titleVi: "B\u1EAEN NG\u01AF\u1EE2C"
     tagVi: "\u0110\u1EA0N \xB7 B\u1EAEN RA"
-    descriptionVi: "M\u1ED7i ph\xE1t b\u1EAFn th\xEAm 1 vi\xEAn ra ph\xEDa sau (60%
+    descriptionVi: "M\u1ED7i ph\xE1t b\u1EAFn th\xEAm 1 vi\xEAn ra ph\xEDa sau (25%
       s\xE1t th\u01B0\u01A1ng)."
     icon: {fileID: 21300000, guid: d83e44fb666966d468c827133c2a6305, type: 3}
     bulletCore: 1
@@ -1112,28 +1112,6 @@ MonoBehaviour:
     bulletCore: 1
   - type: 11
     rarity: 0
-    title: LONG SHOT
-    tag: "BULLET \xB7 FLY"
-    description: +6% damage per unit flown, up to 2x.
-    titleVi: "B\u1EAEN XA"
-    tagVi: "\u0110\u1EA0N \xB7 BAY"
-    descriptionVi: "+6% s\xE1t th\u01B0\u01A1ng cho m\u1ED7i \u0111\u01A1n v\u1ECB
-      \u0111\u01B0\u1EDDng bay, t\u1ED1i \u0111a 2 l\u1EA7n."
-    icon: {fileID: 21300000, guid: 0e12832e58e50f3489308c8b40081a7d, type: 3}
-    bulletCore: 1
-  - type: 12
-    rarity: 0
-    title: DRILL
-    tag: "BULLET \xB7 FLY"
-    description: Bullets go through one wall. -20% damage.
-    titleVi: KHOAN
-    tagVi: "\u0110\u1EA0N \xB7 BAY"
-    descriptionVi: "\u0110\u1EA1n xuy\xEAn qua m\u1ED9t b\u1EE9c t\u01B0\u1EDDng.
-      -20% s\xE1t th\u01B0\u01A1ng."
-    icon: {fileID: 21300000, guid: 99e55686d2b811f459d0b8704dba2d98, type: 3}
-    bulletCore: 1
-  - type: 13
-    rarity: 0
     title: ACCELERATE
     tag: "BULLET \xB7 FLY"
     description: Bullets leave slow and speed up to 2x; the faster, the harder they
@@ -1144,18 +1122,7 @@ MonoBehaviour:
       \u0111\xF4i; c\xE0ng nhanh c\xE0ng \u0111au (t\u1EDBi 1.7x)."
     icon: {fileID: 21300000, guid: 557d760d8accd304a99a2817b26ec318, type: 3}
     bulletCore: 1
-  - type: 14
-    rarity: 1
-    title: DEFLECT
-    tag: "BULLET \xB7 FLY"
-    description: Your bullets destroy the opponents' bullets they touch.
-    titleVi: "PH\u1EA2N \u0110\u1EA0N"
-    tagVi: "\u0110\u1EA0N \xB7 BAY"
-    descriptionVi: "\u0110\u1EA1n c\u1EE7a b\u1EA1n ph\xE1 \u0111\u1EA1n c\u1EE7a
-      \u0111\u1ED1i th\u1EE7 khi ch\u1EA1m nhau."
-    icon: {fileID: 21300000, guid: 481ef691e9f9ac9419a39b84df205d1f, type: 3}
-    bulletCore: 1
-  - type: 15
+  - type: 12
     rarity: 1
     title: EXPLOSIVE
     tag: "BULLET \xB7 HIT"
@@ -1167,7 +1134,7 @@ MonoBehaviour:
       xung quanh v\xE0 h\u1EA5t v\u0103ng. -15% t\u1ED1c \u0111\u1ED9 b\u1EAFn."
     icon: {fileID: 21300000, guid: 51b085a320a7f764583c7a6f35497a70, type: 3}
     bulletCore: 1
-  - type: 16
+  - type: 13
     rarity: 1
     title: HAMMER
     tag: "BULLET \xB7 HIT"
@@ -1178,18 +1145,18 @@ MonoBehaviour:
       \u0111\u1ED1i th\u1EE7 m\u1EA1nh g\u1EA5p 2.5 l\u1EA7n."
     icon: {fileID: 21300000, guid: b5a58ffa71dbe02489c99fabbd29847d, type: 3}
     bulletCore: 1
-  - type: 17
+  - type: 14
     rarity: 1
     title: FORK
     tag: "BULLET \xB7 HIT"
-    description: On the first opponent, bullets split in 2 (35% damage each).
+    description: On the first opponent, bullets split in 2 (25% damage each).
     titleVi: "CH\u1EBA \u0110\xD4I"
     tagVi: "\u0110\u1EA0N \xB7 TR\xDANG"
     descriptionVi: "Tr\xFAng \u0111\u1ED1i th\u1EE7 \u0111\u1EA7u ti\xEAn, \u0111\u1EA1n
-      t\xE1ch l\xE0m 2 (m\u1ED7i vi\xEAn 35% s\xE1t th\u01B0\u01A1ng)."
+      t\xE1ch l\xE0m 2 (m\u1ED7i vi\xEAn 25% s\xE1t th\u01B0\u01A1ng)."
     icon: {fileID: 21300000, guid: b593c1d27d5cddb40b2d7aad4807d997, type: 3}
     bulletCore: 1
-  - type: 18
+  - type: 15
     rarity: 2
     title: CHAIN
     tag: "BULLET \xB7 HIT"
@@ -1201,7 +1168,7 @@ MonoBehaviour:
       g\u1EA7n \u0111\xF3 (70% s\xE1t th\u01B0\u01A1ng) v\xE0 k\xEDch n\u1ED5 th\xF9ng."
     icon: {fileID: 21300000, guid: ac2a8f83a18ec4246b7fb106f055c1df, type: 3}
     bulletCore: 1
-  - type: 19
+  - type: 16
     rarity: 0
     title: CHILL
     tag: "BULLET \xB7 HIT"
@@ -1212,7 +1179,7 @@ MonoBehaviour:
       v\xE0 t\u1EA5n c\xF4ng ch\u1EADm m\u1ED9t n\u1EEDa trong 1.5 gi\xE2y."
     icon: {fileID: 21300000, guid: ed4cadbb64aeeab489ae1aa638907bc5, type: 3}
     bulletCore: 1
-  - type: 20
+  - type: 17
     rarity: 1
     title: IGNITE
     tag: "BULLET \xB7 HIT"
@@ -1223,7 +1190,7 @@ MonoBehaviour:
       5 s\xE1t th\u01B0\u01A1ng m\u1ED7i 0.5 gi\xE2y trong 2 gi\xE2y."
     icon: {fileID: 21300000, guid: 350230875722f21499e612e71ed81dd1, type: 3}
     bulletCore: 1
-  - type: 21
+  - type: 18
     rarity: 1
     title: VORTEX
     tag: "BULLET \xB7 HIT"
@@ -1234,7 +1201,7 @@ MonoBehaviour:
       \u0111\xF3 v\u1EC1 ch\u1ED7 tr\xFAng."
     icon: {fileID: 21300000, guid: d1f5c5abe2e19d74a9fd078d84381e34, type: 3}
     bulletCore: 1
-  - type: 22
+  - type: 19
     rarity: 1
     title: REAPER
     tag: "BULLET \xB7 HIT"
@@ -1245,7 +1212,7 @@ MonoBehaviour:
       t\u1EEB 10% m\xE1u tr\u1EDF xu\u1ED1ng."
     icon: {fileID: 21300000, guid: 03ff728ec01349e41af8a3d6854a3269, type: 3}
     bulletCore: 1
-  - type: 23
+  - type: 20
     rarity: 1
     title: STICKY BOMB
     tag: "BULLET \xB7 HIT"
@@ -1258,7 +1225,7 @@ MonoBehaviour:
       ng\u01B0\u1EDDi."
     icon: {fileID: 21300000, guid: 0264b4e3dc76ce94a976a8918bae1ba4, type: 3}
     bulletCore: 1
-  - type: 24
+  - type: 21
     rarity: 2
     title: THUNDER
     tag: "BULLET \xB7 HIT"
@@ -1271,29 +1238,18 @@ MonoBehaviour:
       g\u1EA7n."
     icon: {fileID: 21300000, guid: cbed29f584d7c2c43a6a23dceb07dd32, type: 3}
     bulletCore: 1
-  - type: 25
+  - type: 22
     rarity: 1
     title: SHRAPNEL
     tag: "BULLET \xB7 END"
-    description: Bullets burst into 3 shards when they stop (30% damage each).
+    description: Bullets burst into 3 shards when they stop (25% damage each).
     titleVi: "M\u1EA2NH V\u1EE0"
     tagVi: "\u0110\u1EA0N \xB7 K\u1EBET TH\xDAC"
     descriptionVi: "\u0110\u1EA1n v\u1EE1 th\xE0nh 3 m\u1EA3nh khi d\u1EEBng l\u1EA1i
-      (m\u1ED7i m\u1EA3nh 30% s\xE1t th\u01B0\u01A1ng)."
+      (m\u1ED7i m\u1EA3nh 25% s\xE1t th\u01B0\u01A1ng)."
     icon: {fileID: 21300000, guid: 80ef69c1e693b6f4f96c57cc190d684e, type: 3}
     bulletCore: 1
-  - type: 26
-    rarity: 0
-    title: MINE
-    tag: "BULLET \xB7 END"
-    description: Bullets stopping on walls may leave a mine (15 damage blast).
-    titleVi: "M\xCCN"
-    tagVi: "\u0110\u1EA0N \xB7 K\u1EBET TH\xDAC"
-    descriptionVi: "\u0110\u1EA1n d\u1EEBng tr\xEAn t\u01B0\u1EDDng c\xF3 th\u1EC3
-      \u0111\u1EC3 l\u1EA1i m\u1ED9t qu\u1EA3 m\xECn (n\u1ED5 15 s\xE1t th\u01B0\u01A1ng)."
-    icon: {fileID: 21300000, guid: b66e9789834be84418ec25db6030f40f, type: 3}
-    bulletCore: 1
-  - type: 27
+  - type: 23
     rarity: 2
     title: BLACK HOLE
     tag: "BULLET \xB7 END"
@@ -1306,7 +1262,7 @@ MonoBehaviour:
       r\u1ED3i n\u1ED5 (25 s\xE1t th\u01B0\u01A1ng)."
     icon: {fileID: 21300000, guid: 197ea252f28c17044b433ba5278334f2, type: 3}
     bulletCore: 1
-  - type: 28
+  - type: 24
     rarity: 0
     title: GROUND POUND
     tag: "SINGLE \xB7 PLAYER"
@@ -1317,7 +1273,7 @@ MonoBehaviour:
       th\u1EE7 g\u1EA7n \u0111\xF3 (20 s\xE1t th\u01B0\u01A1ng)."
     icon: {fileID: 21300000, guid: 9de5e47fb1199554b9746dfbffeaab48, type: 3}
     bulletCore: 0
-  - type: 29
+  - type: 25
     rarity: 0
     title: EXTRA JUMP
     tag: "SINGLE \xB7 PLAYER"
@@ -1327,7 +1283,7 @@ MonoBehaviour:
     descriptionVi: "Th\xEAm m\u1ED9t l\u1EA7n nh\u1EA3y tr\xEAn kh\xF4ng."
     icon: {fileID: 21300000, guid: 7bab3bca3536ae74abddd19a63453671, type: 3}
     bulletCore: 0
-  - type: 30
+  - type: 26
     rarity: 1
     title: DASH+
     tag: "SINGLE \xB7 PLAYER"
@@ -1339,7 +1295,7 @@ MonoBehaviour:
       kh\xF4ng b\u1ECB th\u01B0\u01A1ng khi \u0111ang l\u01B0\u1EDBt."
     icon: {fileID: 21300000, guid: 49596c10611cea54faf3634022fadd1e, type: 3}
     bulletCore: 0
-  - type: 31
+  - type: 27
     rarity: 0
     title: THICK SKIN
     tag: "SINGLE \xB7 PLAYER"
@@ -1349,7 +1305,7 @@ MonoBehaviour:
     descriptionVi: "+40 m\xE1u t\u1ED1i \u0111a."
     icon: {fileID: 21300000, guid: 8ab8fa25d739a3740a22838eb1859781, type: 3}
     bulletCore: 0
-  - type: 32
+  - type: 28
     rarity: 2
     title: EXTRA LIFE
     tag: "SINGLE \xB7 PLAYER"
@@ -1361,42 +1317,18 @@ MonoBehaviour:
       n\u1ED5 h\u1EA5t v\u0103ng m\u1ECDi ng\u01B0\u1EDDi, b\u1EA5t t\u1EED 2 gi\xE2y."
     icon: {fileID: 21300000, guid: e4f168e551e65f4499040f69ad92bb7d, type: 3}
     bulletCore: 0
-  - type: 33
+  - type: 29
     rarity: 2
     title: FLYING SWORDS
     tag: "SINGLE \xB7 PLAYER"
-    description: 3 swords circle you, cut bullets and fly off to strike nearby opponents
-      (15 damage).
+    description: 3 swords circle you and fly off to strike nearby opponents (15 damage).
     titleVi: "PHI KI\u1EBEM"
     tagVi: "\u0110\u01A0N \xB7 NH\xC2N V\u1EACT"
-    descriptionVi: "3 thanh ki\u1EBFm bay quanh b\u1EA1n, ch\xE9m n\xE1t \u0111\u1EA1n
-      v\xE0 t\u1EF1 ph\xF3ng t\u1EDBi ch\xE9m \u0111\u1ED1i th\u1EE7 g\u1EA7n (15
-      s\xE1t th\u01B0\u01A1ng)."
+    descriptionVi: "3 thanh ki\u1EBFm bay quanh b\u1EA1n v\xE0 t\u1EF1 ph\xF3ng t\u1EDBi
+      ch\xE9m \u0111\u1ED1i th\u1EE7 g\u1EA7n (15 s\xE1t th\u01B0\u01A1ng)."
     icon: {fileID: 21300000, guid: 8892802be5163b64ba2367481fc73809, type: 3}
     bulletCore: 0
-  - type: 34
-    rarity: 1
-    title: ANCHOR
-    tag: "SINGLE \xB7 PLAYER"
-    description: You are pushed 40% less by hits and blasts.
-    titleVi: "M\u1ECE NEO"
-    tagVi: "\u0110\u01A0N \xB7 NH\xC2N V\u1EACT"
-    descriptionVi: "B\u1ECB \u0111\u1EA9y v\u0103ng \xEDt h\u01A1n 40% khi tr\xFAng
-      \u0111\u1EA1n v\xE0 v\u1EE5 n\u1ED5."
-    icon: {fileID: 21300000, guid: 9434447dd1099be4a94021c85279fe1b, type: 3}
-    bulletCore: 0
-  - type: 35
-    rarity: 0
-    title: MEDIC
-    tag: "SINGLE \xB7 PLAYER"
-    description: Health packs heal double and protect you for 1s.
-    titleVi: "Y T\xC1"
-    tagVi: "\u0110\u01A0N \xB7 NH\xC2N V\u1EACT"
-    descriptionVi: "H\u1ED9p m\xE1u h\u1ED3i g\u1EA5p \u0111\xF4i v\xE0 b\u1EA3o
-      v\u1EC7 b\u1EA1n 1 gi\xE2y."
-    icon: {fileID: 21300000, guid: 0ba0cb5b2923d7c42964fc7f874ec856, type: 3}
-    bulletCore: 0
-  - type: 36
+  - type: 30
     rarity: 1
     title: HOT BARREL
     tag: "SINGLE \xB7 GUN"
@@ -1407,18 +1339,7 @@ MonoBehaviour:
       t\u1ED1i \u0111a 1.5 l\u1EA7n."
     icon: {fileID: 21300000, guid: 06941e8897aa4f148bcd139b6a1993d1, type: 3}
     bulletCore: 0
-  - type: 37
-    rarity: 0
-    title: STEADY AIM
-    tag: "SINGLE \xB7 GUN"
-    description: 'Shots go almost straight: 80% less spread.'
-    titleVi: "NG\u1EAEM V\u1EEENG"
-    tagVi: "\u0110\u01A0N \xB7 S\xDANG"
-    descriptionVi: "\u0110\u1EA1n bay g\u1EA7n nh\u01B0 th\u1EB3ng: gi\u1EA3m 80%
-      \u0111\u1ED9 t\u1EA3n."
-    icon: {fileID: 21300000, guid: e06ddfcf585b92c4594396980a795e91, type: 3}
-    bulletCore: 0
-  - type: 38
+  - type: 31
     rarity: 0
     title: AIR GUNNER
     tag: "SINGLE \xB7 GUN"
@@ -1428,7 +1349,7 @@ MonoBehaviour:
     descriptionVi: "+25% s\xE1t th\u01B0\u01A1ng khi \u0111ang \u1EDF tr\xEAn kh\xF4ng."
     icon: {fileID: 21300000, guid: 1a74af40d75042f4d8ac859398839ecc, type: 3}
     bulletCore: 0
-  - type: 39
+  - type: 32
     rarity: 1
     title: ADRENALINE
     tag: "SINGLE \xB7 GUN"
@@ -1438,41 +1359,7 @@ MonoBehaviour:
     descriptionVi: "D\u01B0\u1EDBi 35% m\xE1u, b\u1EAFn nhanh g\u1EA5p 1.5 l\u1EA7n."
     icon: {fileID: 21300000, guid: 11df5dc03678cb14ca00173ee91d6e70, type: 3}
     bulletCore: 0
-  - type: 40
-    rarity: 0
-    title: OPENER
-    tag: "SINGLE \xB7 GUN"
-    description: The first shot after a 0.5s pause deals 2.5x damage.
-    titleVi: "PH\xC1T M\u1EDE M\xC0N"
-    tagVi: "\u0110\u01A0N \xB7 S\xDANG"
-    descriptionVi: "Ph\xE1t b\u1EAFn \u0111\u1EA7u ti\xEAn sau 0.5 gi\xE2y ngh\u1EC9
-      g\xE2y 2.5 l\u1EA7n s\xE1t th\u01B0\u01A1ng."
-    icon: {fileID: 21300000, guid: f9879dde66021d34eb50f3644d7d5cc9, type: 3}
-    bulletCore: 0
-  - type: 41
-    rarity: 0
-    title: DEMOLITION
-    tag: "SINGLE \xB7 GUN"
-    description: Your bullets blow barrels up at once and send crates flying 3x.
-    titleVi: "PH\xC1 H\u1EE6Y"
-    tagVi: "\u0110\u01A0N \xB7 S\xDANG"
-    descriptionVi: "\u0110\u1EA1n c\u1EE7a b\u1EA1n k\xEDch n\u1ED5 th\xF9ng n\u1ED5
-      ngay l\u1EADp t\u1EE9c v\xE0 \u0111\u1EA9y th\xF9ng g\u1ED7 v\u0103ng g\u1EA5p
-      3."
-    icon: {fileID: 21300000, guid: ee1edfa824b4bd6479b05783e89efb11, type: 3}
-    bulletCore: 0
-  - type: 42
-    rarity: 0
-    title: GUN NUT
-    tag: "SINGLE \xB7 GUN"
-    description: Special guns from weapon crates come with double ammo.
-    titleVi: "M\xCA S\xDANG"
-    tagVi: "\u0110\u01A0N \xB7 S\xDANG"
-    descriptionVi: "S\xFAng \u0111\u1EB7c bi\u1EC7t nh\u1EB7t t\u1EEB h\xF2m c\xF3
-      g\u1EA5p \u0111\xF4i \u0111\u1EA1n."
-    icon: {fileID: 21300000, guid: f60a8de0db1ef0c4bab091c0fef6b264, type: 3}
-    bulletCore: 0
-  - type: 43
+  - type: 33
     rarity: 1
     title: VOID FEAST
     tag: "SINGLE \xB7 FOE"
@@ -1484,7 +1371,7 @@ MonoBehaviour:
       30 m\xE1u v\xE0 h\u1ED3i chi\xEAu l\u01B0\u1EDBt ngay."
     icon: {fileID: 21300000, guid: d80bdaf9ebbb2174c9c21bde7858b073, type: 3}
     bulletCore: 0
-  - type: 44
+  - type: 34
     rarity: 1
     title: DEATH BLAST
     tag: "SINGLE \xB7 FOE"
@@ -1495,18 +1382,7 @@ MonoBehaviour:
       n\u1ED5 (20 s\xE1t th\u01B0\u01A1ng) v\xE0 h\u1EA5t v\u0103ng m\u1EA1nh."
     icon: {fileID: 21300000, guid: 804c9633c209781479baaac76a4aa582, type: 3}
     bulletCore: 0
-  - type: 45
-    rarity: 0
-    title: CRASH
-    tag: "SINGLE \xB7 FOE"
-    description: Opponents knocked into walls or each other take 12 damage.
-    titleVi: "VA \u0110\u1EACP"
-    tagVi: "\u0110\u01A0N \xB7 \u0110\u1ED0I TH\u1EE6"
-    descriptionVi: "\u0110\u1ED1i th\u1EE7 b\u1ECB \u0111\u1EA9y v\xE0o t\u01B0\u1EDDng
-      ho\u1EB7c v\xE0o nhau nh\u1EADn 12 s\xE1t th\u01B0\u01A1ng."
-    icon: {fileID: 21300000, guid: 366416eaeb99e074b8ff0ff626724a9b, type: 3}
-    bulletCore: 0
-  - type: 46
+  - type: 35
     rarity: 1
     title: VAMPIRE
     tag: "SINGLE \xB7 FOE"
@@ -1517,18 +1393,110 @@ MonoBehaviour:
       g\xE2y ra."
     icon: {fileID: 21300000, guid: 20c221f3e0cbaac46ac6a41f93ccb850, type: 3}
     bulletCore: 0
-  - type: 47
+  - type: 36
     rarity: 2
     title: DRAW THE SWORD
     tag: "SINGLE \xB7 GUN"
-    description: 'Your gun becomes a sword: slash everything in front (25 damage),
-      cut bullets, and dashes slash too.'
+    description: 'Your gun becomes a sword: slash everything in front (25 damage)
+      and cut bullets; every slash sends out a sword wave that carries your bullet
+      cores.'
     titleVi: "R\xDAT KI\u1EBEM RA"
     tagVi: "\u0110\u01A0N \xB7 S\xDANG"
     descriptionVi: "S\xFAng th\xE0nh ki\u1EBFm: ch\xE9m m\u1ECDi th\u1EE9 tr\u01B0\u1EDBc
-      m\u1EB7t (25 s\xE1t th\u01B0\u01A1ng), ch\xE9m n\xE1t \u0111\u1EA1n, l\u01B0\u1EDBt
-      (Shift) c\u0169ng ch\xE9m."
+      m\u1EB7t (25 s\xE1t th\u01B0\u01A1ng), ch\xE9m n\xE1t \u0111\u1EA1n; m\u1ED7i
+      nh\xE1t ch\xE9m ph\xF3ng ra ki\u1EBFm kh\xED mang theo c\xE1c l\xF5i \u0111\u1EA1n
+      c\u1EE7a b\u1EA1n."
     icon: {fileID: 21300000, guid: 92a376be02f1f8e46b3661edf407e9e7, type: 3}
+    bulletCore: 0
+  - type: 37
+    rarity: 0
+    title: FAN SHOT
+    tag: "BULLET \xB7 SPAWN"
+    description: Every shot also fires 2 bullets fanned out to the sides (25% damage).
+    titleVi: "X\xD2E QU\u1EA0T"
+    tagVi: "\u0110\u1EA0N \xB7 B\u1EAEN RA"
+    descriptionVi: "M\u1ED7i ph\xE1t b\u1EAFn th\xEAm 2 vi\xEAn x\xF2e sang hai b\xEAn
+      (25% s\xE1t th\u01B0\u01A1ng)."
+    icon: {fileID: 21300000, guid: 322f8c0b89cc65f44b6234e050e0e523, type: 3}
+    bulletCore: 1
+  - type: 38
+    rarity: 0
+    title: WINGS
+    tag: "BULLET \xB7 SPAWN"
+    description: Every shot also fires 2 small bullets out to the sides, at right
+      angles to your aim (25% damage).
+    titleVi: "\u0110\xD4I C\xC1NH"
+    tagVi: "\u0110\u1EA0N \xB7 B\u1EAEN RA"
+    descriptionVi: "M\u1ED7i ph\xE1t b\u1EAFn th\xEAm 2 vi\xEAn nh\u1ECF vu\xF4ng
+      g\xF3c v\u1EDBi h\u01B0\u1EDBng b\u1EAFn, sang hai b\xEAn (25% s\xE1t th\u01B0\u01A1ng)."
+    icon: {fileID: 21300000, guid: b772ea4e2ea59bd4aa27bb81f72a125c, type: 3}
+    bulletCore: 1
+  - type: 39
+    rarity: 1
+    title: DOUBLE HELIX
+    tag: "BULLET \xB7 SPAWN"
+    description: Every bullet becomes 2 that twist around each other as they fly
+      (50% damage each).
+    titleVi: "XO\u1EAEN \u0110\xD4I"
+    tagVi: "\u0110\u1EA0N \xB7 B\u1EAEN RA"
+    descriptionVi: "M\u1ED7i vi\xEAn \u0111\u1EA1n th\xE0nh 2 vi\xEAn xo\u1EAFn quanh
+      nhau khi bay (m\u1ED7i vi\xEAn 50% s\xE1t th\u01B0\u01A1ng)."
+    icon: {fileID: 21300000, guid: 523b1f38aadb1d14ba01105f21886919, type: 3}
+    bulletCore: 1
+  - type: 40
+    rarity: 0
+    title: WAVE
+    tag: "BULLET \xB7 FLY"
+    description: Bullets weave up and down as they fly, sweeping a wider path.
+    titleVi: "\u0110\u1EA0N S\xD3NG"
+    tagVi: "\u0110\u1EA0N \xB7 BAY"
+    descriptionVi: "\u0110\u1EA1n bay l\u01B0\u1EE3n s\xF3ng l\xEAn xu\u1ED1ng, qu\xE9t
+      m\u1ED9t v\xF9ng r\u1ED9ng h\u01A1n."
+    icon: {fileID: 21300000, guid: 870e377516ffb7f4da6375232288aff7, type: 3}
+    bulletCore: 1
+  - type: 41
+    rarity: 0
+    title: ZIGZAG
+    tag: "BULLET \xB7 FLY"
+    description: Bullets zigzag as they fly, hard to dodge.
+    titleVi: "G\u1EA4P KH\xDAC"
+    tagVi: "\u0110\u1EA0N \xB7 BAY"
+    descriptionVi: "\u0110\u1EA1n bay g\u1EA5p kh\xFAc zigzag, kh\xF3 n\xE9."
+    icon: {fileID: 21300000, guid: 753cc89e5058c3245b61b8677b27c87e, type: 3}
+    bulletCore: 1
+  - type: 42
+    rarity: 1
+    title: SPLIT
+    tag: "BULLET \xB7 FLY"
+    description: After a moment in flight, every bullet splits into 3 (the 2 new
+      ones 25% damage).
+    titleVi: "T\xC1CH TIA"
+    tagVi: "\u0110\u1EA0N \xB7 BAY"
+    descriptionVi: "Bay \u0111\u01B0\u1EE3c m\u1ED9t \u0111o\u1EA1n, m\u1ED7i vi\xEAn
+      t\xE1ch th\xE0nh 3 tia (2 tia m\u1EDBi 25% s\xE1t th\u01B0\u01A1ng)."
+    icon: {fileID: 21300000, guid: eafa29ad66de30849a7085153eccb7e5, type: 3}
+    bulletCore: 1
+  - type: 43
+    rarity: 1
+    title: CROSSFIRE
+    tag: "BULLET \xB7 HIT"
+    description: Every hit bursts into 4 rays in a + shape (25% damage).
+    titleVi: "CH\u1EEE TH\u1EACP"
+    tagVi: "\u0110\u1EA0N \xB7 TR\xDANG"
+    descriptionVi: "M\u1ED7i l\u1EA7n tr\xFAng t\xF3e ra 4 tia h\xECnh d\u1EA5u +
+      (25% s\xE1t th\u01B0\u01A1ng)."
+    icon: {fileID: 21300000, guid: af2330060ab5f124e9995080e62215c0, type: 3}
+    bulletCore: 1
+  - type: 44
+    rarity: 1
+    title: GATLING
+    tag: "SINGLE \xB7 GUN"
+    description: Fire rate +150%, but the bullets spread a bit more.
+    titleVi: GATLING
+    tagVi: "\u0110\u01A0N \xB7 S\xDANG"
+    descriptionVi: "T\u1ED1c \u0111\u1ED9 b\u1EAFn +150%, nh\u01B0ng \u0111\u1EA1n
+      t\u1EA3n r\u1ED9ng h\u01A1n m\u1ED9t ch\xFAt."
+    icon: {fileID: 21300000, guid: 181e6e385166ff4499ea0bad1e6a60fb, type: 3}
     bulletCore: 0
 --- !u!114 &759047752990307770
 MonoBehaviour:
@@ -1556,11 +1524,14 @@ MonoBehaviour:
   railGlow: {r: 0.3, g: 0.85, b: 1, a: 0.7}
   railCore: {r: 1, g: 1, b: 1, a: 1}
   flameColor: {r: 1, g: 0.6, b: 0.15, a: 1}
+  shotgunKnockback: 2
+  sniperKnockback: 3.5
+  sniperColor: {r: 1, g: 0.95, b: 0.6, a: 1}
   gunBlastSound: {fileID: 8300000, guid: a4bdfc3534d9e1d46857925d640a7ba8, type: 3}
   gunBlastVolume: 0.7
   extraBulletAngle: 12
   extraBulletDamage: 1
-  backShotDamage: 0.6
+  backShotDamage: 0.25
   luckyChance: 0.12
   luckyDamage: 2.2
   luckySize: 1.4
@@ -1569,6 +1540,33 @@ MonoBehaviour:
   novaCount: 12
   novaDamage: 0.6
   novaColor: {r: 0.5, g: 0.95, b: 1, a: 1}
+  fanAngle: 22
+  fanDamage: 0.25
+  fanColor: {r: 1, g: 0.9, b: 0.45, a: 1}
+  wingsDamage: 0.25
+  wingsSize: 0.75
+  wingsColor: {r: 0.7, g: 1, b: 0.75, a: 1}
+  helixDamage: 0.5
+  helixAmplitude: 0.4
+  helixFrequency: 3
+  helixColors:
+  - {r: 1, g: 0.5, b: 0.85, a: 1}
+  - {r: 0.45, g: 0.9, b: 1, a: 1}
+  waveAmplitude: 0.6
+  waveFrequency: 2.5
+  zigzagLeg: 0.09
+  zigzagSlope: 0.8
+  splitTime: 0.18
+  splitAngle: 20
+  splitDamage: 0.25
+  splitLifetime: 0.6
+  splitColor: {r: 0.6, g: 0.85, b: 1, a: 1}
+  crossDamage: 0.25
+  crossLifetime: 0.3
+  crossColor: {r: 1, g: 0.45, b: 0.4, a: 1}
+  swordWaveSprite: {fileID: 21300000, guid: 11b85b5ed24a6eb42ae0312c43eb440f, type: 3}
+  swordWaveSize: 1.6
+  swordWaveColor: {r: 0.75, g: 0.95, b: 1, a: 1}
   giantSize: 1.8
   giantDamage: 1.3
   giantSpeed: 0.8
@@ -1598,14 +1596,9 @@ MonoBehaviour:
   accelerateMaxSpeed: 2.2
   accelerateTime: 0.6
   accelerateDamage: {x: 0.8, y: 1.7}
-  deflectRadius: 0.35
-  boomerangReturnTime: 0.3
+  boomerangReturnTime: 0.55
   boomerangTurnSpeed: 900
   boomerangCatchRadius: 0.6
-  longShotPerUnit: 0.06
-  longShotMax: 2
-  drillCount: 1
-  drillDamage: 0.8
   explosionRadius: 1.2
   explosionDamage: 10
   explosionKnockback: 1.5
@@ -1613,7 +1606,7 @@ MonoBehaviour:
   explosionEffect: {fileID: 1900384469608397415, guid: beb5acb5799f3c3458b596db4c7df869, type: 3}
   hammerKnockback: 2.5
   forkAngle: 25
-  forkDamage: 0.35
+  forkDamage: 0.25
   forkLifetime: 0.5
   forkSize: 0.7
   chainJumps: 3
@@ -1633,6 +1626,7 @@ MonoBehaviour:
   stickyDamage: 15
   stickyRadius: 1.6
   stickyKnockback: 3
+  bombSprite: {fileID: 21300000, guid: a99fa6be700cfae45a56f4cb49841610, type: 3}
   stickyColor: {r: 1, g: 0.35, b: 0.2, a: 1}
   thunderDelay: 0.12
   thunderDamage: 1
@@ -1644,29 +1638,19 @@ MonoBehaviour:
   blackHoleCooldown: 2
   maxBlackHoles: 2
   blackHoleTime: 1.4
-  blackHoleRadius: 3.2
-  blackHolePull: 2.6
+  blackHoleRadius: 4.5
+  blackHolePull: 4
   blackHoleDamage: 25
-  blackHoleBlastRadius: 2
+  blackHoleBlastRadius: 2.8
   blackHoleColor: {r: 0.75, g: 0.4, b: 1, a: 1}
   blackHoleSprite: {fileID: 21300000, guid: b48b280e21cb86f4abfe264bcb7fc65e, type: 3}
   blackHoleSwirlSprite: {fileID: 21300000, guid: 959275b70d4c34c4cab3e33ef80626f2, type: 3}
   shrapnelCount: 3
   shrapnelSpread: 90
-  shrapnelDamage: 0.3
+  shrapnelDamage: 0.25
   shrapnelSpeed: 0.8
   shrapnelLifetime: 0.35
   shrapnelScale: 0.6
-  mineChance: 0.25
-  maxMines: 4
-  mineDamage: 15
-  mineRadius: 1.5
-  mineTriggerRadius: 0.8
-  mineArmTime: 0.3
-  mineLifetime: 6
-  mineSprite: {fileID: 21300000, guid: a99fa6be700cfae45a56f4cb49841610, type: 3}
-  mineColor: {r: 1, g: 0.3, b: 0.3, a: 1}
-  mineScale: 1.6
 --- !u!114 &2299568239264722967
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1701,27 +1685,18 @@ MonoBehaviour:
   orbSprite: {fileID: 21300000, guid: 982f099fe104a01418ed32725e632b79, type: 3}
   orbColor: {r: 0.75, g: 0.97, b: 1, a: 1}
   orbitTrailMaterial: {fileID: 2100000, guid: 9dfc825aed78fcd4ba02077103263b40, type: 2}
-  anchorKnockback: 0.6
-  medicHeal: 2
-  medicProtection: 1
   hotBarrelMaxRate: 1.5
   hotBarrelRampTime: 1.5
-  steadyAimSpread: 0.2
   airGunnerDamage: 1.25
   adrenalineHealth: 0.35
   adrenalineRate: 1.5
-  openerPause: 0.5
-  openerDamage: 2.5
-  openerSize: 1.5
-  demolitionMultiplier: 3
-  gunNutAmmo: 2
+  gatlingRate: 2.5
+  gatlingSpread: 1.5
   voidFeastHeal: 30
   deathBlastRadius: 2
   deathBlastDamage: 20
   deathBlastKnockback: 3.5
   deathBlastEffect: {fileID: 1900384469608397415, guid: beb5acb5799f3c3458b596db4c7df869, type: 3}
-  crashDamage: 12
-  crashCooldown: 0.5
   vampireLifesteal: 0.15
 --- !u!114 &652163047813783592
 MonoBehaviour:
@@ -1810,6 +1785,9 @@ MonoBehaviour:
   swingTime: 0.1
   slashLife: 0.16
   propPush: 6
+  waveDamage: 12
+  waveSpeed: 22
+  waveLifetime: 0.4
   swooshSound: {fileID: 8300000, guid: 3ae8855415497e94eb98db92d8ef929a, type: 3}
   swooshVolume: 0.5
   clangSound: {fileID: 8300000, guid: ec3d29e18e3724446a1a98d0e089ee56, type: 3}
@@ -1850,18 +1828,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9734164e6ead3d347903bfdb20c924c5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CoreLooks
-  pivot: {fileID: 429950332872637155}
   firePoint: {fileID: 394257502416353809}
   gunSprite: {fileID: 5571426769794054744}
   body: {fileID: 7107644010471966630}
-  lineMaterial: {fileID: 2100000, guid: 9dfc825aed78fcd4ba02077103263b40, type: 2}
-  laserColor: {r: 1, g: 0.2, b: 0.25, a: 0.55}
   auraSprite: {fileID: 21300000, guid: 4be865fb48ce34244aa0b496fca791c8, type: 3}
-  glintSprite: {fileID: 21300000, guid: 337572ae6e2dcde4cb5201428da31e9c, type: 3}
-  anchorSprite: {fileID: 21300000, guid: 9434447dd1099be4a94021c85279fe1b, type: 3}
   heartbeatSound: {fileID: 8300000, guid: 294d32a50156897418f14e7e1b2ff240, type: 3}
   clinkSound: {fileID: 8300000, guid: 12cc077ea45e46c40ad6d99e847da1e7, type: 3}
-  openerPause: 0.5
 --- !u!1 &4200084464538221135
 GameObject:
   m_ObjectHideFlags: 0
