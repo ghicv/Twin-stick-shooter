@@ -129,9 +129,9 @@ public static class UiBuilder
         // Create room box (fields stacked with Field: label, then its input, the same gaps everywhere)
         RectTransform createPanel = UiKit.Stretch(root, "CreatePanel");
         UiKit.Dim(createPanel, "Backdrop", 0.75f).raycastTarget = true;
-        Transform createCard = UiKit.Panel(createPanel, "Card", C, Vector2.zero, new Vector2(760, 680)).transform;
+        Transform createCard = UiKit.Panel(createPanel, "Card", C, Vector2.zero, new Vector2(760, 976)).transform;
         UiKit.Label(createCard, "Title", "CREATE ROOM", "TẠO PHÒNG", 56, UiKit.Orange, Mid, Top, new Vector2(0, -62), new Vector2(700, 80), true);
-        float y = 200f;
+        float y = 348f;
         InputField roomName = Field(createCard, "RoomName", "ROOM NAME", "TÊN PHÒNG", "ROOM NAME", "TÊN PHÒNG", ref y);
         roomName.characterLimit = 24;
         InputField createPassword = Field(createCard, "Password", "PASSWORD (EMPTY = OPEN ROOM)", "MẬT KHẨU (ĐỂ TRỐNG = PHÒNG MỞ)",
@@ -143,6 +143,20 @@ public static class UiBuilder
         Button players2 = UiKit.Button(createCard, "Players2", "2", null, C, new Vector2(-220, buttonsY), new Vector2(200, 72), K.Subtle, 34);
         Button players3 = UiKit.Button(createCard, "Players3", "3", null, C, new Vector2(0, buttonsY), new Vector2(200, 72), K.Subtle, 34);
         Button players4 = UiKit.Button(createCard, "Players4", "4", null, C, new Vector2(220, buttonsY), new Vector2(200, 72), K.Subtle, 34);
+
+        // Match length (labelled at runtime from the match's choices) and how often everybody picks a core.
+        float step = FieldLabelHeight + FieldLabelGap + FieldInputHeight + FieldGroupGap;
+        y -= step;
+        UiKit.Label(createCard, "RoundsLabel", "ROUNDS", "SỐ VÒNG", 34, UiKit.Muted, MidLeft, C, new Vector2(0, y), new Vector2(640, FieldLabelHeight));
+        buttonsY = y - FieldLabelHeight * 0.5f - FieldLabelGap - 36f;
+        var roundButtons = new Object[5];
+        for (int i = 0; i < roundButtons.Length; i++)
+            roundButtons[i] = UiKit.Button(createCard, "Rounds" + i, "8", null, C, new Vector2(-264 + i * 132, buttonsY), new Vector2(120, 72), K.Subtle, 34);
+        y -= step;
+        UiKit.Label(createCard, "CardEveryLabel", "CORE PICKS", "NHẬN LÕI", 34, UiKit.Muted, MidLeft, C, new Vector2(0, y), new Vector2(640, FieldLabelHeight));
+        buttonsY = y - FieldLabelHeight * 0.5f - FieldLabelGap - 36f;
+        Button everyRound = UiKit.Button(createCard, "CardEvery1", "EVERY ROUND", "MỖI VÒNG", C, new Vector2(-165, buttonsY), new Vector2(310, 72), K.Subtle, 28);
+        Button everyOther = UiKit.Button(createCard, "CardEvery2", "EVERY 2 ROUNDS", "2 VÒNG MỘT LẦN", C, new Vector2(165, buttonsY), new Vector2(310, 72), K.Subtle, 28);
         Button createCancel = UiKit.Button(createCard, "CancelButton", "CANCEL", "HỦY", Bottom, new Vector2(-165, 76), new Vector2(300, 84), K.Subtle, 30);
         Button createOk = UiKit.Button(createCard, "CreateButton", "CREATE", "TẠO", Bottom, new Vector2(165, 76), new Vector2(300, 84), K.Primary, 32);
 
@@ -179,6 +193,8 @@ public static class UiBuilder
         UiKit.Wire(menu, "roomNameInput", roomName);
         UiKit.Wire(menu, "createPasswordInput", createPassword);
         UiKit.WireArray(menu, "maxPlayerButtons", new Object[] { players2, players3, players4 });
+        UiKit.WireArray(menu, "roundButtons", roundButtons);
+        UiKit.WireArray(menu, "cardEveryButtons", new Object[] { everyRound, everyOther });
         UiKit.Wire(menu, "createConfirmButton", createOk);
         UiKit.Wire(menu, "createCancelButton", createCancel);
         UiKit.Wire(menu, "joinPanel", joinPanel.gameObject);
@@ -210,28 +226,57 @@ public static class UiBuilder
         string[,] tabs = { { "ALL", "TẤT CẢ" }, { "SILVER", "BẠC" }, { "GOLD", "VÀNG" }, { "DIAMOND", "KIM CƯƠNG" } };
         var filterButtons = new Object[4];
         for (int i = 0; i < 4; i++)
-            filterButtons[i] = UiKit.Button(gridCard, "Tab" + i, tabs[i, 0], tabs[i, 1], TopLeft, new Vector2(150 + i * 230, -58),
-                                            new Vector2(220, 68), K.Subtle, 24);
-        Text count = UiKit.Label(gridCard, "CountText", "38 CORES", null, 36, UiKit.Gold, MidRight, TopRight, new Vector2(-130, -58), new Vector2(200, 50));
+            filterButtons[i] = UiKit.Button(gridCard, "Tab" + i, tabs[i, 0], tabs[i, 1], TopLeft, new Vector2(135 + i * 212, -58),
+                                            new Vector2(202, 68), K.Subtle, 24);
+        Text count = UiKit.Label(gridCard, "CountText", "47 CORES", null, 36, UiKit.Gold, MidRight, TopRight, new Vector2(-130, -58), new Vector2(200, 50));
 
-        RectTransform grid = UiKit.Rect(gridCard, "Grid", Top, Top, new Vector2(0, -120), new Vector2(1000, 570));
+        // The tiles scroll (mouse wheel, dragging, or the bar on the right) inside a masked view.
+        RectTransform viewport = UiKit.Rect(gridCard, "GridView", Top, Top, new Vector2(-12, -120), new Vector2(1000, 570));
+        viewport.gameObject.AddComponent<RectMask2D>();
+        viewport.gameObject.AddComponent<Image>().color = Color.clear; // the wheel works anywhere in the view
+        RectTransform grid = UiKit.Rect(viewport, "Grid", Top, Top, Vector2.zero, Vector2.zero);
+        grid.anchorMin = new Vector2(0f, 1f);
+        grid.anchorMax = new Vector2(1f, 1f);
+        grid.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        var scroll = viewport.gameObject.AddComponent<ScrollRect>();
+        scroll.content = grid;
+        scroll.viewport = viewport;
+        scroll.horizontal = false;
+        scroll.movementType = ScrollRect.MovementType.Clamped;
+        scroll.scrollSensitivity = 40f;
+        RectTransform bar = UiKit.Rect(gridCard, "GridScrollbar", Top, Top, new Vector2(508, -120), new Vector2(14, 570));
+        Image barBack = bar.gameObject.AddComponent<Image>();
+        barBack.sprite = UiKit.PixelSprite;
+        barBack.color = new Color(0.12f, 0.13f, 0.2f);
+        RectTransform handle = UiKit.Stretch(UiKit.Stretch(bar, "Sliding Area"), "Handle");
+        Image handleImage = handle.gameObject.AddComponent<Image>();
+        handleImage.sprite = UiKit.PixelSprite;
+        handleImage.color = UiKit.Orange;
+        var scrollbar = bar.gameObject.AddComponent<Scrollbar>();
+        scrollbar.handleRect = handle;
+        scrollbar.targetGraphic = handleImage;
+        scrollbar.direction = Scrollbar.Direction.BottomToTop;
+        scroll.verticalScrollbar = scrollbar;
+        scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHide; // only when there is more to see
+
         var layout = grid.gameObject.AddComponent<GridLayoutGroup>();
-        layout.cellSize = new Vector2(104, 104);
-        layout.spacing = new Vector2(12, 12);
+        layout.padding = new RectOffset(0, 0, 4, 4);
+        layout.cellSize = new Vector2(88, 88); // 10 x 5 tiles fit the card (up to 50 cores)
+        layout.spacing = new Vector2(10, 10);
         layout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-        layout.constraintCount = 8;
+        layout.constraintCount = 10;
         layout.childAlignment = TextAnchor.UpperCenter;
 
         Sprite frameSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/UI/CardFrame.png");
-        RectTransform tile = UiKit.Rect(grid, "TileTemplate", C, Vector2.zero, new Vector2(104, 104));
+        RectTransform tile = UiKit.Rect(grid, "TileTemplate", C, Vector2.zero, new Vector2(88, 88));
         Image tileBody = tile.gameObject.AddComponent<Image>();
         tileBody.sprite = UiKit.PixelSprite;
         tileBody.color = new Color(0.24f, 0.26f, 0.38f);
-        Image tileFrame = UiKit.Icon(tile, "Frame", frameSprite, C, Vector2.zero, new Vector2(104, 104));
+        Image tileFrame = UiKit.Icon(tile, "Frame", frameSprite, C, Vector2.zero, new Vector2(88, 88));
         tileFrame.preserveAspect = false;
         tileFrame.type = Image.Type.Sliced;
         tileFrame.pixelsPerUnitMultiplier = UiKit.SliceMultiplier * 2f; // thinner border on the small tiles
-        UiKit.Icon(tile, "Icon", null, C, Vector2.zero, new Vector2(68, 68));
+        UiKit.Icon(tile, "Icon", null, C, Vector2.zero, new Vector2(60, 60)); // 5x the 12-pixel icons
         Button tileButton = tile.gameObject.AddComponent<Button>();
         tileButton.targetGraphic = tileBody;
         ColorBlock colors = tileButton.colors;
@@ -266,10 +311,12 @@ public static class UiBuilder
         Text description = UiKit.Label(card, "Description", "Description", null, 32, UiKit.TextColor, TextAnchor.UpperCenter, Top,
                                        new Vector2(0, -425), new Vector2(320, 190));
 
+        Button tryButton = UiKit.Button(panel, "TryButton", "TRY", "THỬ", C, new Vector2(590, -385), new Vector2(360, 76), K.Primary, 30);
         Button back = UiKit.Button(panel, "BackButton", "BACK", "QUAY LẠI", Bottom, new Vector2(0, 70), new Vector2(420, 76), K.Subtle, 28);
 
         UiKit.Wire(collection, "panel", panel.gameObject);
         UiKit.Wire(collection, "backButton", back);
+        UiKit.Wire(collection, "tryButton", tryButton);
         UiKit.Wire(collection, "hideWhileOpen", root.Find("TitlePanel").gameObject);
         UiKit.Wire(collection, "catalogSource", AssetDatabase.LoadAssetAtPath<CoreInventory>("Assets/Prefabs/Player.prefab"));
         UiKit.Wire(collection, "tileTemplate", tileButton);
@@ -944,6 +991,49 @@ public static class UiBuilder
         foreach (LobbyStation station in Object.FindObjectsByType<LobbyStation>(FindObjectsInactive.Include, FindObjectsSortMode.None))
             if (station.name == "Station_Maps")
                 UiKit.Wire(station, "mapBoard", board);
+
+        BuildRoomBoard(hud, board);
+    }
+
+    // The room board: the lobby's ROUNDS, CARD TIME and CORES EVERY stations open it (labels come from the match).
+    private static void BuildRoomBoard(Transform hud, MapBoard mapBoard)
+    {
+        Transform old = hud.Find("RoomBoard");
+        if (old != null)
+            Object.DestroyImmediate(old.gameObject);
+        RectTransform root = UiKit.Stretch(hud, "RoomBoard");
+        root.SetSiblingIndex(hud.Find("MapBoard").GetSiblingIndex());
+        var board = root.gameObject.AddComponent<RoomBoard>();
+        RectTransform panel = UiKit.Stretch(root, "Panel");
+        UiKit.Dim(panel, "Backdrop", 0.6f).raycastTarget = true;
+        Transform card = UiKit.Panel(panel, "Card", C, Vector2.zero, new Vector2(760, 760)).transform;
+        UiKit.Label(card, "Title", "ROOM SETTINGS", "CÀI ĐẶT PHÒNG", 56, UiKit.Orange, Mid, Top, new Vector2(0, -62), new Vector2(700, 80), true);
+
+        var rounds = new Object[5];
+        var cardTimes = new Object[4];
+        UiKit.Label(card, "RoundsLabel", "ROUNDS", "SỐ VÒNG", 34, UiKit.Muted, MidLeft, C, new Vector2(0, 230), new Vector2(640, 40));
+        for (int i = 0; i < rounds.Length; i++)
+            rounds[i] = UiKit.Button(card, "Rounds" + i, "8", null, C, new Vector2(-264 + i * 132, 168), new Vector2(120, 72), K.Subtle, 34);
+        UiKit.Label(card, "CardTimeLabel", "TIME TO PICK A CORE", "THỜI GIAN CHỌN LÕI", 34, UiKit.Muted, MidLeft, C, new Vector2(0, 82), new Vector2(640, 40));
+        for (int i = 0; i < cardTimes.Length; i++)
+            cardTimes[i] = UiKit.Button(card, "CardTime" + i, "30s", null, C, new Vector2(-246 + i * 164, 20), new Vector2(152, 72), K.Subtle, 34);
+        UiKit.Label(card, "CardEveryLabel", "CORE PICKS", "NHẬN LÕI", 34, UiKit.Muted, MidLeft, C, new Vector2(0, -66), new Vector2(640, 40));
+        Button everyRound = UiKit.Button(card, "CardEvery1", "EVERY ROUND", "MỖI VÒNG", C, new Vector2(-165, -128), new Vector2(310, 72), K.Subtle, 28);
+        Button everyOther = UiKit.Button(card, "CardEvery2", "EVERY 2 ROUNDS", "2 VÒNG MỘT LẦN", C, new Vector2(165, -128), new Vector2(310, 72), K.Subtle, 28);
+        Button maps = UiKit.Button(card, "MapsButton", "MAPS", "CHỌN MAP", Bottom, new Vector2(-165, 76), new Vector2(300, 84), K.Subtle, 30);
+        Button done = UiKit.Button(card, "CloseButton", "DONE", "XONG", Bottom, new Vector2(165, 76), new Vector2(300, 84), K.Primary, 32);
+        UiKit.Wire(board, "panel", panel.gameObject);
+        UiKit.WireArray(board, "roundButtons", rounds);
+        UiKit.WireArray(board, "cardTimeButtons", cardTimes);
+        UiKit.WireArray(board, "cardEveryButtons", new Object[] { everyRound, everyOther });
+        UiKit.Wire(board, "mapsButton", maps);
+        UiKit.Wire(board, "mapBoard", mapBoard);
+        UiKit.Wire(board, "closeButton", done);
+        panel.gameObject.SetActive(false);
+
+        foreach (LobbyStation station in Object.FindObjectsByType<LobbyStation>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            if (station.name != "Station_Maps")
+                UiKit.Wire(station, "roomBoard", board);
     }
 
     private static void BuildUiAudio(Transform hud)

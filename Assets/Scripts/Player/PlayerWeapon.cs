@@ -17,6 +17,7 @@ using UnityEngine.InputSystem;
 // Special guns (LAN, from weapon crates): while one is held (PlayerNetwork.Gun) its own fire rate, damage, bullets
 // and spread are used, with limited ammo (kept by the owner); when it runs out, the normal gun is back. Cores still
 // work on its shots.
+// With the Draw the Sword core (PlayerSword) Left Mouse slashes instead, unless a special gun is held.
 [RequireComponent(typeof(Rigidbody2D))]
 public class PlayerWeapon : MonoBehaviour
 {
@@ -167,6 +168,7 @@ public class PlayerWeapon : MonoBehaviour
     private CameraShake cameraShake;
     private CoreBridge cores;
     private PlayerNetwork net;
+    private PlayerSword sword;
     private float holdTime; // seconds the fire button has been held without a break
     private Vector3 gunRestPosition;
     private Quaternion gunRestRotation;
@@ -186,6 +188,7 @@ public class PlayerWeapon : MonoBehaviour
         cameraShake = Camera.main.GetComponent<CameraShake>(); // null if the camera has none → no shake
         cores = GetComponent<CoreBridge>(); // this player's own cores (null → plain gun)
         net = GetComponent<PlayerNetwork>();
+        sword = GetComponent<PlayerSword>(); // null → never a sword
         gunRestPosition = gunVisual.localPosition;
         gunRestRotation = gunVisual.localRotation;
         gunBaseScale = gunVisual.localScale;
@@ -248,6 +251,14 @@ public class PlayerWeapon : MonoBehaviour
         bool pointerOnUI = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
         bool holding = attackAction.IsPressed() && !pointerOnUI;
         holdTime = holding ? holdTime + Time.deltaTime : 0f;
+
+        // Draw the Sword: slashes instead of shots (a special gun still shoots).
+        if (sword != null && sword.Active)
+        {
+            if (holding)
+                sword.Attack();
+            return;
+        }
 
         if (holding && Time.time >= nextFireTime)
         {

@@ -458,6 +458,7 @@ GameObject:
   - component: {fileID: 652163047813783592}
   - component: {fileID: 890928807774870592}
   - component: {fileID: 5283182453057135285}
+  - component: {fileID: 6065724173718606820}
   m_Layer: 8
   m_Name: Player
   m_TagString: Player
@@ -744,6 +745,9 @@ MonoBehaviour:
   hurtSound: {fileID: 8300000, guid: 5d8c80d5e0291c94c93884dea44550c3, type: 3}
   hurtVolume: 0.55
   othersHurtVolume: 0.35
+  bloodEffect: {fileID: 3008225546054007256, guid: 4e751a3a2ef140f47a7dc11ab934389c, type: 3}
+  hitSound: {fileID: 8300000, guid: 336450b6703bcc6428a511794cc732fc, type: 3}
+  hitVolume: 0.6
   crashSpeed: 5
   crashWindow: 0.6
 --- !u!114 &693889228183217943
@@ -1403,6 +1407,19 @@ MonoBehaviour:
       g\xE2y ra."
     icon: {fileID: 21300000, guid: 20c221f3e0cbaac46ac6a41f93ccb850, type: 3}
     bulletCore: 0
+  - type: 47
+    rarity: 2
+    title: DRAW THE SWORD
+    tag: "SINGLE \xB7 GUN"
+    description: 'Your gun becomes a sword: slash everything in front (25 damage,
+      big push) and cut bullets to pieces.'
+    titleVi: "R\xDAT KI\u1EBEM RA"
+    tagVi: "\u0110\u01A0N \xB7 S\xDANG"
+    descriptionVi: "S\xFAng th\xE0nh ki\u1EBFm: ch\xE9m m\u1ECDi th\u1EE9 tr\u01B0\u1EDBc
+      m\u1EB7t (25 s\xE1t th\u01B0\u01A1ng, \u0111\u1EA9y m\u1EA1nh) v\xE0 ch\xE9m
+      n\xE1t \u0111\u1EA1n."
+    icon: {fileID: 21300000, guid: 92a376be02f1f8e46b3661edf407e9e7, type: 3}
+    bulletCore: 0
 --- !u!114 &759047752990307770
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1607,6 +1624,7 @@ MonoBehaviour:
   landSquash: {x: 1.25, y: 0.75}
   jumpStretch: {x: 0.82, y: 1.2}
   dashStretch: {x: 1.3, y: 0.78}
+  hitSquash: {x: 1.15, y: 0.88}
   hardLanding: 20
   recovery: 14
   afterimageInterval: 0.03
@@ -1630,6 +1648,37 @@ MonoBehaviour:
   size: 1.6
   pulseSpeed: 4
   sortingOrder: 50
+--- !u!114 &6065724173718606820
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3121727891143946174}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a5fdbfb7b96090a41bfc45d391a33aec, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerSword
+  pivot: {fileID: 429950332872637155}
+  gunSprite: {fileID: 5571426769794054744}
+  swordSprite: {fileID: 21300000, guid: d17e3644c85bbf945982c8c833724e5a, type: 3}
+  slashSprite: {fileID: 21300000, guid: 11b85b5ed24a6eb42ae0312c43eb440f, type: 3}
+  cutEffect: {fileID: 2594568554617404146, guid: 0ecc476074faa9446bb31bdf0ad3ec8b, type: 3}
+  damage: 25
+  knockback: 1.8
+  range: 1.9
+  arc: 150
+  cooldown: 0.25
+  swingTime: 0.1
+  slashLife: 0.16
+  propPush: 6
+  swooshSound: {fileID: 8300000, guid: 3ae8855415497e94eb98db92d8ef929a, type: 3}
+  swooshVolume: 0.5
+  clangSound: {fileID: 8300000, guid: ec3d29e18e3724446a1a98d0e089ee56, type: 3}
+  clangVolume: 0.55
+  drawSound: {fileID: 8300000, guid: a1b07d64245b5f4428b44f8ef255d18a, type: 3}
+  drawVolume: 0.5
 --- !u!1 &4200084464538221135
 GameObject:
   m_ObjectHideFlags: 0

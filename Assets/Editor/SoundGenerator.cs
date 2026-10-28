@@ -23,7 +23,78 @@ public static class SoundGenerator
         Save("Assets/Audio/Boom.wav", Boom());
         Save("Assets/Audio/Boing.wav", Boing());
         Save("Assets/Audio/Thunder.wav", Thunder());
+        Save("Assets/Audio/SwordSwoosh.wav", SwordSwoosh());
+        Save("Assets/Audio/SwordClang.wav", SwordClang());
+        Save("Assets/Audio/SwordDraw.wav", SwordDraw());
         AssetDatabase.Refresh();
+    }
+
+    // A sword slash: air torn by the blade, a hiss of noise whose pitch sweeps down fast, with a soft whistle on top.
+    private static float[] SwordSwoosh()
+    {
+        int length = (int)(Rate * 0.22f);
+        var data = new float[length];
+        var random = new System.Random(6);
+        float bright = 0f, dark = 0f, phase = 0f;
+        for (int i = 0; i < length; i++)
+        {
+            float t = (float)i / Rate;
+            float white = (float)random.NextDouble() * 2f - 1f;
+            float sweep = Mathf.Lerp(0.55f, 0.08f, t / 0.22f); // the band slides down: "fwip"
+            bright = Mathf.Lerp(bright, white, sweep);
+            dark = Mathf.Lerp(dark, bright, sweep * 0.35f);
+            float band = bright - dark; // band-passed noise
+            phase += Mathf.Lerp(1900f, 700f, t / 0.22f) / Rate;
+            float whistle = Mathf.Sin(phase * 2f * Mathf.PI) * 0.12f;
+            float envelope = Mathf.Min(1f, t / 0.035f) * Mathf.Exp(-Mathf.Max(0f, t - 0.035f) * 22f);
+            data[i] = (band * 1.6f + whistle) * envelope * 0.8f;
+        }
+        return data;
+    }
+
+    // A bullet cut in two: a bright metal "keng" (clashing, out-of-tune partials ringing down) on a sharp click.
+    private static float[] SwordClang()
+    {
+        int length = (int)(Rate * 0.5f);
+        var data = new float[length];
+        var random = new System.Random(7);
+        float[] partials = { 1180f, 1735f, 2410f, 3150f, 4420f };
+        float[] decays = { 7f, 9f, 12f, 16f, 24f };
+        float[] levels = { 0.5f, 0.38f, 0.3f, 0.2f, 0.12f };
+        float click = 0f;
+        for (int i = 0; i < length; i++)
+        {
+            float t = (float)i / Rate;
+            float ring = 0f;
+            for (int p = 0; p < partials.Length; p++)
+                ring += Mathf.Sin(2f * Mathf.PI * partials[p] * t * (1f + 0.002f * Mathf.Sin(t * 40f))) * levels[p] * Mathf.Exp(-t * decays[p]);
+            click = Mathf.Lerp(click, (float)random.NextDouble() * 2f - 1f, 0.8f);
+            float hit = click * Mathf.Exp(-t * 300f);
+            data[i] = (ring * 0.75f + hit * 0.6f) * Mathf.Min(1f, t / 0.0008f) * 0.75f;
+        }
+        return data;
+    }
+
+    // The sword drawn: steel scraping out of the sheath ("shhhing"), a rising hiss that ends in a clear ring.
+    private static float[] SwordDraw()
+    {
+        int length = (int)(Rate * 0.55f);
+        var data = new float[length];
+        var random = new System.Random(8);
+        float bright = 0f, dark = 0f;
+        for (int i = 0; i < length; i++)
+        {
+            float t = (float)i / Rate;
+            float white = (float)random.NextDouble() * 2f - 1f;
+            bright = Mathf.Lerp(bright, white, 0.5f);
+            dark = Mathf.Lerp(dark, bright, 0.12f);
+            float scrape = (bright - dark) * Mathf.Min(1f, t / 0.12f) * Mathf.Exp(-Mathf.Max(0f, t - 0.16f) * 30f);
+            float ringTime = Mathf.Max(0f, t - 0.14f);
+            float ring = (Mathf.Sin(2f * Mathf.PI * 2640f * ringTime) * 0.5f + Mathf.Sin(2f * Mathf.PI * 3960f * ringTime) * 0.25f)
+                         * (t > 0.14f ? Mathf.Exp(-ringTime * 6f) * Mathf.Min(1f, ringTime / 0.004f) : 0f);
+            data[i] = (scrape * 1.1f + ring * 0.6f) * 0.7f;
+        }
+        return data;
     }
 
     // The Thunder core's bolt: a sharp bright crack, then a short low rumble.

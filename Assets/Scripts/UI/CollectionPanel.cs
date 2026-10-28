@@ -3,13 +3,17 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
-// Main menu: COLLECTION shows every core in the game. Left: a grid of tiles (sorted silver, gold, diamond), with
+// Main menu: COLLECTION shows every core in the game. Left: a scrolling grid of tiles (sorted silver, gold, diamond), with
 // tabs to show one rarity only. Right: the core under the mouse (or the last one clicked) as a big card, like the
-// card offer. ESC or BACK closes it.
+// card offer, with TRY under it (single player with that core, against the dummies). Clicking a tile selects it: the
+// card keeps it while the mouse passes over other tiles (they show only while pointed at). ESC or BACK closes it.
 public class CollectionPanel : MonoBehaviour
 {
     [SerializeField] private GameObject panel;
     [SerializeField] private Button backButton;
+
+    [Tooltip("TRY: play single player with the shown core, shooting the dummies (MainMenu listens to Try).")]
+    [SerializeField] private Button tryButton;
 
     [Tooltip("Hidden while the collection is open (the title screen behind it).")]
     [SerializeField] private GameObject hideWhileOpen;
@@ -56,18 +60,29 @@ public class CollectionPanel : MonoBehaviour
     {
         public CoreInventory.CoreInfo info;
         public GameObject root;
+        public Button button;
         public Image frame;
+        public Image mark; // the blinking white frame of the selected tile
     }
 
     private readonly List<Tile> tiles = new List<Tile>();
     private CoreInventory.CoreInfo shown;
+    private Tile selected; // clicked: the card comes back to it after pointing at others, TRY uses it
 
     public bool IsOpen => panel.activeSelf;
+
+    // TRY was pressed on this core.
+    public event System.Action<CoreType> Try;
 
     private void Awake()
     {
         tileTemplate.gameObject.SetActive(false);
         backButton.onClick.AddListener(Close);
+        tryButton.onClick.AddListener(() =>
+        {
+            if (selected != null)
+                Try?.Invoke(selected.info.type);
+        });
         for (int i = 0; i < filterButtons.Length; i++)
         {
             int rarity = i - 1; // captured by the click
@@ -88,6 +103,15 @@ public class CollectionPanel : MonoBehaviour
         panel.SetActive(true);
         hideWhileOpen.SetActive(false);
         SetFilter(-1);
+    }
+
+    // Opened on that core (back from trying it).
+    public void Open(CoreType type)
+    {
+        Open();
+        foreach (Tile tile in tiles)
+            if (tile.info.type == type)
+                Select(tile);
     }
 
     public void Close()
@@ -112,10 +136,17 @@ public class CollectionPanel : MonoBehaviour
                 tile.frame.color = rainbow;
         if (shown != null && shown.rarity == CoreInventory.Rarity.Diamond)
             cardFrame.color = rainbow;
+        if (selected != null)
+            selected.mark.color = Mathf.Repeat(Time.unscaledTime * 2f, 1f) < 0.5f ? Color.white : new Color(1f, 1f, 1f, 0.45f); // blinks
     }
 
     private void MakeTiles()
     {
+        // Only the template may be there (tiles left in the scene by an editor rebuild would show twice).
+        foreach (Transform child in tileTemplate.transform.parent)
+            if (child != tileTemplate.transform)
+                Destroy(child.gameObject);
+
         var sorted = new List<CoreInventory.CoreInfo>(catalogSource.Catalog);
         // Stable sort by rarity (the catalog's own order inside each rarity).
         var order = new Dictionary<CoreInventory.CoreInfo, int>();
@@ -132,16 +163,25 @@ public class CollectionPanel : MonoBehaviour
             {
                 info = info,
                 root = button.gameObject,
+                button = button,
                 frame = button.transform.Find("Frame").GetComponent<Image>(),
             };
             tile.frame.color = rarityColors[(int)info.rarity];
+            tile.mark = Instantiate(tile.frame, button.transform); // a white frame just outside the tile's own
+            tile.mark.name = "Selected";
+            tile.mark.rectTransform.sizeDelta += new Vector2(10f, 10f);
+            tile.mark.raycastTarget = false;
+            tile.mark.gameObject.SetActive(false);
             button.transform.Find("Icon").GetComponent<Image>().sprite = info.icon;
-            button.onClick.AddListener(() => Show(info));
-            // Pointing at a tile shows it too.
+            button.onClick.AddListener(() => Select(tile));
+            // Pointing at a tile shows it for a moment; leaving it shows the selected one again.
             var trigger = button.gameObject.AddComponent<UnityEngine.EventSystems.EventTrigger>();
             var enter = new UnityEngine.EventSystems.EventTrigger.Entry { eventID = UnityEngine.EventSystems.EventTriggerType.PointerEnter };
             enter.callback.AddListener(_ => Show(info));
             trigger.triggers.Add(enter);
+            var exit = new UnityEngine.EventSystems.EventTrigger.Entry { eventID = UnityEngine.EventSystems.EventTriggerType.PointerExit };
+            exit.callback.AddListener(_ => Show(selected != null ? selected.info : info));
+            trigger.triggers.Add(exit);
             tiles.Add(tile);
         }
     }
@@ -158,7 +198,26 @@ public class CollectionPanel : MonoBehaviour
         }
         for (int i = 0; i < filterButtons.Length; i++)
             filterButtons[i].GetComponentInChildren<Text>().color = i - 1 == rarity ? tabOnColor : tabOffColor;
-        Show(first != null ? first.info : null);
+        ScrollRect scroll = tileTemplate.GetComponentInParent<ScrollRect>(true);
+        if (scroll != null)
+            scroll.verticalNormalizedPosition = 1f; // back to the top
+        Select(first);
+    }
+
+    // Clicked: this core stays on the card (and is the one TRY plays); its tile stands out.
+    private void Select(Tile tile)
+    {
+        selected = tile;
+        foreach (Tile other in tiles)
+        {
+            bool on = other == tile;
+            other.mark.gameObject.SetActive(on);
+            ColorBlock colors = other.button.colors;
+            colors.normalColor = on ? Color.white : new Color(0.6f, 0.6f, 0.6f);
+            colors.selectedColor = colors.normalColor;
+            other.button.colors = colors;
+        }
+        Show(tile != null ? tile.info : null);
     }
 
     private void Show(CoreInventory.CoreInfo info)

@@ -46,7 +46,7 @@ public class HitTarget : MonoBehaviour
         if (dummy != null)
             dummy.TakeDamage(amount, point, normal, knockback, source);
         else
-            player.TakeDamage(amount, -normal, knockback, source);
+            player.TakeDamage(amount, -normal, knockback, source, point);
     }
 
     // Players only, every machine, every physics step: a small tug (impulse) toward something (a black hole). The

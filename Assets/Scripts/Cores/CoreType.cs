@@ -59,4 +59,6 @@ public enum CoreType
     DeathBlast,  // killed targets explode
     Crash,       // targets knocked into walls/each other get hurt
     Vampire,     // damage dealt heals the player
+    // GUN (added later: new values go last, the catalog stores them as numbers)
+    DrawSword,   // the gun becomes a sword: melee slashes that cut bullets
 }

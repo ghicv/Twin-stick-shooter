@@ -142,7 +142,8 @@ public class SettingsMenu : MonoBehaviour
         resolutionButton.GetComponentInChildren<Text>().text = Lang.T("RESOLUTION: ", "ĐỘ PHÂN GIẢI: ") + percent;
 
         bool host = GameMode.IsLan && Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsServer;
-        leaveButton.GetComponentInChildren<Text>().text = !GameMode.IsLan ? Lang.T("MAIN MENU", "VỀ MENU")
+        leaveButton.GetComponentInChildren<Text>().text = GameMode.TryingCore.HasValue ? Lang.T("BACK TO COLLECTION", "VỀ BỘ SƯU TẬP")
+                                                        : !GameMode.IsLan ? Lang.T("MAIN MENU", "VỀ MENU")
                                                         : host ? Lang.T("CLOSE ROOM", "ĐÓNG PHÒNG")
                                                         : Lang.T("LEAVE ROOM", "RỜI PHÒNG");
     }

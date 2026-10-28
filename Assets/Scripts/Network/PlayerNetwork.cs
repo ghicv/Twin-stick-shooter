@@ -354,6 +354,18 @@ public class PlayerNetwork : NetworkBehaviour
     [Rpc(SendTo.Everyone)]
     private void HurtRpc(float blinkTime) => playerHealth.PlayHurt(blinkTime);
 
+    // Host: a hit landed there: blood and the hit sound on every machine.
+    public void PlayBleed(Vector2 point, Vector2 normal)
+    {
+        if (Offline)
+            playerHealth.PlayBleed(point, normal);
+        else
+            BleedRpc(point, normal);
+    }
+
+    [Rpc(SendTo.Everyone)]
+    private void BleedRpc(Vector2 point, Vector2 normal) => playerHealth.PlayBleed(point, normal);
+
     public void PlayHurtBlinkOnly(float blinkTime)
     {
         if (Offline)
@@ -389,6 +401,32 @@ public class PlayerNetwork : NetworkBehaviour
 
     [Rpc(SendTo.Owner)]
     private void ResetDashRpc() => GetComponent<PlayerMovement>().ResetDash();
+
+    // Owner: a sword slash toward that angle. It shows here at once; the host decides what it hits, and every other
+    // machine shows it (and cuts its own bullets).
+    public void Slash(float angle)
+    {
+        var sword = GetComponent<PlayerSword>();
+        sword.PlaySlash(angle);
+        if (Offline || IsServer)
+            sword.SlashHits(angle);
+        if (Offline)
+            return;
+        if (IsServer)
+            SlashShowRpc(angle);
+        else
+            SlashRpc(angle);
+    }
+
+    [Rpc(SendTo.Server)]
+    private void SlashRpc(float angle)
+    {
+        GetComponent<PlayerSword>().SlashHits(angle);
+        SlashShowRpc(angle);
+    }
+
+    [Rpc(SendTo.NotOwner)]
+    private void SlashShowRpc(float angle) => GetComponent<PlayerSword>().PlaySlash(angle);
 
     // Owner: this player dashed for that long; every machine leaves its ghosts behind it.
     public void PlayDash(float duration)

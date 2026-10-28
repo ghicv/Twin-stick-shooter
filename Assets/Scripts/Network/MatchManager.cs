@@ -10,8 +10,8 @@ using UnityEngine.UI;
 // Rounds: every round is on another map, shown first by the map roulette (MapRoulette). Everybody arrives with full
 // health (the travel sequence also brings the dead back). A player who dies stays out until the next round; the last
 // one standing wins the round.
-// Card milestones (Card Rounds): before those rounds everybody picks one of 3 cards of the same rarity (silver, gold,
-// diamond), Card Time seconds, then a random card.
+// Card milestones: before round 1, then every round or every other round (CORE PICKS), everybody picks one of 3
+// cards of the same rarity (silver, gold, diamond), Card Time seconds, then a random card.
 // After Rounds rounds the most round wins takes the match; a tie plays tiebreak rounds (at most Max Tiebreaks).
 // Results: the ranking; the host goes back to the lobby, where everybody starts again without cores.
 // Also here: chat, the kill feed, "joined / left / kicked" notices, and kicking (host).
@@ -23,18 +23,19 @@ public class MatchManager : NetworkBehaviour
     private enum Notice { Joined = 0, Left = 1, Kicked = 2 }
 
     [Header("Room settings (the host changes them in the lobby)")]
-    [Tooltip("Rounds per match at first, and the choices of the lobby's ROUNDS station.")]
+    [Tooltip("Rounds per match at first, and the choices of the room board and the create room box (5 of them).")]
     [SerializeField] private int[] roundChoices = { 3, 5, 8, 10, 15 };
 
     [SerializeField] private int defaultRounds = 8;
 
-    [Tooltip("Seconds to pick a card at a milestone (then a random one is taken): the CARD TIME station's choices.")]
+    [Tooltip("Seconds to pick a card at a milestone (then a random one is taken): the room board's choices (4 of them).")]
     [SerializeField] private int[] cardTimeChoices = { 15, 20, 30, 45 };
 
     [SerializeField] private int defaultCardTime = 30;
 
-    [Tooltip("Before these rounds everybody picks a card.")]
-    [SerializeField] private int[] cardRounds = { 1, 3, 5, 7 };
+    [Tooltip("Everybody picks a card before round 1, then every this many rounds at first (the room board / " +
+             "the create room box: 1 = every round, 2 = every other round).")]
+    [SerializeField] private int defaultCardEvery = 2;
 
     [Tooltip("Each milestone rolls one rarity for everybody: chances of silver, gold and diamond.")]
     [SerializeField] private float[] rarityChances = { 40f, 45f, 15f };
@@ -73,6 +74,7 @@ public class MatchManager : NetworkBehaviour
     private readonly NetworkVariable<bool> tiebreak = new NetworkVariable<bool>(false);
     private readonly NetworkVariable<int> rounds = new NetworkVariable<int>(8);
     private readonly NetworkVariable<int> cardTime = new NetworkVariable<int>(30);
+    private readonly NetworkVariable<int> cardEvery = new NetworkVariable<int>(2); // a card pick every this many rounds
     private readonly NetworkVariable<int> mapMask = new NetworkVariable<int>(0); // bit i = map i can be played
     private readonly NetworkVariable<int> readyCount = new NetworkVariable<int>(0);
     private readonly NetworkVariable<int> countdown = new NetworkVariable<int>(0); // 3, 2, 1 (0 = not counting)
@@ -97,6 +99,13 @@ public class MatchManager : NetworkBehaviour
     public int Round => round.Value;
     public int Rounds => rounds.Value;
     public float CardTime => cardTime.Value;
+    public int CardEvery => cardEvery.Value;
+
+    // The choices of the room board and the create room box.
+    public int[] RoundChoices => roundChoices;
+    public int[] CardTimeChoices => cardTimeChoices;
+    public int DefaultRounds => defaultRounds;
+    public int DefaultCardEvery => defaultCardEvery;
     public int ReadyCount => readyCount.Value;
     public int Countdown => countdown.Value;
     public int PicksLeft => picksLeft.Value;
@@ -137,6 +146,7 @@ public class MatchManager : NetworkBehaviour
                 wins.Add(0);
         rounds.Value = defaultRounds;
         cardTime.Value = defaultCardTime;
+        cardEvery.Value = defaultCardEvery;
         int mask = 0;
         for (int i = 0; i < maps.Count; i++)
             if (maps.IsRoundMap(i))
@@ -165,9 +175,12 @@ public class MatchManager : NetworkBehaviour
     // ---------- Host: lobby ----------
 
     // The host names the room (from the menu) right after spawning this.
-    public void SetRoomOnHost(string name)
+    // Host: the room as set up in the create room box.
+    public void SetRoomOnHost(string name, int matchRounds, int cardsEvery)
     {
         roomName.Value = name;
+        rounds.Value = matchRounds;
+        cardEvery.Value = Mathf.Max(1, cardsEvery);
     }
 
     // Enough players, and every one has picked a skin and finished joining (else it could miss the start).
@@ -227,25 +240,23 @@ public class MatchManager : NetworkBehaviour
         StartCoroutine(NextRound());
     }
 
-    // The lobby's ROUNDS and CARD TIME stations: the next choice (after the last one, the first again).
-    public void CycleRounds()
+    // The room board (host, in the lobby): the match length, the seconds to pick a card, a pick every N rounds.
+    public void SetRounds(int count)
     {
         if (IsServer && CurrentPhase == Phase.Lobby)
-            rounds.Value = NextChoice(roundChoices, rounds.Value);
+            rounds.Value = count;
     }
 
-    public void CycleCardTime()
+    public void SetCardTime(int seconds)
     {
         if (IsServer && CurrentPhase == Phase.Lobby)
-            cardTime.Value = NextChoice(cardTimeChoices, cardTime.Value);
+            cardTime.Value = seconds;
     }
 
-    private static int NextChoice(int[] choices, int current)
+    public void SetCardEvery(int every)
     {
-        for (int i = 0; i < choices.Length; i++)
-            if (choices[i] == current)
-                return choices[(i + 1) % choices.Length];
-        return choices[0];
+        if (IsServer && CurrentPhase == Phase.Lobby)
+            cardEvery.Value = Mathf.Max(1, every);
     }
 
     // The map board: turns a map on or off for the rounds (at least one stays on).
@@ -440,7 +451,7 @@ public class MatchManager : NetworkBehaviour
         }
 
         // A card milestone: everybody picks a card before the round.
-        if (System.Array.IndexOf(cardRounds, round.Value) >= 0 && !tiebreak.Value)
+        if ((round.Value - 1) % Mathf.Max(1, cardEvery.Value) == 0 && !tiebreak.Value)
             yield return PickCards(CoreBridge.RandomRarity(rarityChances));
 
         // The map roulette shows which map is next, then everybody travels there (the dead come back too).

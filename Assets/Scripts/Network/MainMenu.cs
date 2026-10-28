@@ -84,6 +84,12 @@ public class MainMenu : MonoBehaviour
     [Tooltip("2, 3 and 4 players.")]
     [SerializeField] private Button[] maxPlayerButtons;
 
+    [Tooltip("The match lengths (labelled from the match's Round Choices).")]
+    [SerializeField] private Button[] roundButtons;
+
+    [Tooltip("A card pick every round, every other round.")]
+    [SerializeField] private Button[] cardEveryButtons;
+
     [SerializeField] private Button createConfirmButton;
     [SerializeField] private Button createCancelButton;
 
@@ -106,6 +112,8 @@ public class MainMenu : MonoBehaviour
     // Host: the room as it was created.
     private string roomPassword = "";
     private int maxPlayers = 4;
+    private int matchRounds;
+    private int cardEvery;
 
     private void Awake()
     {
@@ -137,9 +145,11 @@ public class MainMenu : MonoBehaviour
         singleButton.onClick.AddListener(() =>
         {
             SaveName(nameInput.text);
+            GameMode.TryingCore = null;
             StartSingle();
         });
         collectionButton.onClick.AddListener(collectionPanel.Open);
+        collectionPanel.Try += TryCore;
         settingsButton.onClick.AddListener(settingsMenu.Open);
         quitButton.onClick.AddListener(Application.Quit);
         backButton.onClick.AddListener(() => ShowScreen(titlePanel));
@@ -154,6 +164,20 @@ public class MainMenu : MonoBehaviour
             int players = i + 2; // captured by the click
             maxPlayerButtons[i].onClick.AddListener(() => SetMaxPlayers(players));
         }
+        MatchManager matchSettings = matchManagerPrefab.GetComponent<MatchManager>();
+        matchRounds = matchSettings.DefaultRounds;
+        cardEvery = matchSettings.DefaultCardEvery;
+        for (int i = 0; i < roundButtons.Length; i++)
+        {
+            int roundCount = matchSettings.RoundChoices[Mathf.Min(i, matchSettings.RoundChoices.Length - 1)];
+            roundButtons[i].GetComponentInChildren<Text>().text = roundCount.ToString();
+            roundButtons[i].onClick.AddListener(() => SetRounds(roundCount));
+        }
+        for (int i = 0; i < cardEveryButtons.Length; i++)
+        {
+            int every = i + 1; // captured by the click
+            cardEveryButtons[i].onClick.AddListener(() => SetCardEvery(every));
+        }
         Lang.Changed += ClearStatus;
 
         network.ConnectionApprovalCallback = ApproveConnection;
@@ -165,6 +189,8 @@ public class MainMenu : MonoBehaviour
     private void OnDestroy()
     {
         Lang.Changed -= ClearStatus;
+        if (collectionPanel != null)
+            collectionPanel.Try -= TryCore;
         if (network == null)
             return;
         // Leaving play mode (or quitting) while in a room: close the connection, or the port stays taken.
@@ -190,10 +216,19 @@ public class MainMenu : MonoBehaviour
                 gameObject.AddComponent<NetTestBot>();
         }
 
+        CoreType? tried = GameMode.TryingCore;
         if (GameMode.AutoStartSingle)
         {
             GameMode.AutoStartSingle = false;
-            StartSingle();
+            if (tried.HasValue)
+                TryCore(tried.Value); // Play Again while trying a core: the same try again
+            else
+                StartSingle();
+        }
+        else if (tried.HasValue)
+        {
+            GameMode.TryingCore = null; // left the try: back to the collection, on that core
+            collectionPanel.Open(tried.Value);
         }
     }
 
@@ -238,6 +273,18 @@ public class MainMenu : MonoBehaviour
         discovery.StopListening();
     }
 
+    // COLLECTION's TRY: single player with that core already owned, to shoot the dummies with it (the wave only
+    // starts when asked). Leaving (ESC → BACK TO COLLECTION) opens the collection on it again.
+    private void TryCore(CoreType type)
+    {
+        SaveName(nameInput.text);
+        GameMode.TryingCore = type;
+        collectionPanel.Close();
+        StartSingle();
+        if (PlayerNetwork.Local != null)
+            PlayerNetwork.Local.PickCore(type);
+    }
+
     // ---------- Host ----------
 
     private void OpenCreateBox()
@@ -246,6 +293,8 @@ public class MainMenu : MonoBehaviour
         roomNameInput.text = Lang.T(PlayerProfile.Name + "'S ROOM", "PHÒNG CỦA " + PlayerProfile.Name);
         createPasswordInput.text = "";
         SetMaxPlayers(4);
+        SetRounds(matchRounds);  // the last choices stay
+        SetCardEvery(cardEvery);
         joinPanel.SetActive(false);
         createPanel.SetActive(true);
     }
@@ -255,6 +304,20 @@ public class MainMenu : MonoBehaviour
         maxPlayers = players;
         for (int i = 0; i < maxPlayerButtons.Length; i++)
             maxPlayerButtons[i].GetComponentInChildren<Text>().color = i + 2 == players ? choiceOnColor : choiceOffColor;
+    }
+
+    private void SetRounds(int count)
+    {
+        matchRounds = count;
+        foreach (Button button in roundButtons)
+            button.GetComponentInChildren<Text>().color = button.GetComponentInChildren<Text>().text == count.ToString() ? choiceOnColor : choiceOffColor;
+    }
+
+    private void SetCardEvery(int every)
+    {
+        cardEvery = every;
+        for (int i = 0; i < cardEveryButtons.Length; i++)
+            cardEveryButtons[i].GetComponentInChildren<Text>().color = i + 1 == every ? choiceOnColor : choiceOffColor;
     }
 
     private void HostLan()
@@ -273,7 +336,7 @@ public class MainMenu : MonoBehaviour
         }
         NetworkObject match = Instantiate(matchManagerPrefab);
         match.Spawn(); // every machine (also the ones joining later) gets the match
-        match.GetComponent<MatchManager>().SetRoomOnHost(roomName);
+        match.GetComponent<MatchManager>().SetRoomOnHost(roomName, matchRounds, cardEvery);
         GameMode.RoomAddress = LocalIp();
         discovery.StopListening();
         discovery.StartAnnouncing(roomName, roomPassword.Length > 0, maxPlayers); // shows up on the other PCs

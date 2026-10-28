@@ -17,6 +17,18 @@ public static class GameMode
 
     public static bool IsLan => Current == Mode.Lan;
 
+    // Single player started by COLLECTION's TRY with this core (null = a normal run). It survives the scene reload:
+    // Play Again tries it again, leaving goes back to the collection on it.
+    public static CoreType? TryingCore { get; set; }
+
+    // A new Play in the editor (no domain reload) starts from the menu as normal.
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetOnPlay()
+    {
+        TryingCore = null;
+        AutoStartSingle = false;
+    }
+
     // LAN: the host's address (this PC's own when hosting), shown in the lobby.
     public static string RoomAddress { get; set; } = "";
 

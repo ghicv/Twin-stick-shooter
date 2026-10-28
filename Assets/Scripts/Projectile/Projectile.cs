@@ -121,6 +121,13 @@ public class Projectile : MonoBehaviour
         Disappear(rb.position, rb.linearVelocity.normalized, null);
     }
 
+    // Cut to pieces (a sword): gone at once, without its end effects (no explosion, no shrapnel, no black hole).
+    public void Shatter()
+    {
+        cores = null;
+        Finish();
+    }
+
     private void Update()
     {
         lifeTimer -= Time.deltaTime;

@@ -2,11 +2,12 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
-// A sign in the lobby map that sets the room up: walk to it and press E (host only; the others just see the value).
-// Rounds: the match length. Card Time: seconds a dead player has to pick a card. Maps: opens the map board.
+// A sign in the lobby map that shows a room setting: walk to it and press E (host only; the others just see the value).
+// Rounds (the match length), Card Time (seconds to pick a card) and Core Picks (a pick every round or every other
+// round) open the room board; Maps opens the map board.
 public class LobbyStation : MonoBehaviour
 {
-    public enum Kind { Rounds, CardTime, Maps }
+    public enum Kind { Rounds, CardTime, Maps, CorePicks }
 
     [SerializeField] private Kind kind;
 
@@ -18,8 +19,11 @@ public class LobbyStation : MonoBehaviour
 
     [SerializeField] private Text promptText;
 
-    [Tooltip("Maps only: the board that opens.")]
+    [Tooltip("Maps: the board that opens.")]
     [SerializeField] private MapBoard mapBoard;
+
+    [Tooltip("Rounds, Card Time, Core Picks: the room board that opens (all its settings in one place).")]
+    [SerializeField] private RoomBoard roomBoard;
 
     [Tooltip("The sign brightens while the local player can use it.")]
     [SerializeField] private SpriteRenderer sign;
@@ -28,6 +32,7 @@ public class LobbyStation : MonoBehaviour
     [SerializeField] private Color nearColor = new Color(1f, 0.95f, 0.7f);
 
     private MapManager maps;
+    private bool opened; // this sign opened its board (walking away closes it)
 
     private void Awake()
     {
@@ -43,6 +48,7 @@ public class LobbyStation : MonoBehaviour
 
         valueText.text = kind == Kind.Rounds ? match.Rounds.ToString()
                        : kind == Kind.CardTime ? match.CardTime + "s"
+                       : kind == Kind.CorePicks ? match.CardEvery.ToString() // "CORES EVERY" 1 / 2 (rounds)
                        : MapCount(match, maps);
 
         bool near = local != null && local.InPlay &&
@@ -52,19 +58,24 @@ public class LobbyStation : MonoBehaviour
         promptText.text = !near ? ""
                         : !host ? Lang.T("HOST ONLY", "CHỈ CHỦ PHÒNG")
                         : kind == Kind.Maps ? Lang.T("[E] CHOOSE", "[E] CHỌN")
-                        : Lang.T("[E] CHANGE", "[E] ĐỔI");
+                        : Lang.T("[E] SETTINGS", "[E] CÀI ĐẶT");
 
         if (near && host && !InputLock.Blocked && Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame)
         {
-            if (kind == Kind.Rounds)
-                match.CycleRounds();
-            else if (kind == Kind.CardTime)
-                match.CycleCardTime();
-            else
+            if (kind == Kind.Maps)
                 mapBoard.Toggle();
+            else
+                roomBoard.Toggle();
+            opened = true;
         }
-        if (kind == Kind.Maps && !near && mapBoard.IsOpen)
-            mapBoard.Close(); // walked away
+        if (opened && !near)
+        {
+            opened = false; // walked away
+            if (kind == Kind.Maps)
+                mapBoard.Close();
+            else
+                roomBoard.Close();
+        }
     }
 
     private static string MapCount(MatchManager match, MapManager maps)

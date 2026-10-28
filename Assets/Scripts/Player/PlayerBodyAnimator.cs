@@ -32,6 +32,9 @@ public class PlayerBodyAnimator : MonoBehaviour
     [SerializeField] private Vector2 jumpStretch = new Vector2(0.82f, 1.2f);
     [SerializeField] private Vector2 dashStretch = new Vector2(1.3f, 0.78f);
 
+    [Tooltip("Squashed by a hit, like the dummies.")]
+    [SerializeField] private Vector2 hitSquash = new Vector2(1.15f, 0.88f);
+
     [Tooltip("Landing at least this fast squashes fully (units/sec); slower landings squash less.")]
     [SerializeField] private float hardLanding = 20f;
 
@@ -154,6 +157,9 @@ public class PlayerBodyAnimator : MonoBehaviour
     // This player dashes for that long (any direction). The window is a little longer, for the other machines'
     // delay in seeing the move.
     public void PlayDash(float duration) => dashWindow = duration + 0.15f;
+
+    // Hit: a quick squash (every machine, from PlayerHealth.PlayBleed).
+    public void PlayHit() => punch = hitSquash;
 
     // Something solid right under the feet (works for every machine's players, moved by physics or not).
     private bool OnGround()

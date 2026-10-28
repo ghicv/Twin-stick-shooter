@@ -51,6 +51,15 @@ public class PlayerHealth : MonoBehaviour
     [Range(0f, 1f)]
     [SerializeField] private float othersHurtVolume = 0.35f;
 
+    [Tooltip("Blood spurting out of the wound when a hit lands (every machine), like the dummies'.")]
+    [SerializeField] private ParticleSystem bloodEffect;
+
+    [Tooltip("The hit sound the dummies make too, heard by everybody where the hit landed.")]
+    [SerializeField] private AudioClip hitSound;
+
+    [Range(0f, 1f)]
+    [SerializeField] private float hitVolume = 0.6f;
+
     [Header("Crash")]
     [Tooltip("Pushed into a wall at least this fast, shortly after a hit, counts as a crash (cores can react) (units/sec).")]
     [SerializeField] private float crashSpeed = 5f;
@@ -94,9 +103,15 @@ public class PlayerHealth : MonoBehaviour
 
     // Host only. direction = the way the hit travels (from the attacker toward the player).
     // knockbackScale scales the push (Hammer); source = the attacker's cores (null for enemies).
-    public void TakeDamage(float amount, Vector2 direction, float knockbackScale = 1f, CoreBridge source = null)
+    // wound = where it landed (blood and the hit sound there on every machine), if known.
+    public void TakeDamage(float amount, Vector2 direction, float knockbackScale = 1f, CoreBridge source = null,
+                           Vector2? wound = null)
     {
-        if (!Hurt(amount, source))
+        float before = Health;
+        bool alive = Hurt(amount, source);
+        if (wound.HasValue && (alive || Health < before)) // it landed (also the killing blow)
+            net.PlayBleed(wound.Value, -direction.normalized);
+        if (!alive)
             return;
 
         float scale = knockbackScale * (GameMode.IsLan ? lanKnockbackScale : 1f) * OwnKnockbackTaken;
@@ -192,6 +207,21 @@ public class PlayerHealth : MonoBehaviour
             GameAudio.Play(hurtSound, hurtVolume, 0.06f);
         else
             GameAudio.PlayAt(hurtSound, transform.position, hurtVolume * othersHurtVolume, 0.06f);
+    }
+
+    // Every machine: blood spurts out of the wound (normal = out of the body, back toward the shooter), with the hit
+    // sound there and a squash of the body: the same hit as the dummies'.
+    public void PlayBleed(Vector2 point, Vector2 normal)
+    {
+        if (bloodEffect != null)
+        {
+            float angle = Mathf.Atan2(normal.y, normal.x) * Mathf.Rad2Deg;
+            ParticleSystem blood = Instantiate(bloodEffect, point + normal * 0.05f, Quaternion.Euler(0f, 0f, angle));
+            Destroy(blood.gameObject, 5f); // the effect doesn't destroy itself
+        }
+        GameAudio.PlayAt(hitSound, point, hitVolume, 0.1f);
+        if (TryGetComponent(out PlayerBodyAnimator animator))
+            animator.PlayHit(); // squashed, like the dummies
     }
 
     // Owner: pushed by a hit or a pull. set = replace the speed (hit), otherwise add to it.

@@ -103,6 +103,6 @@ public class MeleeEnemy : MonoBehaviour
 
         // The player may have stepped back during the wind-up: a little extra reach for the lunge.
         if (Mathf.Abs(toPlayer.x) <= attackRange * 1.4f && Mathf.Abs(toPlayer.y) <= attackHeight)
-            player.TakeDamage(damage, new Vector2(direction, 0f));
+            player.TakeDamage(damage, new Vector2(direction, 0f), wound: (Vector2)player.transform.position + Vector2.up * 0.6f);
     }
 }
