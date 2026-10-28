@@ -5,10 +5,14 @@ using UnityEngine;
 // A new run loads the scene again, so the player always starts with no cores.
 public class CoreInventory : MonoBehaviour
 {
+    // The tier of a core: each card milestone offers one tier (CoreCards); the strongest cores are diamond.
+    public enum Rarity { Silver, Gold, Diamond }
+
     [System.Serializable]
     public class CoreInfo
     {
         public CoreType type;
+        public Rarity rarity;
         public string title;
 
         [Tooltip("Small line under the title, e.g. \"BULLET · FLY\" or \"SINGLE · PLAYER\".")]

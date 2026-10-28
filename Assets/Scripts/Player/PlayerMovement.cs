@@ -79,15 +79,18 @@ public class PlayerMovement : MonoBehaviour
              "Collision with that platform stays off at least this long, and until the player is out of it (seconds).")]
     [SerializeField] private float dropThroughTime = 0.25f;
 
-    [Header("Dash (only with the Dash core)")]
+    [Header("Dash (Shift, everybody; the Dash+ core makes it better)")]
     [Tooltip("Shift dashes this fast, straight sideways, toward A/D (or the way you last moved) (units/sec).")]
     [SerializeField] private float dashSpeed = 22f;
 
-    [Tooltip("Seconds a dash lasts. The player can't be hurt meanwhile.")]
+    [Tooltip("Seconds a dash lasts (with the Dash+ core the player can't be hurt meanwhile).")]
     [SerializeField] private float dashTime = 0.15f;
 
     [Tooltip("Seconds from one dash to the next.")]
-    [SerializeField] private float dashCooldown = 0.8f;
+    [SerializeField] private float dashCooldown = 1.2f;
+
+    [Tooltip("Seconds from one dash to the next with the Dash+ core.")]
+    [SerializeField] private float upgradedDashCooldown = 0.6f;
 
     [Header("Squash & Stretch")]
     [Tooltip("Body sprite that gets squashed and stretched (visual only, the collider doesn't change).")]
@@ -229,12 +232,12 @@ public class PlayerMovement : MonoBehaviour
         UpdateGrounded();
         UpdateWall();
 
-        // Dash (Dash core): straight sideways, no gravity, nothing else happens meanwhile.
+        // Dash: straight sideways, no gravity, nothing else happens meanwhile.
         dashCooldownTimer -= Time.fixedDeltaTime;
         if (dashRequested)
         {
             dashRequested = false;
-            if (cores != null && cores.DashUnlocked && dashCooldownTimer <= 0f && dashTimer <= 0f)
+            if (dashCooldownTimer <= 0f && dashTimer <= 0f)
                 StartDash();
         }
         if (dashTimer > 0f)
@@ -464,13 +467,14 @@ public class PlayerMovement : MonoBehaviour
     {
         dashDirection = moveInput != 0f ? (moveInput > 0f ? 1 : -1) : facing;
         dashTimer = dashTime;
-        dashCooldownTimer = dashCooldown;
+        bool upgraded = cores != null && cores.DashUpgraded;
+        dashCooldownTimer = upgraded ? upgradedDashCooldown : dashCooldown;
         canCutJump = false;
         bodyShape = new Vector2(1.25f, 0.8f); // stretched sideways
         SpawnDust(FeetPosition, jumpDustScale);
         PlaySound(jumpSound, jumpVolume);
-        if (health != null)
-            health.MakeInvulnerable(dashTime + 0.05f);
+        if (upgraded && health != null)
+            health.MakeInvulnerable(dashTime + 0.05f); // Dash+: can't be hurt while dashing
     }
 
     // Sets the velocity directly (impulse / mass for the upward part) so every jump has the same height,

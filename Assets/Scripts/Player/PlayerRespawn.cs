@@ -9,7 +9,7 @@ using UnityEngine;
 // plays it: the player explodes where it fell out of view, then
 // - single player with Game Over On Death: the Game Over screen shows up right away (unless an Extra Life core
 //   saves the run);
-// - LAN round: the player is out until the next round and picks a card meanwhile;
+// - LAN round: the player is out until the next round;
 // - otherwise it appears at a spawn point after Revive Delay.
 //
 // Map change (single player: WaveManager calls TravelToNewMap after a cleared wave; LAN: MatchManager calls
@@ -21,8 +21,8 @@ using UnityEngine;
 public class PlayerRespawn : MonoBehaviour
 {
     // What happens after a death (sent by the host to every machine).
-    // Revive: back after a moment. GameOver: single player run lost. Wait: LAN round, out until the next round
-    // (picks a card meanwhile). Out: LAN, died after the round was already decided: out until the next round, no card.
+    // Revive: back after a moment. GameOver: single player run lost. Wait: LAN round, out until the next round.
+    // Out: LAN, died after the round was already decided: out until the next round too.
     public enum DeathOutcome { Revive = 0, GameOver = 1, Wait = 2, Out = 3 }
 
     [Tooltip("Falling below this height (world Y) kills the player, when there is no MapManager (else the map's own).")]
@@ -169,12 +169,12 @@ public class PlayerRespawn : MonoBehaviour
             outcome = DeathOutcome.GameOver;
         else if (GameMode.IsLan && match != null && match.RoundOn && !extraLife)
         {
-            outcome = DeathOutcome.Wait; // out of this round (picks a card meanwhile)
+            outcome = DeathOutcome.Wait; // out of this round
             match.OnPlayerDiedInRound(net, killer != null ? killer.GetComponent<PlayerNetwork>() : null, fellOff);
         }
         else if (GameMode.IsLan && match != null && match.InMatch)
         {
-            outcome = DeathOutcome.Out; // the round is already decided (e.g. fell off afterwards): no card
+            outcome = DeathOutcome.Out; // the round is already decided (e.g. fell off afterwards)
         }
 
         net.PlayDeath(rb.position, (int)outcome, PickSpawnPoint());
@@ -206,16 +206,8 @@ public class PlayerRespawn : MonoBehaviour
                 gameOverScreen.Show();
             yield break;
         }
-        if (outcome == DeathOutcome.Wait)
-        {
-            // Out until the next round; the player picks a core while watching (with a time limit).
-            MatchManager match = MatchManager.Instance;
-            if (net.IsMine && !(cores != null && cores.OfferCardsNow(match != null ? match.CardTime : 10f)))
-                net.ReportPickSkipped();
-            yield break;
-        }
-        if (outcome == DeathOutcome.Out)
-            yield break; // back with everybody at the next round
+        if (outcome == DeathOutcome.Wait || outcome == DeathOutcome.Out)
+            yield break; // out until the next round, back with everybody (cards come at milestones, MatchManager)
 
         yield return new WaitForSecondsRealtime(reviveDelay);
         yield return Appear(spawn, true);

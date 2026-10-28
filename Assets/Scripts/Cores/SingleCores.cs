@@ -144,7 +144,7 @@ public class SingleCores : MonoBehaviour
 
     public int ExtraAirJumps => Has(CoreType.ExtraJump) ? extraJumps : 0;
 
-    public bool DashUnlocked => Has(CoreType.Dash);
+    public bool DashUpgraded => Has(CoreType.Dash); // Dash+: faster dashes that can't be hurt
 
     // Host: Extra Life → true (once per run; on LAN once per round) = the player comes back right away.
     public bool TryUseExtraLife()

@@ -8,7 +8,8 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // The menu screens before a game.
-// - Title: your name (shown above your head in the lobby and the match), PLAY LAN, SINGLE PLAYER, SETTINGS, QUIT.
+// - Title: your name (shown above your head in the lobby and the match), PLAY LAN, SINGLE PLAYER, COLLECTION (every
+//   core, CollectionPanel), SETTINGS, QUIT.
 // - LAN: the rooms on the local network (found by themselves, LanDiscovery: click one to join),
 //   CREATE ROOM and JOIN BY IP.
 // - Create room: name, password (optional), max players. Join by IP: address and password. A locked room from
@@ -53,8 +54,12 @@ public class MainMenu : MonoBehaviour
     [SerializeField] private InputField nameInput;
     [SerializeField] private Button lanButton;
     [SerializeField] private Button singleButton;
+    [SerializeField] private Button collectionButton;
     [SerializeField] private Button settingsButton;
     [SerializeField] private Button quitButton;
+
+    [Tooltip("Every core in the game (opened by Collection Button).")]
+    [SerializeField] private CollectionPanel collectionPanel;
 
     [Header("LAN screen")]
     [SerializeField] private GameObject lanPanel;
@@ -134,6 +139,7 @@ public class MainMenu : MonoBehaviour
             SaveName(nameInput.text);
             StartSingle();
         });
+        collectionButton.onClick.AddListener(collectionPanel.Open);
         settingsButton.onClick.AddListener(settingsMenu.Open);
         quitButton.onClick.AddListener(Application.Quit);
         backButton.onClick.AddListener(() => ShowScreen(titlePanel));

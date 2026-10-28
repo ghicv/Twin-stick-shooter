@@ -8,8 +8,9 @@ using UnityEngine.UI;
 // Lobby: players walk around the lobby map. The host sets the room up at the lobby's stations (rounds, card time,
 // maps). Everybody standing in the READY zone (at least Min Players) starts a 3-2-1 countdown, then the match.
 // Rounds: every round is on another map. Everybody arrives with full health (the travel sequence also brings the
-// dead back). A player who dies stays out until the next round and picks a core right away (Card Time seconds,
-// then a random card); the last one standing wins the round. The next round waits until everyone has picked.
+// dead back). A player who dies stays out until the next round; the last one standing wins the round.
+// Card milestones (Card Rounds): before those rounds everybody picks one of 3 cards of the same rarity (silver, gold,
+// diamond; after round 1 the leader sits it out), Card Time seconds, then a random card.
 // After Rounds rounds the most round wins takes the match; a tie plays tiebreak rounds (at most Max Tiebreaks).
 // Results: the ranking; the host goes back to the lobby, where everybody starts again without cores.
 // Also here: chat, the kill feed, "joined / left / kicked" notices, and kicking (host).
@@ -26,10 +27,16 @@ public class MatchManager : NetworkBehaviour
 
     [SerializeField] private int defaultRounds = 8;
 
-    [Tooltip("Seconds a dead player has to pick a card (then a random one is taken): the CARD TIME station's choices.")]
-    [SerializeField] private int[] cardTimeChoices = { 5, 10, 15, 20 };
+    [Tooltip("Seconds to pick a card at a milestone (then a random one is taken): the CARD TIME station's choices.")]
+    [SerializeField] private int[] cardTimeChoices = { 15, 20, 30, 45 };
 
-    [SerializeField] private int defaultCardTime = 10;
+    [SerializeField] private int defaultCardTime = 30;
+
+    [Tooltip("Before these rounds everybody picks a card (after the first one, all but the leader).")]
+    [SerializeField] private int[] cardRounds = { 1, 3, 5, 7 };
+
+    [Tooltip("Each milestone rolls one rarity for everybody: chances of silver, gold and diamond.")]
+    [SerializeField] private float[] rarityChances = { 40f, 45f, 15f };
 
     [Header("Match")]
     [Min(1)]
@@ -41,8 +48,8 @@ public class MatchManager : NetworkBehaviour
     [Tooltip("Seconds between the end of a round (one player left) and the travel to the next map.")]
     [SerializeField] private float roundEndDelay = 2f;
 
-    [Tooltip("The next round never waits longer than this for card picks (seconds).")]
-    [SerializeField] private float pickWaitLimit = 12f;
+    [Tooltip("At a card milestone the round waits at most Card Time plus this for the picks (seconds).")]
+    [SerializeField] private float pickWaitExtra = 2f;
 
     [SerializeField] private int maxTiebreaks = 3;
 
@@ -59,10 +66,11 @@ public class MatchManager : NetworkBehaviour
     private readonly NetworkVariable<int> round = new NetworkVariable<int>(0);
     private readonly NetworkVariable<bool> tiebreak = new NetworkVariable<bool>(false);
     private readonly NetworkVariable<int> rounds = new NetworkVariable<int>(8);
-    private readonly NetworkVariable<int> cardTime = new NetworkVariable<int>(10);
+    private readonly NetworkVariable<int> cardTime = new NetworkVariable<int>(30);
     private readonly NetworkVariable<int> mapMask = new NetworkVariable<int>(0); // bit i = map i can be played
     private readonly NetworkVariable<int> readyCount = new NetworkVariable<int>(0);
     private readonly NetworkVariable<int> countdown = new NetworkVariable<int>(0); // 3, 2, 1 (0 = not counting)
+    private readonly NetworkVariable<int> picksLeft = new NetworkVariable<int>(0); // players still choosing a card
     private readonly NetworkVariable<Unity.Collections.FixedString64Bytes> roomName =
         new NetworkVariable<Unity.Collections.FixedString64Bytes>();
     private NetworkList<int> wins; // round wins by slot (0-3)
@@ -85,6 +93,7 @@ public class MatchManager : NetworkBehaviour
     public float CardTime => cardTime.Value;
     public int ReadyCount => readyCount.Value;
     public int Countdown => countdown.Value;
+    public int PicksLeft => picksLeft.Value;
     public string RoomName => roomName.Value.ToString();
     public int Wins(int slot) => slot >= 0 && slot < wins.Count ? wins[slot] : 0;
     public bool MapEnabled(int index) => (mapMask.Value & (1 << index)) != 0;
@@ -299,14 +308,11 @@ public class MatchManager : NetworkBehaviour
 
     // ---------- Host: rounds ----------
 
-    // A player died during a round: the kill feed tells everybody, and the player picks a card (unless it owns
-    // every core). killer: whoever hurt it last (null: nobody).
+    // A player died during a round: the kill feed tells everybody. killer: whoever hurt it last (null: nobody).
     public void OnPlayerDiedInRound(PlayerNetwork player, PlayerNetwork killer, bool fellOff)
     {
         if (!IsServer)
             return;
-        if (!player.Cores.OwnsEverything)
-            picking.Add(player);
         bool hasKiller = killer != null && killer != player;
         KillFeedRpc(hasKiller ? killer.Name : "", hasKiller ? killer.Color : Color.white, player.Name, player.Color, fellOff);
     }
@@ -351,14 +357,6 @@ public class MatchManager : NetworkBehaviour
         }
         yield return new WaitForSecondsRealtime(roundEndDelay);
 
-        // Everyone who died picks a card first (they have Card Time; never wait forever).
-        for (float t = 0f; picking.Count > 0 && t < pickWaitLimit; t += Time.unscaledDeltaTime)
-        {
-            picking.RemoveWhere(player => player == null || !player.IsSpawned);
-            yield return null;
-        }
-        picking.Clear();
-
         if (MatchDecided())
             yield return EndMatch();
         else
@@ -388,6 +386,51 @@ public class MatchManager : NetworkBehaviour
         return count;
     }
 
+    // A card milestone: everybody picks a card of that rarity (after round 1, the leader sits it out), with
+    // Card Time to choose; the next round waits for the picks (never forever).
+    private IEnumerator PickCards(CoreInventory.Rarity rarity)
+    {
+        int best = 0;
+        foreach (PlayerNetwork player in PlayerNetwork.All)
+            best = Mathf.Max(best, Wins(player.Slot));
+
+        picking.Clear();
+        foreach (PlayerNetwork player in PlayerNetwork.All)
+        {
+            bool leader = round.Value > 1 && best > 0 && Wins(player.Slot) == best && LeaderCount() < PlayerNetwork.All.Count;
+            if (leader || player.Cores.OwnsEverything)
+                continue;
+            picking.Add(player);
+            OfferCardsRpc((int)rarity, RpcTarget.Single(player.OwnerClientId, RpcTargetUse.Temp));
+        }
+        if (picking.Count == 0)
+            yield break;
+
+        string tier = rarity == CoreInventory.Rarity.Silver ? "SILVER" : rarity == CoreInventory.Rarity.Gold ? "GOLD" : "DIAMOND";
+        string tierVi = rarity == CoreInventory.Rarity.Silver ? "BẠC" : rarity == CoreInventory.Rarity.Gold ? "VÀNG" : "KIM CƯƠNG";
+        BannerRpc(tier + " CARDS!", "THẺ " + tierVi + "!", Color.white, 1.5f);
+
+        // Nobody moves on until everybody has picked (a random card is taken when someone's time runs out; the
+        // extra seconds only cover a player who lost the connection meanwhile).
+        for (float t = 0f; picking.Count > 0 && t < cardTime.Value + pickWaitExtra; t += Time.unscaledDeltaTime)
+        {
+            picking.RemoveWhere(player => player == null || !player.IsSpawned);
+            picksLeft.Value = picking.Count;
+            yield return null;
+        }
+        picking.Clear();
+        picksLeft.Value = 0;
+    }
+
+    // That player's machine: the card offer, with the room's card time.
+    [Rpc(SendTo.SpecifiedInParams)]
+    private void OfferCardsRpc(int rarity, RpcParams rpcParams)
+    {
+        PlayerNetwork local = PlayerNetwork.Local;
+        if (local != null && !local.Cores.OfferCardsNow((CoreInventory.Rarity)rarity, cardTime.Value))
+            local.ReportPickSkipped();
+    }
+
     private IEnumerator NextRound()
     {
         busy = true;
@@ -395,6 +438,10 @@ public class MatchManager : NetworkBehaviour
         round.Value++;
         foreach (PlayerNetwork player in PlayerNetwork.All)
             player.Cores.ResetForRound();
+
+        // A card milestone: everybody (but the leader after the first) picks a card before the round.
+        if (System.Array.IndexOf(cardRounds, round.Value) >= 0 && !tiebreak.Value)
+            yield return PickCards(CoreBridge.RandomRarity(rarityChances));
 
         // Everybody travels to the next map (the dead come back too).
         TravelRpc(NextMap());

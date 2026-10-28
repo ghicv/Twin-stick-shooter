@@ -20,8 +20,10 @@ public class MatchHud : MonoBehaviour
     [Tooltip("One per player (4).")]
     [SerializeField] private Chip[] chips;
 
-    [Tooltip("Lobby: the keys (TAB, ENTER, ESC, E).")]
+    [Tooltip("Lobby: the keys (TAB, ENTER, ESC, E). At a card milestone: who is still choosing.")]
     [SerializeField] private Text lobbyHintText;
+
+    private CoreCards cards;
 
     private void Update()
     {
@@ -29,11 +31,19 @@ public class MatchHud : MonoBehaviour
         bool lan = GameMode.IsLan && match != null;
         bool inMatch = lan && match.InMatch && match.CurrentPhase != MatchManager.Phase.Results;
         matchGroup.SetActive(inMatch);
-        lobbyHintText.gameObject.SetActive(lan && !match.InMatch && PlayerNetwork.Local != null);
 
-        if (lobbyHintText.gameObject.activeSelf)
-            lobbyHintText.text = Lang.T("[TAB] PLAYERS     [ENTER] CHAT     [E] USE     [ESC] MENU",
-                                        "[TAB] NGƯỜI CHƠI     [ENTER] CHAT     [E] DÙNG     [ESC] MENU");
+        // At a card milestone, the ones not choosing (done, or the leader) see who they wait for.
+        if (cards == null)
+            cards = FindAnyObjectByType<CoreCards>(FindObjectsInactive.Include);
+        bool waitingForCards = lan && match.PicksLeft > 0 && cards != null && !cards.IsOpen;
+        lobbyHintText.gameObject.SetActive(waitingForCards || (lan && !match.InMatch && PlayerNetwork.Local != null));
+
+        if (waitingForCards)
+            lobbyHintText.text = Lang.T("WAITING FOR " + match.PicksLeft + " PLAYER(S) TO CHOOSE A CARD...",
+                                        "ĐANG CHỜ " + match.PicksLeft + " NGƯỜI CHỌN THẺ...");
+        else if (lobbyHintText.gameObject.activeSelf)
+            lobbyHintText.text = Lang.T("[SHIFT] DASH     [TAB] PLAYERS     [ENTER] CHAT     [E] USE     [ESC] MENU",
+                                        "[SHIFT] LƯỚT     [TAB] NGƯỜI CHƠI     [ENTER] CHAT     [E] DÙNG     [ESC] MENU");
         if (!inMatch)
             return;
 

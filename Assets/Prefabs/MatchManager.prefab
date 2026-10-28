@@ -73,9 +73,18 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MatchManager
   ShowTopMostFoldoutHeaderGroup: 1
-  rounds: 8
+  roundChoices: 0300000005000000080000000a0000000f000000
+  defaultRounds: 8
+  cardTimeChoices: 0f000000140000001e0000002d000000
+  defaultCardTime: 30
+  cardRounds: 01000000030000000500000007000000
+  rarityChances:
+  - 40
+  - 45
+  - 15
   minPlayers: 2
-  cardTime: 10
+  countdownTime: 3
   roundEndDelay: 2
-  pickWaitLimit: 12
+  pickWaitExtra: 2
   maxTiebreaks: 3
+  maxChatLength: 80

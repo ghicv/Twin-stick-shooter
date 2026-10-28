@@ -12,7 +12,7 @@ public static class UiKit
     public static readonly Color Orange = new Color(1f, 0.42f, 0.21f);
     public static readonly Color Gold = new Color(1f, 0.85f, 0.3f);
     public static readonly Color TextColor = new Color(0.93f, 0.94f, 1f);
-    public static readonly Color Muted = new Color(0.62f, 0.66f, 0.8f);
+    public static readonly Color Muted = new Color(0.74f, 0.77f, 0.9f);
     public static readonly Color Good = new Color(0.4f, 0.9f, 0.5f);
     public static readonly Color Bad = new Color(1f, 0.4f, 0.4f);
     public static readonly Color Backdrop = new Color(0.03f, 0.03f, 0.06f, 0.78f);
@@ -30,7 +30,10 @@ public static class UiKit
     // so all borders in the game have the same pixel size.
     public const float SliceMultiplier = 1.25f;
 
-    // VT323 is small for its size: titles and button labels are scaled up by these.
+    // VT323 is small for its size: titles and button labels are scaled up by these, and small text (under
+    // SmallTextSize) by SmallTextScale so it stays readable.
+    private const int SmallTextSize = 40;
+    private const float SmallTextScale = 1.15f;
     private const float TitleScale = 1.3f;
     private const float ButtonTextScale = 1.45f;
 
@@ -109,7 +112,8 @@ public static class UiKit
     {
         Text text = Rect(parent, name, anchor, position, size).gameObject.AddComponent<Text>();
         text.font = PixelFont;
-        text.fontSize = title ? Mathf.RoundToInt(fontSize * TitleScale) : fontSize;
+        text.fontSize = title ? Mathf.RoundToInt(fontSize * TitleScale)
+                      : fontSize < SmallTextSize ? Mathf.RoundToInt(fontSize * SmallTextScale) : fontSize;
         text.color = color;
         text.alignment = align;
         text.text = english;

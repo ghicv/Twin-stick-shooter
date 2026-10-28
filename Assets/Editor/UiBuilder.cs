@@ -27,6 +27,7 @@ public static class UiBuilder
     {
         BuildMainMenu();
         BuildCharacterPanel();
+        BuildCoreCards();
         BuildMatchUi();
         BuildSettings();
         EditorSceneManager.MarkSceneDirty(Hud.gameObject.scene);
@@ -57,18 +58,19 @@ public static class UiBuilder
         shade.color = new Color(0.02f, 0.02f, 0.05f, 0.8f);
 
         // In the middle: the pixel logo, then one column of buttons (the main one first and biggest).
-        Image logo = UiKit.Icon(title, "Logo", MenuArt("Logo"), C, new Vector2(0, 285), new Vector2(97 * 6, 59 * 6));
-        UiKit.Label(title, "Tagline", "LAN PARTY BRAWLER", "ĐẠI CHIẾN PIXEL CÙNG BẠN BÈ", 44, UiKit.Gold, Mid, C, new Vector2(0, 80), new Vector2(900, 56));
-        Button lan = UiKit.Button(title, "LanButton", "PLAY LAN", "CHƠI LAN", C, new Vector2(0, -30), new Vector2(520, 104), K.Primary, 40);
-        Button single = UiKit.Button(title, "SingleButton", "SINGLE PLAYER", "CHƠI ĐƠN", C, new Vector2(0, -145), new Vector2(520, 84), K.Normal, 30);
-        Button settings = UiKit.Button(title, "SettingsButton", "SETTINGS", "CÀI ĐẶT", C, new Vector2(0, -240), new Vector2(520, 84), K.Normal, 30);
-        Button quit = UiKit.Button(title, "QuitButton", "QUIT", "THOÁT", C, new Vector2(0, -335), new Vector2(520, 84), K.Subtle, 30);
+        Image logo = UiKit.Icon(title, "Logo", MenuArt("Logo"), C, new Vector2(0, 320), new Vector2(97 * 6, 59 * 6));
+        UiKit.Label(title, "Tagline", "LAN PARTY BRAWLER", "ĐẠI CHIẾN PIXEL CÙNG BẠN BÈ", 44, UiKit.Gold, Mid, C, new Vector2(0, 115), new Vector2(900, 56));
+        Button lan = UiKit.Button(title, "LanButton", "PLAY LAN", "CHƠI LAN", C, new Vector2(0, 5), new Vector2(520, 104), K.Primary, 40);
+        Button single = UiKit.Button(title, "SingleButton", "SINGLE PLAYER", "CHƠI ĐƠN", C, new Vector2(0, -110), new Vector2(520, 84), K.Normal, 30);
+        Button collection = UiKit.Button(title, "CollectionButton", "COLLECTION", "BỘ SƯU TẬP", C, new Vector2(0, -205), new Vector2(520, 84), K.Normal, 30);
+        Button settings = UiKit.Button(title, "SettingsButton", "SETTINGS", "CÀI ĐẶT", C, new Vector2(0, -300), new Vector2(520, 84), K.Normal, 30);
+        Button quit = UiKit.Button(title, "QuitButton", "QUIT", "THOÁT", C, new Vector2(0, -395), new Vector2(520, 84), K.Subtle, 30);
 
         Image pointer = UiKit.Icon(title, "Pointer", AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/UI/Arrow.png"), C, Vector2.zero, new Vector2(30, 55));
 
         var animator = title.gameObject.AddComponent<MenuAnimator>();
         UiKit.Wire(animator, "logo", logo.rectTransform);
-        UiKit.WireArray(animator, "buttons", new Object[] { lan.transform, single.transform, settings.transform, quit.transform });
+        UiKit.WireArray(animator, "buttons", new Object[] { lan.transform, single.transform, collection.transform, settings.transform, quit.transform });
         UiKit.Wire(animator, "pointer", pointer.rectTransform);
 
         // Top right: the player's card (name).
@@ -161,6 +163,8 @@ public static class UiBuilder
         UiKit.Wire(menu, "nameInput", nameInput);
         UiKit.Wire(menu, "lanButton", lan);
         UiKit.Wire(menu, "singleButton", single);
+        UiKit.Wire(menu, "collectionButton", collection);
+        UiKit.Wire(menu, "collectionPanel", BuildCollection(root));
         UiKit.Wire(menu, "settingsButton", settings);
         UiKit.Wire(menu, "quitButton", quit);
         UiKit.Wire(menu, "lanPanel", lanPanel.gameObject);
@@ -189,6 +193,99 @@ public static class UiBuilder
     }
 
     private static Sprite MenuArt(string name) => AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/UI/Menu/" + name + ".png");
+
+    // COLLECTION: every core. Left, tabs over a grid of tiles; right, the pointed core as a big card.
+    private static CollectionPanel BuildCollection(Transform root)
+    {
+        RectTransform holder = UiKit.Stretch(root, "Collection");
+        var collection = holder.gameObject.AddComponent<CollectionPanel>();
+        RectTransform panel = UiKit.Stretch(holder, "Panel");
+        UiKit.Dim(panel, "Backdrop", 0.75f).raycastTarget = true;
+        UiKit.Label(panel, "Header", "COLLECTION", "BỘ SƯU TẬP", 90, UiKit.Orange, Mid, Top, new Vector2(0, -90), new Vector2(1200, 120), true);
+        UiKit.Label(panel, "Subheader", "EVERY CORE IN THE GAME - POINT AT ONE TO READ IT", "TOÀN BỘ LÕI TRONG GAME - DI CHUỘT VÀO ĐỂ XEM",
+                    40, UiKit.Muted, Mid, Top, new Vector2(0, -190), new Vector2(1600, 50));
+
+        Transform gridCard = UiKit.Panel(panel, "GridCard", C, new Vector2(-250, -60), new Vector2(1080, 720)).transform;
+        string[,] tabs = { { "ALL", "TẤT CẢ" }, { "SILVER", "BẠC" }, { "GOLD", "VÀNG" }, { "DIAMOND", "KIM CƯƠNG" } };
+        var filterButtons = new Object[4];
+        for (int i = 0; i < 4; i++)
+            filterButtons[i] = UiKit.Button(gridCard, "Tab" + i, tabs[i, 0], tabs[i, 1], TopLeft, new Vector2(150 + i * 230, -58),
+                                            new Vector2(220, 68), K.Subtle, 24);
+        Text count = UiKit.Label(gridCard, "CountText", "38 CORES", null, 36, UiKit.Gold, MidRight, TopRight, new Vector2(-130, -58), new Vector2(200, 50));
+
+        RectTransform grid = UiKit.Rect(gridCard, "Grid", Top, Top, new Vector2(0, -120), new Vector2(1000, 570));
+        var layout = grid.gameObject.AddComponent<GridLayoutGroup>();
+        layout.cellSize = new Vector2(104, 104);
+        layout.spacing = new Vector2(12, 12);
+        layout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+        layout.constraintCount = 8;
+        layout.childAlignment = TextAnchor.UpperCenter;
+
+        Sprite frameSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/UI/CardFrame.png");
+        RectTransform tile = UiKit.Rect(grid, "TileTemplate", C, Vector2.zero, new Vector2(104, 104));
+        Image tileBody = tile.gameObject.AddComponent<Image>();
+        tileBody.sprite = UiKit.PixelSprite;
+        tileBody.color = new Color(0.24f, 0.26f, 0.38f);
+        Image tileFrame = UiKit.Icon(tile, "Frame", frameSprite, C, Vector2.zero, new Vector2(104, 104));
+        tileFrame.preserveAspect = false;
+        tileFrame.type = Image.Type.Sliced;
+        tileFrame.pixelsPerUnitMultiplier = UiKit.SliceMultiplier * 2f; // thinner border on the small tiles
+        UiKit.Icon(tile, "Icon", null, C, Vector2.zero, new Vector2(68, 68));
+        Button tileButton = tile.gameObject.AddComponent<Button>();
+        tileButton.targetGraphic = tileBody;
+        ColorBlock colors = tileButton.colors;
+        colors.normalColor = new Color(0.6f, 0.6f, 0.6f);
+        colors.highlightedColor = Color.white;
+        colors.pressedColor = new Color(0.45f, 0.45f, 0.45f);
+        colors.selectedColor = colors.normalColor;
+        colors.fadeDuration = 0.06f;
+        tileButton.colors = colors;
+        Navigation navigation = tileButton.navigation;
+        navigation.mode = Navigation.Mode.None;
+        tileButton.navigation = navigation;
+        tile.gameObject.AddComponent<UiButton>();
+
+        // The big card, the same look as the card offer.
+        RectTransform card = UiKit.Rect(panel, "Card", C, new Vector2(590, -60), new Vector2(360, 540));
+        Image glow = UiKit.Icon(card, "Glow", AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/UI/Spotlight.png"), C, Vector2.zero, new Vector2(620, 780));
+        glow.preserveAspect = false;
+        glow.color = new Color(1f, 1f, 1f, 0.22f);
+        Image body = UiKit.Panel(card, "Body", C, Vector2.zero, new Vector2(360, 540));
+        body.color = new Color(0.75f, 0.78f, 0.9f);
+        Image frame = UiKit.Icon(card, "Frame", frameSprite, C, Vector2.zero, new Vector2(360, 540));
+        frame.preserveAspect = false;
+        frame.type = Image.Type.Sliced;
+        frame.pixelsPerUnitMultiplier = UiKit.SliceMultiplier;
+        Text rarity = UiKit.Label(card, "Rarity", "SILVER", null, 34, Color.white, Mid, Top, new Vector2(0, -40), new Vector2(320, 40));
+        Image emblem = UiKit.Icon(card, "Emblem", AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/UI/CardEmblem.png"), Top, new Vector2(0, -140), new Vector2(150, 150));
+        Image icon = UiKit.Icon(emblem.transform, "Icon", null, C, Vector2.zero, new Vector2(104, 104));
+        Text title = UiKit.Label(card, "Title", "CORE", null, 42, Color.white, Mid, Top, new Vector2(0, -262), new Vector2(330, 60), true);
+        title.GetComponent<Shadow>().effectDistance = new Vector2(3, -3);
+        Text tag = UiKit.Label(card, "Tag", "BULLET", null, 30, UiKit.Gold, Mid, Top, new Vector2(0, -312), new Vector2(330, 34));
+        Text description = UiKit.Label(card, "Description", "Description", null, 32, UiKit.TextColor, TextAnchor.UpperCenter, Top,
+                                       new Vector2(0, -425), new Vector2(320, 190));
+
+        Button back = UiKit.Button(panel, "BackButton", "BACK", "QUAY LẠI", Bottom, new Vector2(0, 70), new Vector2(420, 76), K.Subtle, 28);
+
+        UiKit.Wire(collection, "panel", panel.gameObject);
+        UiKit.Wire(collection, "backButton", back);
+        UiKit.Wire(collection, "hideWhileOpen", root.Find("TitlePanel").gameObject);
+        UiKit.Wire(collection, "catalogSource", AssetDatabase.LoadAssetAtPath<CoreInventory>("Assets/Prefabs/Player.prefab"));
+        UiKit.Wire(collection, "tileTemplate", tileButton);
+        UiKit.WireArray(collection, "filterButtons", filterButtons);
+        UiKit.Wire(collection, "countText", count);
+        UiKit.Wire(collection, "cardFrame", frame);
+        UiKit.Wire(collection, "cardGlow", glow);
+        UiKit.Wire(collection, "cardEmblem", emblem);
+        UiKit.Wire(collection, "cardIcon", icon);
+        UiKit.Wire(collection, "cardRarity", rarity);
+        UiKit.Wire(collection, "cardTitle", title);
+        UiKit.Wire(collection, "cardTag", tag);
+        UiKit.Wire(collection, "cardDescription", description);
+        tile.gameObject.SetActive(false);
+        panel.gameObject.SetActive(false);
+        return collection;
+    }
 
     // Behind every menu: map 0 (MenuBackdrop), blurred by a post-processing volume and darkened a bit.
     private static void BuildMenuScene(Transform root)
@@ -338,6 +435,141 @@ public static class UiBuilder
         row.FindPropertyRelative("next").objectReferenceValue = next;
         row.FindPropertyRelative("value").objectReferenceValue = value;
         so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    // ---------- Card offer (augment style: tall cards in their rarity's color) ----------
+
+    public static void BuildCoreCards()
+    {
+        CoreCards coreCards = Object.FindAnyObjectByType<CoreCards>(FindObjectsInactive.Include);
+        Transform root = coreCards.transform;
+        UiKit.Clear(root);
+        RectTransform panel = UiKit.Stretch(root, "Panel");
+        Image dim = panel.gameObject.AddComponent<Image>();
+        dim.sprite = UiKit.PixelSprite;
+        dim.color = new Color(0.03f, 0.03f, 0.06f, 0.82f);
+
+        Text header = UiKit.Label(panel, "Header", "CHOOSE A SILVER CARD", null, 62, Color.white, Mid, C, new Vector2(0, 410), new Vector2(1400, 90), true);
+        Text timer = UiKit.Label(panel, "TimerText", "30", null, 56, UiKit.Gold, Mid, C, new Vector2(0, 335), new Vector2(300, 70), true);
+
+        Sprite frameSprite = PixelSprite("CardFrame", new[] {
+            "..wwwwwwwwwwww..",
+            ".wwwwwwwwwwwwww.",
+            "wwwggggggggggwww",
+            "wwg..........gww",
+            "wwg..........gww",
+            "wwg..........gww",
+            "wwg..........gww",
+            "wwg..........gww",
+            "wwg..........gww",
+            "wwg..........gww",
+            "wwg..........gww",
+            "wwg..........gww",
+            "wwwggggggggggwww",
+            "wwwwwwwwwwwwwwww",
+            ".wwwwwwwwwwwwww.",
+            "..wwwwwwwwwwww.." }, new Vector4(4, 4, 4, 4));
+        Sprite emblemSprite = PixelSprite("CardEmblem", new[] {
+            ".....wwwwww.....",
+            "...wwwwwwwwww...",
+            "..wwwwwwwwwwww..",
+            ".wwwwwwwwwwwwww.",
+            ".wwwwwwwwwwwwww.",
+            "wwwwwwwwwwwwwwww",
+            "wwwwwwwwwwwwwwww",
+            "wwwwwwwwwwwwwwww",
+            "wwwwwwwwwwwwwwww",
+            "wwwwwwwwwwwwwwww",
+            "wwwwwwwwwwwwwwww",
+            ".wwwwwwwwwwwwww.",
+            ".wwwwwwwwwwwwww.",
+            "..wwwwwwwwwwww..",
+            "...wwwwwwwwww...",
+            ".....wwwwww....." }, Vector4.zero);
+        Sprite glowSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/UI/Spotlight.png");
+
+        float[] xs = { -420f, 0f, 420f };
+        for (int i = 0; i < 3; i++)
+        {
+            RectTransform card = UiKit.Rect(panel, "Card" + i, C, new Vector2(xs[i], 0), new Vector2(360, 540));
+            Image glow = UiKit.Icon(card, "Glow", glowSprite, C, Vector2.zero, new Vector2(620, 780));
+            glow.preserveAspect = false;
+            glow.color = new Color(1f, 1f, 1f, 0.22f);
+            Image body = UiKit.Panel(card, "Body", C, Vector2.zero, new Vector2(360, 540));
+            body.color = new Color(0.75f, 0.78f, 0.9f);
+            Image frame = UiKit.Icon(card, "Frame", frameSprite, C, Vector2.zero, new Vector2(360, 540));
+            frame.preserveAspect = false;
+            frame.type = Image.Type.Sliced;
+            frame.pixelsPerUnitMultiplier = UiKit.SliceMultiplier;
+
+            Text rarity = UiKit.Label(card, "Rarity", "SILVER", null, 34, Color.white, Mid, Top, new Vector2(0, -40), new Vector2(320, 40));
+            Image emblem = UiKit.Icon(card, "Emblem", emblemSprite, Top, new Vector2(0, -140), new Vector2(150, 150));
+            Image icon = UiKit.Icon(emblem.transform, "Icon", null, C, Vector2.zero, new Vector2(104, 104));
+            Text title = UiKit.Label(card, "Title", "CORE", null, 42, Color.white, Mid, Top, new Vector2(0, -262), new Vector2(330, 60), true);
+            title.GetComponent<Shadow>().effectDistance = new Vector2(3, -3);
+            Text tag = UiKit.Label(card, "Tag", "BULLET", null, 30, UiKit.Gold, Mid, Top, new Vector2(0, -312), new Vector2(330, 34));
+            Text description = UiKit.Label(card, "Description", "Description", null, 32, UiKit.TextColor, TextAnchor.UpperCenter, Top,
+                                           new Vector2(0, -425), new Vector2(320, 190));
+
+            // The whole card is the button (its body lights up under the mouse).
+            Button button = card.gameObject.AddComponent<Button>();
+            button.targetGraphic = body;
+            ColorBlock colors = button.colors;
+            colors.normalColor = new Color(0.85f, 0.85f, 0.85f);
+            colors.highlightedColor = Color.white;
+            colors.pressedColor = new Color(0.7f, 0.7f, 0.7f);
+            colors.selectedColor = colors.normalColor;
+            colors.fadeDuration = 0.06f;
+            button.colors = colors;
+            Navigation navigation = button.navigation;
+            navigation.mode = Navigation.Mode.None;
+            button.navigation = navigation;
+            card.gameObject.AddComponent<UiButton>();
+
+            Button reroll = UiKit.Button(panel, "Reroll" + i, "REROLL", "ĐỔI THẺ", C, new Vector2(xs[i], -330), new Vector2(220, 64), K.Subtle, 22);
+
+            UiKit.WireRow(coreCards, "cards", i, "button", button);
+            UiKit.WireRow(coreCards, "cards", i, "icon", icon);
+            UiKit.WireRow(coreCards, "cards", i, "title", title);
+            UiKit.WireRow(coreCards, "cards", i, "tag", tag);
+            UiKit.WireRow(coreCards, "cards", i, "description", description);
+            UiKit.WireRow(coreCards, "cards", i, "frame", frame);
+            UiKit.WireRow(coreCards, "cards", i, "glow", glow);
+            UiKit.WireRow(coreCards, "cards", i, "emblem", emblem);
+            UiKit.WireRow(coreCards, "cards", i, "rarityText", rarity);
+            UiKit.WireRow(coreCards, "cards", i, "reroll", reroll);
+        }
+        UiKit.Label(panel, "Hint", "ONE REROLL PER OFFER", "MỖI LƯỢT ĐƯỢC ĐỔI 1 THẺ", 30, UiKit.Muted, Mid, C, new Vector2(0, -400), new Vector2(900, 40));
+        UiKit.Wire(coreCards, "panel", panel.gameObject);
+        UiKit.Wire(coreCards, "headerText", header);
+        UiKit.Wire(coreCards, "timerText", timer);
+        panel.gameObject.SetActive(false);
+    }
+
+    // A small white pixel sprite from rows of "w" (white), "g" (grey) and "." (clear), made once.
+    private static Sprite PixelSprite(string name, string[] rows, Vector4 border)
+    {
+        string path = "Assets/Sprites/UI/" + name + ".png";
+        var tex = new Texture2D(rows[0].Length, rows.Length, TextureFormat.RGBA32, false);
+        for (int y = 0; y < rows.Length; y++)
+            for (int x = 0; x < rows[0].Length; x++)
+            {
+                char c = rows[rows.Length - 1 - y][x];
+                tex.SetPixel(x, y, c == 'w' ? Color.white : c == 'g' ? new Color(0.55f, 0.55f, 0.55f, 1f) : new Color(0, 0, 0, 0));
+            }
+        tex.Apply();
+        System.IO.File.WriteAllBytes(path, tex.EncodeToPNG());
+        AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+        var importer = (TextureImporter)AssetImporter.GetAtPath(path);
+        importer.textureType = TextureImporterType.Sprite;
+        importer.spriteImportMode = SpriteImportMode.Single;
+        importer.filterMode = FilterMode.Point;
+        importer.mipmapEnabled = false;
+        importer.textureCompression = TextureImporterCompression.Uncompressed;
+        importer.spritePixelsPerUnit = 16;
+        importer.spriteBorder = border;
+        importer.SaveAndReimport();
+        return AssetDatabase.LoadAssetAtPath<Sprite>(path);
     }
 
     // ---------- In a LAN game ----------

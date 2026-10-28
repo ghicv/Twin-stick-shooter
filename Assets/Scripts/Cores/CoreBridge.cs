@@ -9,9 +9,15 @@ using UnityEngine;
 [RequireComponent(typeof(SingleCores))]
 public class CoreBridge : MonoBehaviour
 {
-    [Tooltip("Single player: a card offer comes after every this many cleared waves (1 = after each wave).")]
+    [Tooltip("Single player: the waves after which a card offer comes.")]
+    [SerializeField] private int[] cardWaves = { 1, 3, 5, 8 };
+
+    [Tooltip("Single player: after the last of those, an offer every this many waves.")]
     [Min(1)]
-    [SerializeField] private int cardEveryWaves = 1;
+    [SerializeField] private int cardEveryWavesAfter = 3;
+
+    [Tooltip("Each offer's rarity is random: chances of silver, gold and diamond.")]
+    [SerializeField] private float[] rarityChances = { 40f, 45f, 15f };
 
     [Tooltip("Single player: card offers before the first wave (0 = none). Handy for trying cores on the dummies.")]
     [Min(0)]
@@ -95,7 +101,7 @@ public class CoreBridge : MonoBehaviour
 
     public int ExtraAirJumps => singleCores.ExtraAirJumps;
 
-    public bool DashUnlocked => singleCores.DashUnlocked;
+    public bool DashUpgraded => singleCores.DashUpgraded;
 
     // The machine that controls the player landed hard; the shockwave counts on the host.
     public void OnHardLanding(Vector2 feet)
@@ -127,11 +133,11 @@ public class CoreBridge : MonoBehaviour
     // Picks a core (asks the host, which tells every machine).
     public void Pick(CoreType type) => net.PickCore(type);
 
-    // LAN: a card offer right now (after dying in a round); after Time Limit seconds a random card is taken.
-    // False = nothing to offer (this player already owns every core).
-    public bool OfferCardsNow(float timeLimit)
+    // LAN: a card offer of that rarity right now (a match milestone); after Time Limit seconds a random card is
+    // taken. False = nothing to offer (this player already owns every core).
+    public bool OfferCardsNow(CoreInventory.Rarity rarity, float timeLimit)
     {
-        return Cards != null && Cards.Show(this, null, timeLimit);
+        return Cards != null && Cards.Show(this, rarity, null, timeLimit);
     }
 
     public bool OwnsEverything => inventory.Owned.Count >= inventory.Catalog.Length;
@@ -140,23 +146,36 @@ public class CoreBridge : MonoBehaviour
     public void ResetForRound() => singleCores.ResetForRound();
 
     // Single player: card offers before the first wave. False = none (onDone is not called then).
-    public bool OfferCardsAtStart(System.Action onDone) => OfferCards(cardsAtStart, onDone);
+    public bool OfferCardsAtStart(System.Action onDone) => OfferCards(cardsAtStart, CoreInventory.Rarity.Silver, onDone);
 
     // Single player: called when a wave is cleared. False = no offer this time (onDone is not called then).
-    public bool OfferCardsAfterWave(int wave, System.Action onDone) =>
-        wave % cardEveryWaves == 0 && OfferCards(1, onDone);
+    public bool OfferCardsAfterWave(int wave, System.Action onDone)
+    {
+        int last = cardWaves.Length > 0 ? cardWaves[cardWaves.Length - 1] : 0;
+        bool milestone = System.Array.IndexOf(cardWaves, wave) >= 0 ||
+                         (wave > last && (wave - last) % cardEveryWavesAfter == 0);
+        return milestone && OfferCards(1, RandomRarity(rarityChances), onDone);
+    }
+
+    public static CoreInventory.Rarity RandomRarity(float[] chances)
+    {
+        float roll = Random.Range(0f, chances[0] + chances[1] + chances[2]);
+        return roll < chances[0] ? CoreInventory.Rarity.Silver
+             : roll < chances[0] + chances[1] ? CoreInventory.Rarity.Gold
+             : CoreInventory.Rarity.Diamond;
+    }
 
     // The map was swapped (things the cores left on the old one go away).
     public void OnMapChanged() => bulletCores.ClearMines();
 
     // Several offers in a row; onDone runs after the last pick.
-    private bool OfferCards(int offers, System.Action onDone)
+    private bool OfferCards(int offers, CoreInventory.Rarity rarity, System.Action onDone)
     {
         if (offers <= 0 || Cards == null)
             return false;
-        return Cards.Show(this, () =>
+        return Cards.Show(this, rarity, () =>
         {
-            if (!OfferCards(offers - 1, onDone))
+            if (!OfferCards(offers - 1, rarity, onDone))
                 onDone();
         });
     }
