@@ -179,6 +179,7 @@ public class PlayerMovement : MonoBehaviour
     private float dropTimer;
     private readonly Collider2D[] groundColliders = new Collider2D[4];
     private bool onIce;
+    private Vector2 groundVelocity; // how the ground under the feet moves (moving platform, conveyor, crate)
 
     private Vector3 bodyBaseScale;
     private Vector3 bodyBasePosition;
@@ -309,19 +310,31 @@ public class PlayerMovement : MonoBehaviour
     {
         bool wasGrounded = IsGrounded;
 
-        // Not while moving up, so the step right after a jump never counts as "still on the ground".
-        IsGrounded = rb.IsTouching(groundFilter) && rb.linearVelocity.y <= 0.01f;
+        // What the feet stand on: ice, and how that ground moves (we move with it).
         onIce = false;
+        groundVelocity = Vector2.zero;
+        int count = rb.GetContacts(groundFilter, groundColliders);
+        for (int i = 0; i < count; i++)
+        {
+            Collider2D ground = groundColliders[i];
+            if (ground.attachedRigidbody != null && ground.attachedRigidbody != rb)
+                groundVelocity = ground.attachedRigidbody.GetPointVelocity(FeetPosition);
+            LevelBlock block = ground.GetComponent<LevelBlock>();
+            if (block != null)
+            {
+                onIce |= block.Slippery;
+                groundVelocity.x += block.ConveyorSpeed;
+            }
+        }
+
+        // Not while moving up (faster than the ground does), so the step right after a jump never counts as
+        // "still on the ground".
+        IsGrounded = count > 0 && rb.linearVelocity.y - groundVelocity.y <= 0.01f;
+        if (!IsGrounded)
+            groundVelocity = Vector2.zero;
 
         if (IsGrounded)
         {
-            int count = rb.GetContacts(groundFilter, groundColliders);
-            for (int i = 0; i < count; i++)
-            {
-                LevelBlock block = groundColliders[i].GetComponent<LevelBlock>();
-                if (block != null && block.Slippery)
-                    onIce = true;
-            }
 
             coyoteTimer = coyoteTime;
             airJumpsLeft = TotalAirJumps;
@@ -413,9 +426,10 @@ public class PlayerMovement : MonoBehaviour
 
     // Speed eases toward the target: fast at first, then slowing down as it gets close, so starting,
     // stopping and turning have no hard corners.
+    // Speeds are measured against the ground, so a moving platform or a conveyor carries the player along.
     private void Run()
     {
-        float currentSpeed = rb.linearVelocity.x;
+        float currentSpeed = rb.linearVelocity.x - groundVelocity.x;
         float targetSpeed = moveInput * moveSpeed * (slowTimer > 0f ? slowFactor : 1f);
 
         float sharpness;
@@ -436,7 +450,10 @@ public class PlayerMovement : MonoBehaviour
             sharpness *= 1f - wallJumpTimer / wallJumpControlTime;
 
         float newSpeed = Mathf.Lerp(currentSpeed, targetSpeed, 1f - Mathf.Exp(-sharpness * Time.fixedDeltaTime));
-        rb.linearVelocity = new Vector2(newSpeed, rb.linearVelocity.y);
+        float verticalSpeed = rb.linearVelocity.y;
+        if (groundVelocity.y < 0f && jumpBufferTimer <= 0f)
+            verticalSpeed = groundVelocity.y; // stay on a platform going down instead of hopping behind it
+        rb.linearVelocity = new Vector2(newSpeed + groundVelocity.x, verticalSpeed);
     }
 
     // Order: ground jump (incl. coyote time) → wall jump (incl. wall coyote time) → air jump.
@@ -448,7 +465,7 @@ public class PlayerMovement : MonoBehaviour
                 SpawnDust(FeetPosition, jumpDustScale); // no dust for a coyote jump: the feet are already in the air
 
             coyoteTimer = 0f;
-            Jump(new Vector2(rb.linearVelocity.x, jumpForce / rb.mass));
+            Jump(new Vector2(rb.linearVelocity.x, jumpForce / rb.mass + Mathf.Max(0f, groundVelocity.y))); // a rising platform adds its speed
             return true;
         }
 

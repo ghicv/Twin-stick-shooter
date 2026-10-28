@@ -20,6 +20,9 @@ public class SettingsMenu : MonoBehaviour
 
     [SerializeField] private Button fullScreenButton;
 
+    [Tooltip("Window size when leaving full screen.")]
+    [SerializeField] private Vector2Int windowSize = new Vector2Int(1280, 720);
+
     [Tooltip("Back to the main menu. On LAN it leaves the room (the host's leaving closes it for everyone).")]
     [SerializeField] private Button leaveButton;
 
@@ -38,8 +41,17 @@ public class SettingsMenu : MonoBehaviour
         sfxSlider.onValueChanged.AddListener(value => GameAudio.SfxVolume = value);
 
         resumeButton.onClick.AddListener(Close);
-        fullScreenButton.onClick.AddListener(() => Screen.fullScreen = !Screen.fullScreen);
+        fullScreenButton.onClick.AddListener(ToggleFullScreen);
         leaveButton.onClick.AddListener(Leave);
+    }
+
+    // Full screen at the monitor's own resolution (keeping the window's would stretch a small picture: blurry).
+    private void ToggleFullScreen()
+    {
+        if (Screen.fullScreen)
+            Screen.SetResolution(windowSize.x, windowSize.y, FullScreenMode.Windowed);
+        else
+            Screen.SetResolution(Display.main.systemWidth, Display.main.systemHeight, FullScreenMode.FullScreenWindow);
     }
 
     private void OnDestroy()

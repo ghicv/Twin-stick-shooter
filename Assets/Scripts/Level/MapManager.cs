@@ -49,6 +49,8 @@ public class MapManager : MonoBehaviour
 
     public string MapName(int index) => maps[index].DisplayName;
 
+    public LevelMap Map(int index) => maps[index];
+
     public void SetMap(int index)
     {
         for (int i = 0; i < maps.Length; i++)

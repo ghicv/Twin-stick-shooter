@@ -14,7 +14,64 @@ public static class SoundGenerator
         Save("Assets/Audio/HitWall.wav", WallTick());
         Save("Assets/Audio/HitConfirm.wav", HitConfirm());
         Save("Assets/Audio/HurtThud.wav", HurtThud());
+        Save("Assets/Audio/UI/RouletteTick.wav", RouletteTick());
+        Save("Assets/Audio/UI/RouletteWin.wav", RouletteWin());
+        Save("Assets/Audio/UI/RoundWin.wav", Notes(new[] { 523f, 659f, 784f, 1047f }, 0.07f, 0.35f));
+        Save("Assets/Audio/UI/RoundDraw.wav", Notes(new[] { 392f, 392f }, 0.12f, 0.2f));
+        Save("Assets/Audio/UI/Victory.wav", Notes(new[] { 523f, 523f, 523f, 659f, 784f, 659f, 784f, 1047f }, 0.11f, 0.6f));
+        Save("Assets/Audio/UI/Defeat.wav", Notes(new[] { 494f, 440f, 392f, 330f }, 0.18f, 0.5f));
         AssetDatabase.Refresh();
+    }
+
+    // A little chiptune tune: the notes one after another (Step seconds each), the last one ringing for Tail more.
+    private static float[] Notes(float[] notes, float step, float tail)
+    {
+        int length = (int)(Rate * (step * notes.Length + tail));
+        var data = new float[length];
+        for (int i = 0; i < length; i++)
+        {
+            float t = (float)i / Rate;
+            int note = Mathf.Min(notes.Length - 1, (int)(t / step));
+            float local = t - note * step;
+            float square = Mathf.Repeat(notes[note] * t, 1f) < 0.5f ? 1f : -1f; // a soft square for the 8-bit sound
+            float tone = Triangle(notes[note] * t) * 0.7f + square * 0.12f;
+            float fade = note == notes.Length - 1 ? Mathf.Exp(-local * 5f) : Mathf.Exp(-local * 14f);
+            data[i] = tone * fade * Mathf.Min(1f, local / 0.003f) * 0.45f;
+        }
+        return data;
+    }
+
+    // The map roulette passing a card: a tiny wooden click.
+    private static float[] RouletteTick()
+    {
+        int length = (int)(Rate * 0.03f);
+        var data = new float[length];
+        for (int i = 0; i < length; i++)
+        {
+            float t = (float)i / Rate;
+            float tone = Triangle(1500f * t) * 0.6f + Mathf.Sin(2f * Mathf.PI * 900f * t) * 0.4f;
+            data[i] = tone * Mathf.Exp(-t * 180f) * Mathf.Min(1f, t / 0.0008f) * 0.5f;
+        }
+        return data;
+    }
+
+    // The map roulette stopped: three rising notes.
+    private static float[] RouletteWin()
+    {
+        float[] notes = { 784f, 988f, 1319f };
+        const float step = 0.08f;
+        int length = (int)(Rate * (step * notes.Length + 0.25f));
+        var data = new float[length];
+        for (int i = 0; i < length; i++)
+        {
+            float t = (float)i / Rate;
+            int note = Mathf.Min(notes.Length - 1, (int)(t / step));
+            float local = t - note * step;
+            float tone = Triangle(notes[note] * t) * 0.6f + Mathf.Sin(2f * Mathf.PI * notes[note] * 2f * t) * 0.2f;
+            float fade = note == notes.Length - 1 ? Mathf.Exp(-local * 9f) : Mathf.Exp(-local * 20f);
+            data[i] = tone * fade * Mathf.Min(1f, local / 0.003f) * 0.5f;
+        }
+        return data;
     }
 
     private static float Triangle(float phase) => 4f * Mathf.Abs(Mathf.Repeat(phase, 1f) - 0.5f) - 1f;

@@ -29,6 +29,7 @@ public static class UiBuilder
         BuildCharacterPanel();
         BuildCoreCards();
         BuildMatchUi();
+        BuildMapRoulette();
         BuildSettings();
         EditorSceneManager.MarkSceneDirty(Hud.gameObject.scene);
     }
@@ -546,6 +547,120 @@ public static class UiBuilder
         panel.gameObject.SetActive(false);
     }
 
+    // ---------- Map roulette (LAN, before every round) ----------
+
+    // A strip of map cards in a dark window, a gold marker in the middle, the chosen name under it.
+    public static void BuildMapRoulette()
+    {
+        Transform hud = Hud;
+        Transform old = hud.Find("MapRoulette");
+        int index = old != null ? old.GetSiblingIndex() : hud.childCount;
+        if (old != null)
+            Object.DestroyImmediate(old.gameObject);
+        RectTransform root = UiKit.Stretch(hud, "MapRoulette");
+        root.SetSiblingIndex(Mathf.Min(index, hud.childCount - 1));
+        var roulette = root.gameObject.AddComponent<MapRoulette>();
+        RectTransform panel = UiKit.Stretch(root, "Panel");
+        panel.gameObject.AddComponent<CanvasGroup>().blocksRaycasts = false; // only something to watch: chat still works
+        Image backdrop = UiKit.Dim(panel, "Backdrop", 0.75f);
+
+        // Everything in Content grows around the chosen card when the camera dives into the map.
+        RectTransform content = UiKit.Stretch(panel, "Content");
+        Text title = UiKit.Label(content, "Title", "NEXT MAP", "MAP TIẾP THEO", 70, UiKit.Orange, Mid, C, new Vector2(0, 270), new Vector2(1200, 100), true);
+
+        Image window = UiKit.Panel(content, "Window", C, Vector2.zero, new Vector2(1720, 340));
+        window.color = new Color(0.1f, 0.11f, 0.17f);
+        RectTransform viewport = UiKit.Stretch(window.transform, "Viewport");
+        viewport.offsetMin = new Vector2(14, 14);
+        viewport.offsetMax = new Vector2(-14, -14);
+        viewport.gameObject.AddComponent<RectMask2D>();
+        RectTransform strip = UiKit.Rect(viewport, "Strip", C, Vector2.zero, new Vector2(10, 10));
+        Image glow = UiKit.Icon(strip, "Glow", AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/UI/Spotlight.png"), C, Vector2.zero, new Vector2(560, 460));
+        glow.preserveAspect = false;
+        Image flash = UiKit.Box(window.transform, "Flash", C, Vector2.zero, new Vector2(1720, 340), Color.white);
+        flash.raycastTarget = false;
+
+        RectTransform card = UiKit.Rect(strip, "CardTemplate", C, Vector2.zero, new Vector2(280, 280));
+        card.gameObject.AddComponent<CanvasGroup>();
+        Image body = card.gameObject.AddComponent<Image>();
+        body.sprite = UiKit.PanelSprite;
+        body.type = Image.Type.Sliced;
+        body.pixelsPerUnitMultiplier = UiKit.SliceMultiplier;
+        body.color = new Color(0.24f, 0.26f, 0.36f);
+        Image thumbnail = UiKit.Icon(card, "Thumbnail", null, Top, new Vector2(0, -92), new Vector2(252, 144));
+        thumbnail.preserveAspect = false;
+        UiKit.Label(card, "Name", "MAP", null, 44, Color.white, Mid, Bottom, new Vector2(0, 66), new Vector2(260, 56));
+        UiKit.Box(card, "Bar", Bottom, new Vector2(0, 26), new Vector2(252, 12), Color.white);
+
+        // The marker: a gold line with a cap above and below the window.
+        Image marker = UiKit.Box(content, "Marker", C, Vector2.zero, new Vector2(6, 360), UiKit.Gold);
+        Image markerTop = UiKit.Box(content, "MarkerTop", C, new Vector2(0, 178), new Vector2(30, 10), UiKit.Gold);
+        Image markerBottom = UiKit.Box(content, "MarkerBottom", C, new Vector2(0, -178), new Vector2(30, 10), UiKit.Gold);
+        Text result = UiKit.Label(content, "Result", "", null, 90, UiKit.Gold, Mid, C, new Vector2(0, -265), new Vector2(1200, 120), true);
+
+        // On top, not growing: the dive's speed lines and the landing flash.
+        Image speedLines = UiKit.Icon(panel, "SpeedLines", SpeedLinesSprite(), C, Vector2.zero, new Vector2(1920, 1080));
+        speedLines.preserveAspect = false;
+        Image landFlash = UiKit.Dim(panel, "LandFlash", 0f);
+        landFlash.color = new Color(1f, 1f, 1f, 0f);
+        landFlash.raycastTarget = false;
+
+        UiKit.Wire(roulette, "panel", panel.gameObject);
+        UiKit.Wire(roulette, "backdrop", backdrop);
+        UiKit.Wire(roulette, "content", content);
+        UiKit.Wire(roulette, "windowBackground", window);
+        UiKit.WireArray(roulette, "fadeOnEnter", new Object[] { marker, markerTop, markerBottom, title, result });
+        UiKit.Wire(roulette, "window", window.rectTransform);
+        UiKit.Wire(roulette, "flash", flash);
+        UiKit.Wire(roulette, "glow", glow);
+        UiKit.Wire(roulette, "strip", strip);
+        UiKit.Wire(roulette, "cardTemplate", card);
+        UiKit.Wire(roulette, "resultText", result);
+        UiKit.Wire(roulette, "speedLines", speedLines);
+        UiKit.Wire(roulette, "landFlash", landFlash);
+        UiKit.Wire(roulette, "tickSound", AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/UI/RouletteTick.wav"));
+        UiKit.Wire(roulette, "winSound", AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/UI/RouletteWin.wav"));
+        UiKit.Wire(roulette, "flySound", AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/Pull.wav"));
+        card.gameObject.SetActive(false);
+        panel.gameObject.SetActive(false);
+    }
+
+    // 320 x 180 pixel streaks pointing out from the middle (clear in the middle), made once.
+    private static Sprite SpeedLinesSprite()
+    {
+        const string path = "Assets/Sprites/UI/SpeedLines.png";
+        const int width = 320, height = 180;
+        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+        texture.SetPixels(new Color[width * height]);
+        var random = new System.Random(7);
+        float reach = Mathf.Sqrt(width * width + height * height) * 0.5f;
+        for (int line = 0; line < 70; line++)
+        {
+            float angle = (float)random.NextDouble() * Mathf.PI * 2f;
+            float from = reach * (0.45f + (float)random.NextDouble() * 0.25f);
+            float to = from + reach * (0.15f + (float)random.NextDouble() * 0.3f);
+            var direction = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+            for (float r = from; r < to; r += 0.5f)
+            {
+                Vector2 point = new Vector2(width, height) * 0.5f + direction * r;
+                int x = Mathf.FloorToInt(point.x), y = Mathf.FloorToInt(point.y);
+                if (x >= 0 && x < width && y >= 0 && y < height)
+                    texture.SetPixel(x, y, Color.white);
+            }
+        }
+        texture.Apply();
+        System.IO.File.WriteAllBytes(path, texture.EncodeToPNG());
+        AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+        var importer = (TextureImporter)AssetImporter.GetAtPath(path);
+        importer.textureType = TextureImporterType.Sprite;
+        importer.spriteImportMode = SpriteImportMode.Single;
+        importer.filterMode = FilterMode.Point;
+        importer.mipmapEnabled = false;
+        importer.textureCompression = TextureImporterCompression.Uncompressed;
+        importer.SaveAndReimport();
+        return AssetDatabase.LoadAssetAtPath<Sprite>(path);
+    }
+
     // A small white pixel sprite from rows of "w" (white), "g" (grey) and "." (clear), made once.
     private static Sprite PixelSprite(string name, string[] rows, Vector4 border)
     {
@@ -683,6 +798,11 @@ public static class UiBuilder
         }
         Button lobby = UiKit.Button(card, "LobbyButton", "BACK TO LOBBY", "VỀ PHÒNG CHỜ", Bottom, new Vector2(0, 80), new Vector2(460, 92), K.Primary, 34);
         Text wait = UiKit.Label(card, "WaitText", "", null, 40, UiKit.Muted, Mid, Bottom, new Vector2(0, 80), new Vector2(900, 60));
+        // Above the card: VICTORY! / DEFEAT for this player. On the first row: the crown. On top: confetti.
+        Text outcome = UiKit.Label(results, "Outcome", "VICTORY!", null, 110, UiKit.Gold, Mid, C, new Vector2(0, 450), new Vector2(1400, 150), true);
+        outcome.GetComponent<Shadow>().effectDistance = new Vector2(8, -8);
+        Image crown = UiKit.Icon(card.Find("Row1"), "Crown", UiKit.Crown, Left, new Vector2(60, 58), new Vector2(56, 40));
+        PixelConfetti resultsConfetti = Confetti(results);
         UiKit.Wire(matchUi, "bannerText", banner);
         UiKit.Wire(matchUi, "countdownText", countdown);
         UiKit.Wire(matchUi, "chat", chatBox);
@@ -691,11 +811,63 @@ public static class UiBuilder
         UiKit.Wire(matchUi, "resultsTitle", resultsTitle);
         UiKit.Wire(matchUi, "lobbyButton", lobby);
         UiKit.Wire(matchUi, "resultsWaitText", wait);
+        UiKit.Wire(matchUi, "outcomeText", outcome);
+        UiKit.Wire(matchUi, "crown", crown);
+        UiKit.Wire(matchUi, "confetti", resultsConfetti);
+        UiKit.Wire(matchUi, "victorySound", AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/UI/Victory.wav"));
+        UiKit.Wire(matchUi, "defeatSound", AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/UI/Defeat.wav"));
+        UiKit.Wire(matchUi, "rowSound", AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/UI/RouletteTick.wav"));
         results.gameObject.SetActive(false);
 
+        BuildRoundEndShow(hud, index + 4);
         BuildScoreboard(hud);
         BuildMapBoard(hud);
         BuildUiAudio(hud);
+    }
+
+    // A round decided: the winner's name big in the middle, "WINS THE ROUND!", a row of round-win pips, confetti.
+    private static void BuildRoundEndShow(Transform hud, int siblingIndex)
+    {
+        Transform old = hud.Find("RoundEndShow");
+        if (old != null)
+            Object.DestroyImmediate(old.gameObject);
+        RectTransform root = UiKit.Stretch(hud, "RoundEndShow");
+        root.SetSiblingIndex(Mathf.Min(siblingIndex, hud.childCount - 1));
+        var show = root.gameObject.AddComponent<RoundEndShow>();
+        RectTransform panel = UiKit.Stretch(root, "Panel");
+        Text name = UiKit.Label(panel, "Name", "PLAYER", null, 120, Color.white, Mid, C, new Vector2(0, 330), new Vector2(1800, 160), true);
+        name.GetComponent<Shadow>().effectDistance = new Vector2(8, -8);
+        Text subtitle = UiKit.Label(panel, "Subtitle", "WINS THE ROUND!", null, 56, Color.white, Mid, C, new Vector2(0, 245), new Vector2(1400, 80), true);
+        RectTransform pips = UiKit.Rect(panel, "Pips", C, new Vector2(0, 190), new Vector2(800, 30));
+        var layout = pips.gameObject.AddComponent<HorizontalLayoutGroup>();
+        layout.spacing = 12;
+        layout.childAlignment = TextAnchor.MiddleCenter;
+        layout.childControlWidth = layout.childControlHeight = false;
+        layout.childForceExpandWidth = layout.childForceExpandHeight = false;
+        Image pip = UiKit.Box(pips, "PipTemplate", C, Vector2.zero, new Vector2(26, 26), Color.white);
+        UiKit.Shadow(pip, new Vector2(3, -3));
+        PixelConfetti confetti = Confetti(panel);
+
+        UiKit.Wire(show, "panel", panel.gameObject);
+        UiKit.Wire(show, "nameText", name);
+        UiKit.Wire(show, "subtitleText", subtitle);
+        UiKit.Wire(show, "pips", pips);
+        UiKit.Wire(show, "pipTemplate", pip);
+        UiKit.Wire(show, "confetti", confetti);
+        UiKit.Wire(show, "winSound", AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/UI/RoundWin.wav"));
+        UiKit.Wire(show, "drawSound", AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/UI/RoundDraw.wav"));
+        panel.gameObject.SetActive(false);
+    }
+
+    // A full-screen layer of pixel confetti (PixelConfetti) with its piece template.
+    private static PixelConfetti Confetti(Transform parent)
+    {
+        RectTransform layer = UiKit.Stretch(parent, "Confetti");
+        var confetti = layer.gameObject.AddComponent<PixelConfetti>();
+        Image piece = UiKit.Box(layer, "PieceTemplate", C, Vector2.zero, new Vector2(10, 10), Color.white);
+        piece.raycastTarget = false;
+        UiKit.Wire(confetti, "pieceTemplate", piece);
+        return confetti;
     }
 
     private static void BuildScoreboard(Transform hud)

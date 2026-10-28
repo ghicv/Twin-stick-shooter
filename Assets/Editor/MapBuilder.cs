@@ -13,6 +13,10 @@ using UnityEngine;
 //   .  empty             #  ground (stops bullets)      %  ice (ground, players slide on it)
 //   =  thin platform (one-way: jump up through it, S to drop down; bullets fly through)
 //   L  lava (kills)      ^  spikes (kill)
+//   < >  conveyor belt (ground that carries players left / right)
+//   G H  ghost platforms (come and go; the G ones and the H ones take turns)
+//   M N O R ...  a moving platform, as the layout's Motions say (one-way; a spinning one is a solid bar)
+//   X  a crate (the host spawns it each time the map starts; bullets knock it around)
 //   1 2 3 4  player starts (slot order; 1 and 2 far apart)
 //   a b c  the theme's decorations, standing on what is below them (no collision)
 // Falling off the bottom or the sides kills.
@@ -22,14 +26,16 @@ public static class MapBuilder
     private const int Rows = 16;
     private const float CameraSize = Rows * 0.5f;
     private const float FallLimit = -10f;
+    private const float ConveyorSpeed = 2.5f;
+    private const int SkylineWidth = 224; // units: the background reaches far past the screen
+    private const string CratePrefabPath = "Assets/Prefabs/Crate.prefab";
     private const int Ppu = 16;
     private const string ArtRoot = "Assets/Sprites/Maps";
     private const string UnlitMaterial = "Packages/com.unity.render-pipelines.universal/Runtime/Materials/Sprite-Unlit-Default.mat";
 
     // Draw order, back to front.
     private const int SkyOrder = -30;
-    private const int FarOrder = -29;
-    private const int NearOrder = -28;
+    private const int SkylineOrder = -29;
     private const int DecorOrder = -6;
     private const int LavaOrder = -4;
     private const int BodyOrder = -3;
@@ -37,28 +43,27 @@ public static class MapBuilder
 
     // ---------- Themes ----------
 
-    private enum BodyStyle { Rock, Bricks, Panels }
-    private enum TopStyle { Tufts, Smooth, Snow, Stripes }
-    private enum PlankStyle { Wood, Grate }
+    private enum TopStyle { Plain, Stripes }
     private enum Skyline { Pines, Dunes, City, Hills, Volcano, Peaks }
     private enum DecorKind { Tree, Pine, Bush, Lantern, Cactus, Skull, DeadTree, Tombstone, Candle, Pipe, Lamp, Sign, Rock, Crystal, Snowman }
 
+    // Every theme is a handful of flat colors, like the rest of the game (retro, the CRT style): the ground is the
+    // stone tile with a light top, the background one dark color with one slightly lighter skyline, the decorations
+    // dark too, so the players and the bullets stand out.
     private class Theme
     {
         public string name;
-        public Color skyTop, skyBottom, far, near;
+        public Color color;           // its maps' color on the map roulette
+        public Color background, skylineColor;
         public Skyline skyline;
         public bool stars;
-        public Color orb;          // sun or moon (alpha 0 = none)
-        public BodyStyle bodyStyle;
-        public Color[] body;       // dark, mid, light (+ glowing cracks for Rock)
+        public Color moon;            // alpha 0 = none
+        public Color[] ground;        // light edge, fill, dark edge, speck
         public TopStyle topStyle;
-        public Color[] top;        // dark, mid, light
-        public PlankStyle plankStyle;
-        public Color[] plank;      // dark, mid, light
-        public Color[] spikes;     // dark, mid, light
-        public DecorKind[] decor;  // a, b, c
-        public Color[] decorColors; // dark, mid, light, accent (for the decorations that take the theme's colors)
+        public Color[] top;           // light, mid, dark
+        public Color[] plank;         // light, mid, dark
+        public DecorKind[] decor;     // a, b, c
+        public Color[] decorColors;   // dark, mid, light, accent (lights and flames keep it)
     }
 
     private static Color H(string hex)
@@ -67,81 +72,76 @@ public static class MapBuilder
         return color;
     }
 
-    private static readonly Color[] Ice = { H("#3a70a8"), H("#5a9ad0"), H("#a0d0f0") };
-    private static readonly Color[] IceTop = { H("#4aa0d0"), H("#a8e8ff"), H("#f0fcff") };
-    private static readonly Color[] Lava = { H("#a01808"), H("#e8400c"), H("#ff9a20"), H("#ffe070") };
-    private static readonly Color[] Metal = { H("#3a3e48"), H("#9aa2b0"), H("#d8dee8") };
+    private static readonly Color None = new Color(0f, 0f, 0f, 0f);
+    private static readonly Color[] IceGround = { H("#a8e0ff"), H("#78c0ec"), H("#3c7cb4"), H("#9ad4f8") };
+    private static readonly Color[] IceTop = { H("#ffffff"), H("#e0f8ff"), H("#b0e4ff") };
+    private static readonly Color[] Lava = { H("#a02010"), H("#e0480c"), H("#ff9020"), H("#ffd040") };
+    private static readonly Color[] Metal = { H("#2a2e38"), H("#8a94a6"), H("#d0d8e4") }; // dark, mid, light
 
     private static readonly Theme Woods = new Theme
     {
-        name = "Woods", skyTop = H("#1b3046"), skyBottom = H("#4f8f78"), far = H("#2b5a4c"), near = H("#1f4239"),
-        skyline = Skyline.Pines, orb = new Color(0, 0, 0, 0),
-        bodyStyle = BodyStyle.Rock, body = new[] { H("#3b2a22"), H("#5a3f2e"), H("#7a5638") },
-        topStyle = TopStyle.Tufts, top = new[] { H("#24502a"), H("#3f8a3a"), H("#7ccf52") },
-        plankStyle = PlankStyle.Wood, plank = new[] { H("#4a2e18"), H("#8a5a2b"), H("#b88044") },
-        spikes = Metal,
+        name = "Woods", color = H("#5cc84a"),
+        background = H("#0e1612"), skylineColor = H("#16241c"), skyline = Skyline.Pines, moon = None,
+        ground = new[] { H("#4a3a30"), H("#3a2c24"), H("#241a16"), H("#30241d") },
+        topStyle = TopStyle.Plain, top = new[] { H("#7ccf52"), H("#5aa83e"), H("#3f7a2e") },
+        plank = new[] { H("#a0703c"), H("#7a5228"), H("#4e3418") },
         decor = new[] { DecorKind.Tree, DecorKind.Bush, DecorKind.Lantern },
-        decorColors = new[] { H("#1f4a2a"), H("#2f6b36"), H("#4c9a3e"), H("#ffd060") },
+        decorColors = new[] { H("#16281c"), H("#22402a"), H("#33603c"), H("#ffd060") },
     };
 
     private static readonly Theme Desert = new Theme
     {
-        name = "Desert", skyTop = H("#e8823c"), skyBottom = H("#ffe2a0"), far = H("#e0a060"), near = H("#c8783e"),
-        skyline = Skyline.Dunes, orb = H("#fff4c8"),
-        bodyStyle = BodyStyle.Bricks, body = new[] { H("#8a4e2c"), H("#c0844c"), H("#e8b070") },
-        topStyle = TopStyle.Smooth, top = new[] { H("#c89850"), H("#ecc878"), H("#fff0b8") },
-        plankStyle = PlankStyle.Wood, plank = new[] { H("#5a3620"), H("#9a6236"), H("#c88e52") },
-        spikes = new[] { H("#6a5040"), H("#e8dcc8"), H("#fffaf0") },
+        name = "Desert", color = H("#f0a040"),
+        background = H("#1a120e"), skylineColor = H("#2a1d15"), skyline = Skyline.Dunes, stars = true, moon = H("#e8d8b0"),
+        ground = new[] { H("#a86c40"), H("#8a5530"), H("#54301a"), H("#76482a") },
+        topStyle = TopStyle.Plain, top = new[] { H("#f0d088"), H("#d8b468"), H("#b08a48") },
+        plank = new[] { H("#c08a54"), H("#946638"), H("#5a3c20") },
         decor = new[] { DecorKind.Cactus, DecorKind.Skull, DecorKind.DeadTree },
-        decorColors = new[] { H("#5a3a24"), H("#8a5a38"), H("#b07a4c"), H("#4c9a3e") },
+        decorColors = new[] { H("#2a1e16"), H("#3e2c20"), H("#5a4230"), None },
     };
 
     private static readonly Theme Factory = new Theme
     {
-        name = "Factory", skyTop = H("#141720"), skyBottom = H("#3a3f52"), far = H("#2a2e3c"), near = H("#1d2029"),
-        skyline = Skyline.City, stars = true, orb = new Color(0, 0, 0, 0),
-        bodyStyle = BodyStyle.Panels, body = new[] { H("#2e323c"), H("#4e5664"), H("#7a8496") },
-        topStyle = TopStyle.Stripes, top = new[] { H("#22242a"), H("#f0c020"), H("#ffe070") },
-        plankStyle = PlankStyle.Grate, plank = new[] { H("#262a32"), H("#6a7282"), H("#a8b0c0") },
-        spikes = Metal,
+        name = "Factory", color = H("#f0d020"),
+        background = H("#0e1016"), skylineColor = H("#181b24"), skyline = Skyline.City, stars = true, moon = None,
+        ground = new[] { H("#4e5668"), H("#3c4352"), H("#22262f"), H("#343a47") },
+        topStyle = TopStyle.Stripes, top = new[] { H("#ffe070"), H("#f0c020"), H("#22242a") },
+        plank = new[] { H("#8a94a6"), H("#5e6676"), H("#353a44") },
         decor = new[] { DecorKind.Pipe, DecorKind.Lamp, DecorKind.Sign },
-        decorColors = new[] { H("#2e3a36"), H("#4a6a5a"), H("#7aa08a"), H("#fff0a0") },
+        decorColors = new[] { H("#1a1e26"), H("#262c36"), H("#38404c"), H("#fff0a0") },
     };
 
     private static readonly Theme Ghost = new Theme
     {
-        name = "Ghost", skyTop = H("#0e0a1e"), skyBottom = H("#3a2558"), far = H("#2a1c40"), near = H("#1a1230"),
-        skyline = Skyline.Hills, stars = true, orb = H("#e8e4ff"),
-        bodyStyle = BodyStyle.Bricks, body = new[] { H("#2e2a3c"), H("#4a4460"), H("#6e6890") },
-        topStyle = TopStyle.Tufts, top = new[] { H("#2a3428"), H("#4a5a3c"), H("#7a8a55") },
-        plankStyle = PlankStyle.Wood, plank = new[] { H("#3a2e30"), H("#6a5450"), H("#988070") },
-        spikes = new[] { H("#3a3440"), H("#c8c0d8"), H("#f4f0ff") },
+        name = "Ghost", color = H("#b07af0"),
+        background = H("#100c1a"), skylineColor = H("#1c1628"), skyline = Skyline.Hills, stars = true, moon = H("#d8d4f0"),
+        ground = new[] { H("#4a4462"), H("#3a3550"), H("#221f30"), H("#322d46") },
+        topStyle = TopStyle.Plain, top = new[] { H("#8a9a6a"), H("#6a7a52"), H("#4a5638") },
+        plank = new[] { H("#8a7a70"), H("#665850"), H("#40363a") },
         decor = new[] { DecorKind.Tombstone, DecorKind.DeadTree, DecorKind.Candle },
-        decorColors = new[] { H("#2a2438"), H("#5a5470"), H("#8a84a6"), H("#ffd040") },
+        decorColors = new[] { H("#1c1828"), H("#2a243a"), H("#3e3654"), H("#ffd040") },
     };
 
     private static readonly Theme Volcano = new Theme
     {
-        name = "Volcano", skyTop = H("#1e0808"), skyBottom = H("#8a2a10"), far = H("#3a1410"), near = H("#220a0a"),
-        skyline = Skyline.Volcano, stars = false, orb = new Color(0, 0, 0, 0),
-        bodyStyle = BodyStyle.Rock, body = new[] { H("#1c181c"), H("#302a30"), H("#4a4048"), H("#ff7a20") },
-        topStyle = TopStyle.Smooth, top = new[] { H("#2a2428"), H("#4a4248"), H("#6e6470") },
-        plankStyle = PlankStyle.Wood, plank = new[] { H("#181220"), H("#2e2438"), H("#4e3e5e") },
-        spikes = new[] { H("#1a1418"), H("#5a4e58"), H("#9a8c96") },
+        name = "Volcano", color = H("#ff5a20"),
+        background = H("#160a0a"), skylineColor = H("#2a100e"), skyline = Skyline.Volcano, moon = None,
+        ground = new[] { H("#463a3e"), H("#342b2f"), H("#1c1618"), H("#5a2a1c") },
+        topStyle = TopStyle.Plain, top = new[] { H("#6e6066"), H("#544850"), H("#3a3036") },
+        plank = new[] { H("#5a4868"), H("#42344e"), H("#261c2e") },
         decor = new[] { DecorKind.Rock, DecorKind.Crystal, DecorKind.Skull },
-        decorColors = new[] { H("#a01808"), H("#ff6a10"), H("#ffc040"), H("#fff0a0") },
+        decorColors = new[] { H("#221416"), H("#341e1e"), H("#4e2a26"), H("#ff8a20") },
     };
 
     private static readonly Theme Frost = new Theme
     {
-        name = "Ice", skyTop = H("#141e44"), skyBottom = H("#6a9ed0"), far = H("#3a5a8a"), near = H("#26406a"),
-        skyline = Skyline.Peaks, stars = true, orb = H("#f0f8ff"),
-        bodyStyle = BodyStyle.Bricks, body = new[] { H("#2c5a8c"), H("#4a82b8"), H("#8ab8e0") },
-        topStyle = TopStyle.Snow, top = new[] { H("#9ab8d8"), H("#dceaf8"), H("#ffffff") },
-        plankStyle = PlankStyle.Wood, plank = new[] { H("#3a4a60"), H("#5e7290"), H("#90a8c4") },
-        spikes = new[] { H("#3a70a8"), H("#a8e0ff"), H("#f0fcff") },
+        name = "Ice", color = H("#60c8ff"),
+        background = H("#0c1220"), skylineColor = H("#16223a"), skyline = Skyline.Peaks, stars = true, moon = H("#e8f0ff"),
+        ground = new[] { H("#5a8ac0"), H("#4672a4"), H("#2a4870"), H("#3c6496") },
+        topStyle = TopStyle.Plain, top = IceTop,
+        plank = new[] { H("#90a8c4"), H("#6a809c"), H("#3e4e66") },
         decor = new[] { DecorKind.Pine, DecorKind.Crystal, DecorKind.Snowman },
-        decorColors = new[] { H("#3a80c0"), H("#80d0f8"), H("#d8f6ff"), H("#ff8a30") },
+        decorColors = new[] { H("#1a2640"), H("#26385a"), H("#3a5280"), H("#ff8a30") },
     };
 
     private static readonly Theme[] Themes = { Woods, Desert, Factory, Ghost, Volcano, Frost };
@@ -153,6 +153,18 @@ public static class MapBuilder
         public string name;
         public Theme theme;
         public string[] rows;
+        public Motion[] motions = new Motion[0];
+    }
+
+    // How the platform drawn with Key moves (MovingPlatform): Travel to each side and back every Period seconds,
+    // and/or Spin. A spinning one is a solid bar (a one-way platform can't turn over).
+    private class Motion
+    {
+        public char key;
+        public Vector2 travel;
+        public float period = 5f;
+        public float phase;
+        public float spin;
     }
 
     private static readonly Layout[] Layouts =
@@ -201,12 +213,12 @@ public static class MapBuilder
             ".....=====........=====.....",
             "............................",
             "..3......................4..",
-            "=====..................=====",
+            "=====........XX........=====",
             "............####............",
             "..........########..........",
             "..........########..........",
-            "........############........",
-            "...a....############...a....",
+            ".....X..############..X.....",
+            "...a.XX.############.XXa....",
             "...######################...",
             "....####################....",
             ".....##################....." } },
@@ -221,7 +233,7 @@ public static class MapBuilder
             "..........========..........",
             "...#....................#...",
             "...#....................#...",
-            ".1.#..c..............c..#.2.",
+            ".1.#..cXX..........XXc..#.2.",
             "#########==========#########",
             "#########..........#########",
             "#########..........#########",
@@ -239,13 +251,16 @@ public static class MapBuilder
             "............####............",
             "............................",
             "..#......................#..",
-            "..#...======....======...#..",
+            "..#...MMMMMM....NNNNNN...#..",
             "..#......................#..",
             "..#......................#..",
             "..#.1......^^^^^^.....2..#..",
-            "..########################..",
+            "..####>>>>>######<<<<<####..",
             "...######################...",
-            "....####################...." } },
+            "....####################...." },
+            motions = new[] {
+                new Motion { key = 'M', travel = new Vector2(1.5f, 0f), period = 4f },
+                new Motion { key = 'N', travel = new Vector2(-1.5f, 0f), period = 4f } } },
 
         new Layout { name = "FURNACE", theme = Factory, rows = new[] {
             "............................",
@@ -255,29 +270,33 @@ public static class MapBuilder
             ".=====................=====.",
             "............................",
             "..........#......#..........",
-            "....1.....#..==..#.....2....",
-            "..======..#......#..======..",
+            "....1.....#......#.....2....",
+            "..MMMMMM..#.RRRR.#..NNNNNN..",
             "..........#......#..........",
             "..........#......#..........",
             "..........########..........",
             "..........########..........",
             "^^^^..a..##########..a..^^^^",
             "############################",
-            "############################" } },
+            "############################" },
+            motions = new[] {
+                new Motion { key = 'M', travel = new Vector2(0f, 1.5f), period = 5f },
+                new Motion { key = 'N', travel = new Vector2(0f, -1.5f), period = 5f },
+                new Motion { key = 'R', spin = 60f } } },
 
         new Layout { name = "GRAVEYARD", theme = Ghost, rows = new[] {
             "............................",
             "............................",
             "............................",
             "............................",
-            "...........======...........",
+            "...........HHHHHH...........",
             "............................",
             "......3..............4......",
-            "....=====..........=====....",
+            "....GGGGG..........HHHHH....",
             "............................",
             "............................",
             "...1..a..b........b..a..2...",
-            ".##########======##########.",
+            ".##########GGGGGG##########.",
             ".##########......##########.",
             "..#########......#########..",
             "...########......########...",
@@ -288,7 +307,7 @@ public static class MapBuilder
             "............................",
             "............................",
             "...3....................4...",
-            "..=====..............=====..",
+            "..GGGGG..............HHHHH..",
             "............................",
             "...........######...........",
             "...........#....#...........",
@@ -306,7 +325,7 @@ public static class MapBuilder
             "............................",
             "............................",
             "............................",
-            "...........======...........",
+            "...........MMMMMM...........",
             "............................",
             ".........3........4.........",
             ".......=====....=====.......",
@@ -317,7 +336,8 @@ public static class MapBuilder
             "..######...######...######..",
             "...####....######....####...",
             "LLLLLLLLLLLLLLLLLLLLLLLLLLLL",
-            "LLLLLLLLLLLLLLLLLLLLLLLLLLLL" } },
+            "LLLLLLLLLLLLLLLLLLLLLLLLLLLL" },
+            motions = new[] { new Motion { key = 'M', travel = new Vector2(5f, 0f), period = 7f } } },
 
         new Layout { name = "CALDERA", theme = Volcano, rows = new[] {
             "............................",
@@ -327,7 +347,7 @@ public static class MapBuilder
             "...=====............=====...",
             "............................",
             "............................",
-            "..........========..........",
+            "..........MMMMMMMM..........",
             "............................",
             "..1.a................a..2...",
             "#######..............#######",
@@ -335,7 +355,8 @@ public static class MapBuilder
             "#########....##....#########",
             "#########LLLLLLLLLL#########",
             "#########LLLLLLLLLL#########",
-            "#########LLLLLLLLLL#########" } },
+            "#########LLLLLLLLLL#########" },
+            motions = new[] { new Motion { key = 'M', travel = new Vector2(0f, 2f), period = 6f } } },
 
         new Layout { name = "GLACIER", theme = Frost, rows = new[] {
             "............................",
@@ -350,7 +371,7 @@ public static class MapBuilder
             "............................",
             "......=====......=====......",
             "............................",
-            "..1..a................a..2..",
+            "..1..a...X........X...a..2..",
             "..%%%%%%%%%%%%%%%%%%%%%%%%..",
             "...######################...",
             "....####################...." } },
@@ -367,7 +388,7 @@ public static class MapBuilder
             "...%%%%%............%%%%%...",
             "............................",
             "............................",
-            "..1...c..............c...2..",
+            "..1...c.X..........X.c...2..",
             "%%%%%%%%%%........%%%%%%%%%%",
             "##########........##########",
             "##########........##########",
@@ -404,6 +425,16 @@ public static class MapBuilder
         foreach (Layout layout in Layouts)
             maps.Add(Build(manager.transform, layout, art[layout.theme]));
 
+        // The host spawns each map's crates (MapProps, next to the MapManager).
+        MapProps props = manager.GetComponent<MapProps>();
+        if (props == null)
+            props = manager.gameObject.AddComponent<MapProps>();
+        UiKit.Wire(props, "cratePrefab", CratePrefab(art[Woods].crate));
+
+        // A picture of every round map, for the map roulette.
+        for (int i = 0; i < Layouts.Length; i++)
+            SaveThumbnail(maps[maps.Count - Layouts.Length + i], Layouts[i].theme, maps);
+
         list.arraySize = maps.Count;
         for (int i = 0; i < maps.Count; i++)
             list.GetArrayElementAtIndex(i).objectReferenceValue = maps[i];
@@ -436,14 +467,14 @@ public static class MapBuilder
             for (int c = 0; c < Columns; c++)
                 cells[c, r] = layout.rows[r][c];
 
-        // Ground and ice: as few boxes as possible (each a run of cells, as tall as it stays the same).
+        // Ground, ice, conveyors and lava: as few boxes as possible (each a run of cells, as tall as it stays the same).
         bool[,] used = new bool[Columns, Rows];
         int count = 0;
         for (int r = 0; r < Rows; r++)
             for (int c = 0; c < Columns; c++)
             {
                 char kind = cells[c, r];
-                if ((kind != '#' && kind != '%' && kind != 'L') || used[c, r])
+                if ((!IsSolid(kind) && kind != 'L') || used[c, r])
                     continue;
                 int width = 1;
                 while (c + width < Columns && cells[c + width, r] == kind && !used[c + width, r])
@@ -457,6 +488,8 @@ public static class MapBuilder
                 count++;
                 if (kind == 'L')
                     AddLava(hazards, count, c, r, width, height, art);
+                else if (kind == '<' || kind == '>')
+                    AddConveyor(blocks, count, c, r, width, height, kind == '>' ? 1f : -1f, art);
                 else
                     AddGround(blocks, count, c, r, width, height, kind == '%', art);
             }
@@ -474,18 +507,24 @@ public static class MapBuilder
                 while (c + width < Columns && cells[c + width, r] == kind &&
                        (!solid || (r == 0 || !IsSolid(cells[c + width, r - 1])) == openAbove))
                     width++;
-                if (solid && openAbove)
+                Motion motion = System.Array.Find(layout.motions, m => m.key == kind);
+                if ((kind == '#' || kind == '%') && openAbove)
                     AddTop(tops, c, r, width, kind == '%' ? art.iceTop : art.top);
                 else if (kind == '=')
-                    AddPlatform(blocks, c, r, width, art);
+                    AddPlatform(blocks, c, r, width, art.plank, true);
+                else if (kind == 'G' || kind == 'H')
+                    AddGhostPlatform(blocks, c, r, width, kind == 'H' ? 0.5f : 0f, art);
+                else if (motion != null)
+                    AddMovingPlatform(blocks, c, r, width, motion, art);
                 else if (kind == '^')
                     AddSpikes(hazards, c, r, width, art);
                 c += width;
             }
         }
 
-        // Starts and decorations.
+        // Starts, crates and decorations.
         var spawnPoints = new Transform[4];
+        var crateSpots = new List<Transform>();
         for (int r = 0; r < Rows; r++)
             for (int c = 0; c < Columns; c++)
             {
@@ -495,6 +534,12 @@ public static class MapBuilder
                     Transform point = Child(spawns, "Spawn" + kind);
                     point.localPosition = new Vector3(CellX(c) + 0.5f, CellBottom(r) + 1f, 0f);
                     spawnPoints[kind - '1'] = point;
+                }
+                else if (kind == 'X')
+                {
+                    Transform spot = Child(spawns, "Crate");
+                    spot.localPosition = new Vector3(CellX(c) + 0.5f, CellBottom(r) + 0.5f, 0f);
+                    crateSpots.Add(spot);
                 }
                 else if (kind >= 'a' && kind <= 'c')
                 {
@@ -507,7 +552,7 @@ public static class MapBuilder
             if (point == null)
                 throw new System.Exception(layout.name + ": needs the starts 1, 2, 3 and 4");
 
-        AddBackground(root, art);
+        AddBackground(root, layout.theme, art);
 
         var mapSo = new SerializedObject(map);
         mapSo.FindProperty("displayName").stringValue = layout.name;
@@ -518,13 +563,105 @@ public static class MapBuilder
         points.arraySize = 4;
         for (int i = 0; i < 4; i++)
             points.GetArrayElementAtIndex(i).objectReferenceValue = spawnPoints[i];
+        SerializedProperty crates = mapSo.FindProperty("crateSpots");
+        crates.arraySize = crateSpots.Count;
+        for (int i = 0; i < crateSpots.Count; i++)
+            crates.GetArrayElementAtIndex(i).objectReferenceValue = crateSpots[i];
+        mapSo.FindProperty("crateSprite").objectReferenceValue = art.crate;
         mapSo.ApplyModifiedPropertiesWithoutUndo();
 
         root.gameObject.SetActive(false);
         return map;
     }
 
-    private static bool IsSolid(char kind) => kind == '#' || kind == '%';
+    // Renders the map alone, 1 art pixel = 1 picture pixel (28 x 16 units), and gives it the theme's color.
+    private static void SaveThumbnail(LevelMap map, Theme theme, List<LevelMap> all)
+    {
+        Camera camera = Camera.main;
+        var volumes = Object.FindObjectsByType<UnityEngine.Rendering.Volume>(FindObjectsSortMode.None);
+        var wereOn = new bool[volumes.Length];
+        for (int i = 0; i < volumes.Length; i++)
+        {
+            wereOn[i] = volumes[i].enabled;
+            if (volumes[i].name == "MenuBlur")
+                volumes[i].enabled = false; // the game's look (bloom...) stays, so the picture matches the real map
+        }
+        var wasActive = new bool[all.Count];
+        for (int i = 0; i < all.Count; i++)
+        {
+            wasActive[i] = all[i].gameObject.activeSelf;
+            all[i].gameObject.SetActive(all[i] == map);
+        }
+        float size = camera.orthographicSize;
+        Vector3 position = camera.transform.position;
+        camera.orthographicSize = CameraSize;
+        camera.transform.position = new Vector3(0f, 0f, position.z);
+        var cameraData = camera.GetComponent<UnityEngine.Rendering.Universal.UniversalAdditionalCameraData>();
+        bool postProcessing = cameraData.renderPostProcessing;
+        cameraData.renderPostProcessing = true; // as in a round
+
+        var target = new RenderTexture(Columns * Ppu, Rows * Ppu, 24);
+        camera.targetTexture = target;
+        camera.Render();
+        camera.targetTexture = null;
+        RenderTexture.active = target;
+        var picture = new Texture2D(target.width, target.height, TextureFormat.RGB24, false);
+        picture.ReadPixels(new Rect(0, 0, target.width, target.height), 0, 0);
+        picture.Apply();
+        RenderTexture.active = null;
+        target.Release();
+
+        camera.orthographicSize = size;
+        camera.transform.position = position;
+        cameraData.renderPostProcessing = postProcessing;
+        for (int i = 0; i < all.Count; i++)
+            all[i].gameObject.SetActive(wasActive[i]);
+        for (int i = 0; i < volumes.Length; i++)
+            volumes[i].enabled = wereOn[i];
+
+        Sprite thumbnail = Save(ArtRoot + "/Thumbnails", map.name, picture, new Vector2(0.5f, 0.5f), FilterMode.Point);
+        var so = new SerializedObject(map);
+        so.FindProperty("thumbnail").objectReferenceValue = thumbnail;
+        so.FindProperty("themeColor").colorValue = theme.color;
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    // The networked crate (made once, then kept: its network id must not change). Real physics on the host,
+    // copied to the others.
+    private static Crate CratePrefab(Sprite look)
+    {
+        var existing = AssetDatabase.LoadAssetAtPath<Crate>(CratePrefabPath);
+        if (existing != null)
+            return existing;
+
+        var crate = new GameObject("Crate");
+        SpriteRenderer sprite = crate.AddComponent<SpriteRenderer>();
+        sprite.sprite = look; // each map sets its own (Crate)
+        sprite.sortingOrder = BodyOrder;
+        sprite.sharedMaterial = AssetDatabase.LoadAssetAtPath<Material>(UnlitMaterial);
+        crate.AddComponent<BoxCollider2D>().size = new Vector2(0.96f, 0.96f);
+        var body = crate.AddComponent<Rigidbody2D>();
+        body.mass = 6f;
+        body.gravityScale = 3f;
+        body.interpolation = RigidbodyInterpolation2D.Interpolate;
+        body.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+        crate.AddComponent<Unity.Netcode.NetworkObject>();
+        var sync = crate.AddComponent<Unity.Netcode.Components.NetworkTransform>();
+        sync.AuthorityMode = Unity.Netcode.Components.NetworkTransform.AuthorityModes.Server;
+        sync.SyncPositionZ = false;
+        sync.SyncRotAngleX = false;
+        sync.SyncRotAngleY = false;
+        sync.SyncScaleX = sync.SyncScaleY = sync.SyncScaleZ = false;
+        crate.AddComponent<Unity.Netcode.Components.NetworkRigidbody2D>();
+        crate.AddComponent<LevelBlock>(); // stops bullets
+        crate.AddComponent<Crate>();
+        // Netcode adds a new networked prefab to its default list (DefaultNetworkPrefabs) by itself.
+        GameObject prefab = PrefabUtility.SaveAsPrefabAsset(crate, CratePrefabPath);
+        Object.DestroyImmediate(crate);
+        return prefab.GetComponent<Crate>();
+    }
+
+    private static bool IsSolid(char kind) => kind == '#' || kind == '%' || kind == '<' || kind == '>';
 
     private static bool RowMatches(char[,] cells, bool[,] used, int c, int width, int r, char kind)
     {
@@ -574,36 +711,98 @@ public static class MapBuilder
         var block = new GameObject((ice ? "Ice_" : "Ground_") + index);
         block.transform.SetParent(parent, false);
         block.transform.localPosition = new Vector3(CellX(c) + width * 0.5f, CellTop(r) - height * 0.5f, 0f);
-        block.AddComponent<BoxCollider2D>().size = new Vector2(width, height);
+        var box = block.AddComponent<BoxCollider2D>();
+        box.size = new Vector2(width, height);
+        if (ice)
+            box.sharedMaterial = IceFriction(); // crates slide on it too
         var so = new SerializedObject(block.AddComponent<LevelBlock>());
         so.FindProperty("slippery").boolValue = ice;
         so.ApplyModifiedPropertiesWithoutUndo();
         Tiled(block.transform, "Body", ice ? art.ice : art.body, BodyOrder, new Vector2(width, height));
     }
 
-    // The ground's top edge (grass, sand, snow...): 6 pixels, sticking 2 above the ground.
-    private static void AddTop(Transform parent, int c, int r, int width, Sprite sprite)
+    private static PhysicsMaterial2D IceFriction()
     {
-        SpriteRenderer top = Tiled(parent, "Top", sprite, TopOrder, new Vector2(width, 6f / Ppu));
-        top.transform.localPosition = new Vector3(CellX(c) + width * 0.5f, CellTop(r) - 1f / Ppu, 0f);
+        string path = ArtRoot + "/IceFriction.physicsMaterial2D";
+        var material = AssetDatabase.LoadAssetAtPath<PhysicsMaterial2D>(path);
+        if (material == null)
+        {
+            material = new PhysicsMaterial2D("IceFriction") { friction = 0.02f, bounciness = 0f };
+            AssetDatabase.CreateAsset(material, path);
+        }
+        return material;
     }
 
-    // Half a cell tall, at the top of its cell.
-    private static void AddPlatform(Transform parent, int c, int r, int width, ThemeArt art)
+    // Ground with a moving tread on top: players on it are carried that way (direction 1 = right, -1 = left).
+    private static void AddConveyor(Transform parent, int index, int c, int r, int width, int height, float direction, ThemeArt art)
+    {
+        var block = new GameObject("Conveyor_" + index);
+        block.transform.SetParent(parent, false);
+        block.transform.localPosition = new Vector3(CellX(c) + width * 0.5f, CellTop(r) - height * 0.5f, 0f);
+        block.AddComponent<BoxCollider2D>().size = new Vector2(width, height);
+        var so = new SerializedObject(block.AddComponent<LevelBlock>());
+        so.FindProperty("conveyorSpeed").floatValue = ConveyorSpeed * direction;
+        so.ApplyModifiedPropertiesWithoutUndo();
+        SpriteRenderer body = Tiled(block.transform, "Body", art.conveyor[0], BodyOrder, new Vector2(width, height));
+        var frames = new SerializedObject(body.gameObject.AddComponent<SpriteFrames>());
+        UiKit.WireArray(frames.targetObject, "frames", art.conveyor);
+        frames.Update();
+        // The tread moves 2 pixels a frame, as fast as the belt carries.
+        frames.FindProperty("framesPerSecond").floatValue = ConveyorSpeed * Ppu / 2f * direction;
+        frames.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    // The ground's light top edge: its top 4 pixels.
+    private static void AddTop(Transform parent, int c, int r, int width, Sprite sprite)
+    {
+        SpriteRenderer top = Tiled(parent, "Top", sprite, TopOrder, new Vector2(width, 4f / Ppu));
+        top.transform.localPosition = new Vector3(CellX(c) + width * 0.5f, CellTop(r) - 2f / Ppu, 0f);
+    }
+
+    // Half a cell tall, at the top of its cell. One-way: jump up through it, bullets fly through. Otherwise solid.
+    private static GameObject AddPlatform(Transform parent, int c, int r, int width, Sprite sprite, bool oneWay)
     {
         var platform = new GameObject("Platform");
         platform.transform.SetParent(parent, false);
         platform.transform.localPosition = new Vector3(CellX(c) + width * 0.5f, CellTop(r) - 0.25f, 0f);
         var box = platform.AddComponent<BoxCollider2D>();
         box.size = new Vector2(width, 0.5f);
-        box.usedByEffector = true;
-        var effector = platform.AddComponent<PlatformEffector2D>();
-        effector.useOneWay = true;
-        effector.surfaceArc = 180f;
+        if (oneWay)
+        {
+            box.usedByEffector = true;
+            var effector = platform.AddComponent<PlatformEffector2D>();
+            effector.useOneWay = true;
+            effector.surfaceArc = 180f;
+        }
         var so = new SerializedObject(platform.AddComponent<LevelBlock>());
-        so.FindProperty("bulletsPassThrough").boolValue = true;
+        so.FindProperty("bulletsPassThrough").boolValue = oneWay;
         so.ApplyModifiedPropertiesWithoutUndo();
-        Tiled(platform.transform, "Body", art.plank, TopOrder, new Vector2(width, 0.5f));
+        Tiled(platform.transform, "Body", sprite, TopOrder, new Vector2(width, 0.5f));
+        return platform;
+    }
+
+    private static void AddGhostPlatform(Transform parent, int c, int r, int width, float phase, ThemeArt art)
+    {
+        GameObject platform = AddPlatform(parent, c, r, width, art.plank, true);
+        platform.name = "GhostPlatform";
+        platform.GetComponentInChildren<SpriteRenderer>().color = new Color(0.75f, 0.85f, 1f); // a cold, ghostly tint
+        var so = new SerializedObject(platform.AddComponent<GhostPlatform>());
+        so.FindProperty("phase").floatValue = phase;
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void AddMovingPlatform(Transform parent, int c, int r, int width, Motion motion, ThemeArt art)
+    {
+        bool spinning = motion.spin != 0f;
+        GameObject platform = AddPlatform(parent, c, r, width, art.plank, !spinning);
+        platform.name = spinning ? "SpinningBar" : "MovingPlatform";
+        var so = new SerializedObject(platform.AddComponent<MovingPlatform>()); // adds the kinematic body
+        so.FindProperty("travel").vector2Value = motion.travel;
+        so.FindProperty("period").floatValue = motion.period;
+        so.FindProperty("phase").floatValue = motion.phase;
+        so.FindProperty("spinSpeed").floatValue = motion.spin;
+        so.ApplyModifiedPropertiesWithoutUndo();
+        platform.GetComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Kinematic;
     }
 
     // Deadly from a little under its wavy surface.
@@ -640,56 +839,69 @@ public static class MapBuilder
         Tiled(spikes.transform, "Body", art.spikes, TopOrder, new Vector2(width, 0.5f));
     }
 
-    private static void AddBackground(Transform root, ThemeArt art)
+    // The sky, the skyline and the land under it reach far past the screen (seen when the camera flies in).
+    private static void AddBackground(Transform root, Theme theme, ThemeArt art)
     {
         Transform background = Child(root, "Background");
         SpriteRenderer sky = Sprite(background, "Sky", art.sky, SkyOrder);
-        sky.transform.localScale = new Vector3(34f / (art.sky.rect.width / Ppu), 20f / (art.sky.rect.height / Ppu), 1f);
-        Sprite(background, "Far", art.far, FarOrder);
-        Sprite(background, "Near", art.near, NearOrder);
+        sky.transform.localScale = new Vector3(SkylineWidth * 2f / (art.sky.rect.width / Ppu), SkylineWidth / (art.sky.rect.height / Ppu), 1f);
+        Sprite(background, "Skyline", art.skyline, SkylineOrder);
+        SpriteRenderer land = Sprite(background, "Land", UiKit.PixelSprite, SkylineOrder);
+        land.color = theme.skylineColor;
+        const float landHeight = 120f;
+        Vector2 pixelSize = land.sprite.bounds.size;
+        land.transform.localScale = new Vector3(SkylineWidth / pixelSize.x, landHeight / pixelSize.y, 1f);
+        land.transform.localPosition = new Vector3(0f, -10f - landHeight * 0.5f, 0f); // under the skyline's bottom
     }
 
     // ---------- Pixel art ----------
 
     private class ThemeArt
     {
-        public Sprite body, top, plank, ice, iceTop, lava, lavaTop, spikes, sky, far, near;
-        public Sprite[] decor;
+        public Sprite body, top, plank, ice, iceTop, lava, lavaTop, spikes, sky, skyline, crate;
+        public Sprite[] decor, conveyor;
     }
 
     private static ThemeArt PaintTheme(Theme theme)
     {
         string folder = ArtRoot + "/" + theme.name;
+        Vector2 middle = new Vector2(0.5f, 0.5f);
         var art = new ThemeArt
         {
-            body = Save(folder, "Ground", PaintBody(theme.bodyStyle, theme.body, 1), new Vector2(0.5f, 0.5f)),
-            top = Save(folder, "GroundTop", PaintTop(theme.topStyle, theme.top, 2), new Vector2(0.5f, 0.5f)),
-            plank = Save(folder, "Platform", PaintPlank(theme.plankStyle, theme.plank), new Vector2(0.5f, 0.5f)),
-            ice = Save(folder, "Ice", PaintBody(BodyStyle.Bricks, Ice, 3), new Vector2(0.5f, 0.5f)),
-            iceTop = Save(folder, "IceTop", PaintTop(TopStyle.Smooth, IceTop, 4), new Vector2(0.5f, 0.5f)),
-            lava = Save(folder, "Lava", PaintLava(false), new Vector2(0.5f, 0.5f)),
-            lavaTop = Save(folder, "LavaTop", PaintLava(true), new Vector2(0.5f, 0.5f)),
-            spikes = Save(folder, "Spikes", PaintSpikes(theme.spikes), new Vector2(0.5f, 0.5f)),
-            sky = Save(folder, "Sky", PaintSky(theme), new Vector2(0.5f, 0.5f)),
-            far = Save(folder, "Far", PaintSkyline(theme, true), new Vector2(0.5f, 0.5f)),
-            near = Save(folder, "Near", PaintSkyline(theme, false), new Vector2(0.5f, 0.5f)),
+            body = Save(folder, "Ground", PaintBody(theme.ground, 1), middle),
+            top = Save(folder, "GroundTop", PaintTop(theme.topStyle, theme.top), middle),
+            plank = Save(folder, "Platform", PaintPlank(theme.plank), middle),
+            ice = Save(folder, "Ice", PaintBody(IceGround, 3), middle),
+            iceTop = Save(folder, "IceTop", PaintTop(TopStyle.Plain, IceTop), middle),
+            lava = Save(folder, "Lava", PaintLava(false), middle),
+            lavaTop = Save(folder, "LavaTop", PaintLava(true), middle),
+            spikes = Save(folder, "Spikes", PaintSpikes(Metal), middle),
+            sky = Save(folder, "Sky", PaintSky(theme), middle),
+            skyline = Save(folder, "Skyline", PaintSkyline(theme), middle),
+            crate = Save(folder, "Crate", PaintCrate(theme == Frost ? IceGround : theme.plank), middle),
             decor = new Sprite[theme.decor.Length],
+            conveyor = new Sprite[4],
         };
+        for (int i = 0; i < art.conveyor.Length; i++)
+            art.conveyor[i] = Save(folder, "Conveyor" + i, PaintConveyor(i * 2), middle);
         for (int i = 0; i < theme.decor.Length; i++)
             art.decor[i] = Save(folder, "Decor_" + theme.decor[i], PaintDecor(theme.decor[i], theme.decorColors), new Vector2(0.5f, 0f));
         return art;
     }
 
-    private static Sprite Save(string folder, string name, Pix pix, Vector2 pivot)
+    private static Sprite Save(string folder, string name, Pix pix, Vector2 pivot) =>
+        Save(folder, name, pix.ToTexture(), pivot, FilterMode.Point);
+
+    private static Sprite Save(string folder, string name, Texture2D texture, Vector2 pivot, FilterMode filter)
     {
         Directory.CreateDirectory(folder);
         string path = folder + "/" + name + ".png";
-        File.WriteAllBytes(path, pix.ToTexture().EncodeToPNG());
+        File.WriteAllBytes(path, texture.EncodeToPNG());
         AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
         var importer = (TextureImporter)AssetImporter.GetAtPath(path);
         importer.textureType = TextureImporterType.Sprite;
         importer.spriteImportMode = SpriteImportMode.Single;
-        importer.filterMode = FilterMode.Point;
+        importer.filterMode = filter;
         importer.mipmapEnabled = false;
         importer.textureCompression = TextureImporterCompression.Uncompressed;
         importer.spritePixelsPerUnit = Ppu;
@@ -789,160 +1001,108 @@ public static class MapBuilder
         }
     }
 
-    // 16 x 16, tiles seamlessly.
-    private static Pix PaintBody(BodyStyle style, Color[] c, int seed)
+    // 16 x 16, tiles seamlessly: the game's stone tile (a light top-left edge, a dark bottom-right edge, a few
+    // specks), so the blocks show as a grid of stones. g = light edge, fill, dark edge, speck.
+    private static Pix PaintBody(Color[] g, int seed)
     {
         var pix = new Pix(16, 16);
-        switch (style)
-        {
-            case BodyStyle.Rock:
-                for (int y = 0; y < 16; y++)
-                    for (int x = 0; x < 16; x++)
-                    {
-                        float n = Noise(x, y, seed);
-                        pix.Set(x, y, n < 0.1f ? c[0] : n > 0.92f ? c[2] : c[1]);
-                    }
-                // Two pebbles: light on top, dark under.
-                foreach (Vector2Int stone in new[] { new Vector2Int(3, 9), new Vector2Int(10, 3) })
-                {
-                    pix.Rect(stone.x, stone.y + 1, 3, 1, c[2]);
-                    pix.Rect(stone.x, stone.y, 3, 1, c[0]);
-                }
-                if (c.Length > 3) // glowing cracks
-                {
-                    pix.Line(1, 15, 4, 11, c[3]);
-                    pix.Line(4, 11, 3, 7, c[3]);
-                    pix.Line(12, 9, 14, 5, c[3]);
-                }
-                break;
-
-            case BodyStyle.Bricks:
-                for (int y = 0; y < 16; y++)
-                    for (int x = 0; x < 16; x++)
-                    {
-                        int course = y / 4;
-                        int shifted = (x + (course % 2) * 4) % 16;
-                        int brick = shifted / 8;
-                        float tint = Noise(brick, course, seed) * 0.35f - 0.12f;
-                        Color face = tint > 0 ? Color.Lerp(c[1], c[2], tint) : Color.Lerp(c[1], c[0], -tint);
-                        if (y % 4 == 0 || shifted % 8 == 0)
-                            face = c[0]; // mortar
-                        else if (y % 4 == 3)
-                            face = Color.Lerp(face, c[2], 0.5f);
-                        pix.Set(x, y, face);
-                    }
-                break;
-
-            case BodyStyle.Panels:
-                pix.Rect(0, 0, 16, 16, c[1]);
-                pix.Rect(0, 0, 16, 1, c[0]);
-                pix.Rect(0, 0, 1, 16, c[0]);
-                pix.Rect(1, 14, 15, 1, Color.Lerp(c[1], c[2], 0.5f));
-                pix.Rect(1, 1, 1, 14, Color.Lerp(c[1], c[2], 0.5f));
-                foreach (Vector2Int rivet in new[] { new Vector2Int(3, 3), new Vector2Int(12, 3), new Vector2Int(3, 12), new Vector2Int(12, 12) })
-                {
-                    pix.Set(rivet.x, rivet.y, c[2]);
-                    pix.Set(rivet.x, rivet.y - 1, c[0]);
-                }
-                break;
-        }
+        pix.Rect(0, 0, 16, 16, g[1]);
+        pix.Rect(1, 0, 15, 1, g[2]);
+        pix.Rect(15, 0, 1, 15, g[2]);
+        pix.Rect(0, 15, 16, 1, g[0]);
+        pix.Rect(0, 0, 1, 16, g[0]);
+        for (int i = 0; i < 5; i++)
+            pix.Set(2 + (int)(Noise(i, 0, seed) * 12f), 2 + (int)(Noise(i, 1, seed) * 12f), g[3]);
         return pix;
     }
 
-    // 16 x 6: the edge drawn on top of the ground (its lowest 4 pixels cover the ground's top).
-    private static Pix PaintTop(TopStyle style, Color[] c, int seed)
+    // 16 x 4: the light edge on top of the ground (its top row is the ground's top). t = light, mid, dark.
+    private static Pix PaintTop(TopStyle style, Color[] t)
     {
-        var pix = new Pix(16, 6);
+        var pix = new Pix(16, 4);
         for (int x = 0; x < 16; x++)
         {
-            float n = Noise(x, 0, seed);
-            switch (style)
+            pix.Set(x, 3, t[0]);
+            if (style == TopStyle.Stripes)
             {
-                case TopStyle.Tufts:
-                    int blade = 3 + (n > 0.45f ? 1 : 0) + (n > 0.8f ? 1 : 0);
-                    pix.Set(x, 0, n > 0.5f ? c[0] : Color.clear); // ragged roots
-                    pix.Rect(x, 1, 1, blade - 1, c[1]);
-                    pix.Set(x, blade, c[2]);
-                    break;
-                case TopStyle.Smooth:
-                    pix.Set(x, 0, n > 0.5f ? c[0] : Color.clear);
-                    pix.Rect(x, 1, 1, 3, c[1]);
-                    if (Noise(x, 2, seed) > 0.8f)
-                        pix.Set(x, 2, c[0]);
-                    pix.Set(x, 4, c[2]);
-                    break;
-                case TopStyle.Snow:
-                    int drip = n > 0.7f ? 0 : n > 0.4f ? 1 : 2; // icicles and lumps hanging down
-                    pix.Rect(x, drip, 1, 2 - drip, c[0]);
-                    pix.Rect(x, 2, 1, 2, c[1]);
-                    pix.Set(x, 4, c[2]);
-                    if (n > 0.85f)
-                        pix.Set(x, 5, c[2]);
-                    break;
-                case TopStyle.Stripes:
-                    pix.Set(x, 0, c[0]);
-                    for (int y = 1; y <= 3; y++)
-                        pix.Set(x, y, ((x + y) / 3) % 2 == 0 ? c[1] : c[0]);
-                    pix.Set(x, 4, c[2]);
-                    break;
+                for (int y = 1; y <= 2; y++)
+                    pix.Set(x, y, ((x + y) / 2) % 2 == 0 ? t[1] : t[2]);
+                pix.Set(x, 0, t[2]);
+            }
+            else
+            {
+                pix.Set(x, 2, t[1]);
+                pix.Set(x, 1, t[2]);
+                if (x % 3 == 0)
+                    pix.Set(x, 0, t[2]); // little drips
             }
         }
         return pix;
     }
 
-    // 16 x 8: half a unit tall.
-    private static Pix PaintPlank(PlankStyle style, Color[] c)
+    // 16 x 8: half a unit tall, a light top and a dark bottom. p = light, mid, dark.
+    private static Pix PaintPlank(Color[] p)
     {
         var pix = new Pix(16, 8);
-        if (style == PlankStyle.Wood)
+        pix.Rect(0, 0, 16, 8, p[1]);
+        pix.Rect(0, 7, 16, 1, p[0]);
+        pix.Rect(0, 0, 16, 1, p[2]);
+        pix.Rect(0, 1, 1, 6, p[0]);
+        pix.Rect(15, 1, 1, 6, p[2]);
+        return pix;
+    }
+
+    // 16 x 16: a frame with a cross brace. p = light, mid, dark.
+    private static Pix PaintCrate(Color[] p)
+    {
+        var pix = new Pix(16, 16);
+        pix.Rect(0, 0, 16, 16, p[1]);
+        for (int i = 2; i < 14; i++)
         {
-            pix.Rect(0, 1, 16, 6, c[1]);
-            pix.Rect(0, 7, 16, 1, c[2]);
-            pix.Rect(0, 0, 16, 1, c[0]);
-            pix.Rect(0, 1, 1, 6, c[0]); // board seam
-            pix.Rect(8, 1, 1, 3, c[0]);
-            pix.Set(3, 5, c[0]); // nails
-            pix.Set(12, 5, c[0]);
-            for (int x = 1; x < 16; x++)
-                if (Noise(x, 3, 7) > 0.8f)
-                    pix.Set(x, 3, Color.Lerp(c[1], c[0], 0.5f));
+            pix.Set(i, i, p[0]);
+            pix.Set(i, 15 - i, p[0]);
         }
-        else
+        pix.Rect(0, 14, 16, 2, p[0]);
+        pix.Rect(0, 0, 2, 16, p[0]);
+        pix.Rect(2, 0, 14, 2, p[2]);
+        pix.Rect(14, 2, 2, 12, p[2]);
+        return pix;
+    }
+
+    // 16 x 16 conveyor: rollers in a dark casing, the tread on top shifted Shift pixels (one animation frame).
+    private static Pix PaintConveyor(int shift)
+    {
+        var pix = new Pix(16, 16);
+        pix.Rect(0, 0, 16, 12, Metal[0]);
+        foreach (int x in new[] { 4, 12 })
         {
-            pix.Rect(0, 6, 16, 2, c[1]);
-            pix.Rect(0, 7, 16, 1, c[2]);
-            pix.Rect(0, 0, 16, 2, c[1]);
-            pix.Rect(0, 0, 16, 1, c[0]);
-            for (int x = 0; x < 16; x++)
-                for (int y = 2; y < 6; y++)
-                    pix.Set(x, y, x % 4 == 0 || y == 4 ? c[1] : new Color(c[0].r, c[0].g, c[0].b, 0.6f)); // see-through mesh
+            pix.Disc(x, 6f, 3f, Metal[1]);
+            pix.Set(x - 1 + (shift / 2) % 2, 6, Metal[0]); // the rollers turn too
+        }
+        for (int x = 0; x < 16; x++)
+        {
+            bool yellow = ((x - shift) % 8 + 8) % 8 < 4;
+            pix.Rect(x, 12, 1, 3, yellow ? H("#f0c020") : H("#22242a"));
+            pix.Set(x, 15, Metal[2]);
         }
         return pix;
     }
 
-    // 16 x 16 of lava; the top one has a wavy surface 3 pixels under its top.
+    // 16 x 16 of lava; the top one has a stepped surface 3 pixels under its top.
     private static Pix PaintLava(bool surface)
     {
         var pix = new Pix(16, 16);
-        for (int y = 0; y < 16; y++)
-            for (int x = 0; x < 16; x++)
-            {
-                float n = Noise(x, y, 11);
-                Color color = n < 0.15f ? Lava[0] : n > 0.9f ? Lava[2] : Lava[1];
-                pix.Set(x, y, color);
-            }
+        pix.Rect(0, 0, 16, 16, Lava[1]);
+        for (int i = 0; i < 6; i++)
+            pix.Set((int)(Noise(i, 0, 11) * 16f), (int)(Noise(i, 1, 11) * 12f), i % 2 == 0 ? Lava[0] : Lava[2]);
         if (surface)
-        {
             for (int x = 0; x < 16; x++)
             {
-                int level = 12 + Mathf.RoundToInt(Mathf.Sin(x / 16f * Mathf.PI * 2f));
-                for (int y = level + 1; y < 16; y++)
-                    pix.Set(x, y, Color.clear);
+                int level = 12 + (x / 4) % 2;
+                pix.Rect(x, level + 1, 1, 15 - level, Color.clear);
                 pix.Set(x, level, Lava[3]);
                 pix.Set(x, level - 1, Lava[2]);
-                pix.Set(x, level - 2, Lava[2]);
             }
-        }
         return pix;
     }
 
@@ -956,107 +1116,86 @@ public static class MapBuilder
                 int height = 8 - Mathf.RoundToInt(Mathf.Abs(x - 3.5f) * 2f);
                 for (int y = 0; y < height; y++)
                     pix.Set(s * 8 + x, y, x < 4 ? c[2] : c[1]);
-                pix.Set(s * 8 + x, 0, c[0]);
             }
         pix.Rect(0, 0, 16, 1, c[0]);
         return pix;
     }
 
-    // A tall strip, stretched over the screen: the sky in 8 bands.
+    // One flat color, stretched over the screen.
     private static Pix PaintSky(Theme theme)
     {
-        var pix = new Pix(4, 64);
-        for (int y = 0; y < 64; y++)
-        {
-            float band = Mathf.Floor(y / 64f * 8f) / 7f;
-            pix.Rect(0, y, 4, 1, Color.Lerp(theme.skyBottom, theme.skyTop, band));
-        }
+        var pix = new Pix(4, 4);
+        pix.Rect(0, 0, 4, 4, theme.background);
         return pix;
     }
 
-    // 34 x 20 units: hills, trees, buildings... in one flat color; the far one also has the stars and the sun or moon.
-    private static Pix PaintSkyline(Theme theme, bool far)
+    // 34 x 20 units: hills, trees, buildings... in one flat color just lighter than the background, a few stars and
+    // the moon above them.
+    // Much wider than the screen, so the map sits in a whole landscape when the camera flies in from far out
+    // (MapRoulette). The screen's own 34 units are in the middle.
+    private static Pix PaintSkyline(Theme theme)
     {
-        const int width = 34 * Ppu, height = 20 * Ppu;
+        const int width = SkylineWidth * Ppu, height = 20 * Ppu;
+        const int screenLeft = (SkylineWidth - 34) / 2 * Ppu; // where the screen's part starts
         var pix = new Pix(width, height);
-        int seed = far ? 21 : 37;
-        if (far)
-        {
-            if (theme.stars)
-                for (int y = height / 2; y < height; y++)
-                    for (int x = 0; x < width; x++)
-                        if (Noise(x, y, 5) > 0.997f)
-                            pix.Set(x, y, new Color(1f, 1f, 1f, Noise(x, y, 6) * 0.5f + 0.3f));
-            if (theme.orb.a > 0f)
-            {
-                pix.Disc(width * 0.78f, height * 0.78f, 22f, new Color(theme.orb.r, theme.orb.g, theme.orb.b, 0.25f));
-                pix.Disc(width * 0.78f, height * 0.78f, 16f, theme.orb);
-            }
-        }
-        Color color = far ? theme.far : theme.near;
+        if (theme.stars)
+            for (int y = height / 2; y < height; y++)
+                for (int x = 0; x < width; x++)
+                    if (Noise(x, y, 5) > 0.998f)
+                        pix.Set(x, y, Color.Lerp(theme.background, Color.white, 0.5f));
+        if (theme.moon.a > 0f)
+            pix.Disc(screenLeft + 34 * Ppu * 0.78f, height * 0.78f, 14f, theme.moon);
         for (int x = 0; x < width; x++)
-        {
-            int top = SkylineHeight(theme.skyline, x, seed, far);
-            for (int y = 0; y < top; y++)
-                pix.Set(x, y, color);
-            if (theme.skyline == Skyline.Peaks && far) // snowy tips
-                for (int y = Mathf.Max(0, top - 6); y < top; y++)
-                    if (top > 150)
-                        pix.Set(x, y, Color.Lerp(color, Color.white, 0.55f));
-        }
+            pix.Rect(x, 0, 1, SkylineHeight(theme.skyline, x - screenLeft, 21), theme.skylineColor);
         return pix;
     }
 
-    private static int SkylineHeight(Skyline skyline, int x, int seed, bool far)
+    private static int SkylineHeight(Skyline skyline, int x, int seed)
     {
-        float baseHeight = far ? 110f : 60f;
-        float scale = far ? 1f : 0.8f;
+        const float baseHeight = 110f;
+        int p = x + 40040; // never negative, for the repeating patterns (x is negative left of the screen)
         switch (skyline)
         {
             case Skyline.Pines:
             {
-                int period = far ? 14 : 20;
-                int tree = (x + seed) / period;
-                float treeHeight = (far ? 26f : 40f) + Noise(tree, 0, seed) * 26f;
-                float along = Mathf.Abs((x + seed) % period - period * 0.5f) / (period * 0.5f);
+                const int period = 14;
+                int tree = (p + seed) / period;
+                float treeHeight = 26f + Noise(tree, 0, seed) * 26f;
+                float along = Mathf.Abs((p + seed) % period - period * 0.5f) / (period * 0.5f);
                 return Mathf.RoundToInt(baseHeight + 10f * Mathf.Sin(x * 0.01f + seed) + treeHeight * (1f - along));
             }
             case Skyline.Dunes:
-                return Mathf.RoundToInt(baseHeight - 20f + 26f * scale * Mathf.Sin(x * 0.012f + seed) + 12f * Mathf.Sin(x * 0.031f + seed * 2));
+                return Mathf.RoundToInt(baseHeight - 20f + 26f * Mathf.Sin(x * 0.012f + seed) + 12f * Mathf.Sin(x * 0.031f + seed * 2));
             case Skyline.City:
             {
-                int building = (x + seed * 3) / 26;
-                float rise = Noise(building, 1, seed) * (far ? 110f : 70f);
-                bool chimney = (x + seed * 3) % 26 >= 5 && (x + seed * 3) % 26 < 9 && Noise(building, 2, seed) > 0.5f;
+                int building = (p + seed * 3) / 26;
+                float rise = Noise(building, 1, seed) * 110f;
+                bool chimney = (p + seed * 3) % 26 >= 5 && (p + seed * 3) % 26 < 9 && Noise(building, 2, seed) > 0.5f;
                 return Mathf.RoundToInt(baseHeight - 30f + rise + (chimney ? 34f : 0f));
             }
             case Skyline.Hills:
                 return Mathf.RoundToInt(baseHeight - 20f + 22f * Mathf.Sin(x * 0.018f + seed) + 9f * Mathf.Sin(x * 0.05f + seed));
             case Skyline.Volcano:
             {
-                if (!far)
-                    return Mathf.RoundToInt(baseHeight + 14f * Mathf.Sin(x * 0.04f + seed) + Noise(x / 6, 0, seed) * 10f);
                 float fromTop = Mathf.Abs(x - 34 * Ppu * 0.5f);
-                float cone = 230f - fromTop * 0.95f;
-                if (fromTop < 18f)
-                    cone = 212f; // the crater
+                float cone = fromTop < 18f ? 212f : 230f - fromTop * 0.95f; // a crater on top
                 return Mathf.RoundToInt(Mathf.Max(baseHeight - 30f + 10f * Mathf.Sin(x * 0.03f), cone));
             }
             default: // Peaks
             {
-                int period = far ? 128 : 90;
-                int peak = (x + seed * 5) / period;
-                float along = Mathf.Abs((x + seed * 5) % period - period * 0.5f) / (period * 0.5f);
-                float peakHeight = (far ? 90f : 50f) * (0.6f + Noise(peak, 0, seed) * 0.6f);
+                const int period = 128;
+                int peak = (p + seed * 5) / period;
+                float along = Mathf.Abs((p + seed * 5) % period - period * 0.5f) / (period * 0.5f);
+                float peakHeight = 90f * (0.6f + Noise(peak, 0, seed) * 0.6f);
                 return Mathf.RoundToInt(baseHeight - 20f + peakHeight * (1f - along));
             }
         }
     }
 
-    // Decorations: c = the theme's dark, mid, light and accent colors.
+    // Decorations: drawn, then flattened into the theme's 3 dark decoration colors (they stay in the background),
+    // except the accent (lights, flames). c = dark, mid, light, accent.
     private static Pix PaintDecor(DecorKind kind, Color[] c)
     {
-        Color outline = H("#14121c");
         Pix pix;
         switch (kind)
         {
@@ -1119,12 +1258,12 @@ public static class MapBuilder
 
             case DecorKind.Cactus:
                 pix = new Pix(14, 24);
-                pix.Rect(5, 0, 4, 22, c[3]);
-                pix.Rect(6, 22, 2, 1, c[3]);
-                pix.Rect(1, 9, 2, 7, c[3]);
-                pix.Rect(3, 9, 2, 2, c[3]);
-                pix.Rect(11, 12, 2, 7, c[3]);
-                pix.Rect(9, 12, 2, 2, c[3]);
+                pix.Rect(5, 0, 4, 22, H("#4c9a3e"));
+                pix.Rect(6, 22, 2, 1, H("#4c9a3e"));
+                pix.Rect(1, 9, 2, 7, H("#4c9a3e"));
+                pix.Rect(3, 9, 2, 2, H("#4c9a3e"));
+                pix.Rect(11, 12, 2, 7, H("#4c9a3e"));
+                pix.Rect(9, 12, 2, 2, H("#4c9a3e"));
                 pix.Rect(6, 1, 1, 20, H("#7ccf52"));
                 pix.Rect(8, 0, 1, 22, H("#2f6b36"));
                 break;
@@ -1230,7 +1369,16 @@ public static class MapBuilder
                 pix.Rect(4, 17, 4, 2, H("#22242a"));
                 break;
         }
-        pix.Outline(outline);
+        for (int y = 0; y < pix.h; y++)
+            for (int x = 0; x < pix.w; x++)
+            {
+                Color color = pix.Get(x, y);
+                if (color.a == 0f || color == c[3])
+                    continue;
+                float light = color.grayscale;
+                pix.Set(x, y, light < 0.3f ? c[0] : light < 0.6f ? c[1] : c[2]);
+            }
+        pix.Outline(Color.Lerp(c[0], Color.black, 0.5f));
         return pix;
     }
 }

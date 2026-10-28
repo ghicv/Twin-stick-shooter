@@ -5,15 +5,18 @@ using UnityEngine.UI;
 // jumps, shoots at the nearest other player, picks the first card when one is offered) and logs every player's
 // position and health once a second, so a session can be checked without anyone at the keyboard. In the lobby it
 // walks into the READY zone, so the match starts the normal way (3-2-1).
-// With -shots <folder> the host also saves a picture of every round map. MainMenu adds it.
+// With -shots <folder> the host also saves pictures of the shows (round end, map roulette, dive, results).
+// MainMenu adds it.
 public class NetTestBot : MonoBehaviour
 {
     private float logTimer;
     private int framesSinceLog;
     private float shootTimer;
     private string shotFolder;
-    private float roundTime;
-    private readonly System.Collections.Generic.HashSet<int> shotMaps = new System.Collections.Generic.HashSet<int>();
+    private float roundTimer;
+    private MatchManager.Phase lastPhase;
+    private bool rouletteSeen;
+    private readonly System.Collections.Generic.List<(float time, string name)> shots = new System.Collections.Generic.List<(float, string)>();
 
     // Every test copy on this PC gets its own name (they share the saved one, and a room refuses a name twice).
     // Put -bot before -autohost / -autojoin on the command line, so the name is set before entering.
@@ -44,12 +47,18 @@ public class NetTestBot : MonoBehaviour
 
         var rb = local.GetComponent<Rigidbody2D>();
         MatchManager room = MatchManager.Instance;
+        roundTimer = room != null && room.CurrentPhase == MatchManager.Phase.Round && !local.Dead ? roundTimer + Time.unscaledDeltaTime : 0f;
         bool lobby = room != null && !room.InMatch;
         if (rb.simulated && lobby && ReadyZone.Instance != null)
         {
             // Lobby: walk into the READY zone like a player would (everybody there starts the match).
             float toZone = ReadyZone.Instance.transform.position.x - local.transform.position.x;
             rb.linearVelocity = new Vector2(Mathf.Abs(toZone) > 0.5f ? Mathf.Sign(toZone) * 4f : 0f, rb.linearVelocity.y);
+        }
+        else if (rb.simulated && roundTimer > 15f && room != null && room.CurrentPhase == MatchManager.Phase.Round)
+        {
+            rb.position = new Vector2(rb.position.x, -30f); // stuck behind cover too long: fall off so the match goes on
+            roundTimer = 0f;
         }
         else if (rb.simulated)
         {
@@ -90,23 +99,14 @@ public class NetTestBot : MonoBehaviour
             Debug.Log("[BOT] picked a card, cores now " + local.Cores.OwnedCount);
         }
 
-        // -shots <folder>: the host saves one picture of every round map, a few seconds into the round.
+        // -shots <folder>: the host saves pictures of the shows: the round's end, the map roulette and the dive into
+        // the map, the results.
         MatchManager current = MatchManager.Instance;
-        MapManager currentMaps = FindAnyObjectByType<MapManager>();
-        if (shotFolder != null && current != null && current.IsServer && currentMaps != null &&
-            current.CurrentPhase == MatchManager.Phase.Round && !shotMaps.Contains(currentMaps.CurrentIndex))
-        {
-            roundTime += Time.deltaTime;
-            if (roundTime > 2.5f)
-            {
-                shotMaps.Add(currentMaps.CurrentIndex);
-                roundTime = 0f;
-                ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(shotFolder, currentMaps.CurrentMap.DisplayName + ".png"));
-            }
-        }
+        if (shotFolder != null && current != null && current.IsServer)
+            TakeShots(current);
 
         framesSinceLog++;
-        logTimer -= Time.deltaTime;
+        logTimer -= Time.unscaledDeltaTime;
         if (logTimer <= 0f)
         {
             logTimer = 1f;
@@ -122,5 +122,34 @@ public class NetTestBot : MonoBehaviour
                             " hp=" + player.Health.ToString("F0") + (player.Dead ? " DEAD" : "") + " cores=" + player.Cores.OwnedCount);
             Debug.Log(line.ToString());
         }
+    }
+
+    // Plans pictures when a show starts, takes them when their time comes (real time).
+    private void TakeShots(MatchManager match)
+    {
+        float now = Time.unscaledTime;
+        if (match.CurrentPhase != lastPhase)
+        {
+            if (match.CurrentPhase == MatchManager.Phase.BetweenRounds && match.Round > 0)
+                shots.Add((now + 0.6f, "end_r" + match.Round));
+            if (match.CurrentPhase == MatchManager.Phase.Results)
+                shots.Add((now + 2.5f, "results"));
+            lastPhase = match.CurrentPhase;
+        }
+        MapRoulette roulette = FindAnyObjectByType<MapRoulette>();
+        bool spinning = roulette != null && roulette.Playing;
+        if (spinning && !rouletteSeen)
+        {
+            shots.Add((now + 2f, "roulette_r" + (match.Round + 1)));
+            shots.Add((now + roulette.Duration + 0.7f, "dive_r" + (match.Round + 1)));
+        }
+        rouletteSeen = spinning;
+
+        for (int i = shots.Count - 1; i >= 0; i--)
+            if (now >= shots[i].time)
+            {
+                ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(shotFolder, shots[i].name + ".png"));
+                shots.RemoveAt(i);
+            }
     }
 }

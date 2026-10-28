@@ -20,9 +20,24 @@ public class LevelMap : MonoBehaviour
     [Tooltip("Players falling below this height (world Y) die.")]
     [SerializeField] private float fallLimitY = -8f;
 
+    [Tooltip("LAN: the host puts a crate on each of these when the map starts (MapProps).")]
+    [SerializeField] private Transform[] crateSpots = new Transform[0];
+
+    [Tooltip("What the crates look like on this map.")]
+    [SerializeField] private Sprite crateSprite;
+
+    [Tooltip("LAN: this map's picture and color on the map roulette (MapRoulette).")]
+    [SerializeField] private Sprite thumbnail;
+
+    [SerializeField] private Color themeColor = Color.white;
+
     public string DisplayName => displayName;
     public Transform[] SpawnPoints => spawnPoints;
     public bool Pvp => pvp;
     public float CameraSize => cameraSize;
     public float FallLimitY => fallLimitY;
+    public Transform[] CrateSpots => crateSpots;
+    public Sprite CrateSprite => crateSprite;
+    public Sprite Thumbnail => thumbnail;
+    public Color ThemeColor => themeColor;
 }

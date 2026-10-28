@@ -27,6 +27,9 @@ public class Projectile : MonoBehaviour
     [Range(0f, 1f)]
     [SerializeField] private float wallHitVolume = 0.15f;
 
+    [Tooltip("Push given to a loose physics object it hits, e.g. a crate (impulse; real bullets only, on the host).")]
+    [SerializeField] private float pushImpulse = 3f;
+
     public float Damage { get; private set; }
     public Rigidbody2D Body => rb;
 
@@ -170,6 +173,9 @@ public class Projectile : MonoBehaviour
             float normalAngle = Mathf.Atan2(normal.y, normal.x) * Mathf.Rad2Deg;
             Instantiate(impactEffect, hitPoint, Quaternion.Euler(0f, 0f, normalAngle)); // sparks off walls/floor
             GameAudio.PlayAt(wallHitSound, hitPoint, wallHitVolume, 0.1f);
+            Rigidbody2D loose = other.attachedRigidbody;
+            if (!IsLookAlike && loose != null && loose.bodyType == RigidbodyType2D.Dynamic)
+                loose.AddForceAtPosition(flightDirection * pushImpulse, hitPoint, ForceMode2D.Impulse);
             if (cores != null)
                 keepFlying = cores.OnBulletHitWall(this, hitPoint, normal);
         }

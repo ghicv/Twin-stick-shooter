@@ -7,10 +7,11 @@ using UnityEngine.UI;
 // LAN match (players against each other). The host runs it; every machine shows it.
 // Lobby: players walk around the lobby map. The host sets the room up at the lobby's stations (rounds, card time,
 // maps). Everybody standing in the READY zone (at least Min Players) starts a 3-2-1 countdown, then the match.
-// Rounds: every round is on another map. Everybody arrives with full health (the travel sequence also brings the
-// dead back). A player who dies stays out until the next round; the last one standing wins the round.
+// Rounds: every round is on another map, shown first by the map roulette (MapRoulette). Everybody arrives with full
+// health (the travel sequence also brings the dead back). A player who dies stays out until the next round; the last
+// one standing wins the round.
 // Card milestones (Card Rounds): before those rounds everybody picks one of 3 cards of the same rarity (silver, gold,
-// diamond; after round 1 the leader sits it out), Card Time seconds, then a random card.
+// diamond), Card Time seconds, then a random card.
 // After Rounds rounds the most round wins takes the match; a tie plays tiebreak rounds (at most Max Tiebreaks).
 // Results: the ranking; the host goes back to the lobby, where everybody starts again without cores.
 // Also here: chat, the kill feed, "joined / left / kicked" notices, and kicking (host).
@@ -32,7 +33,7 @@ public class MatchManager : NetworkBehaviour
 
     [SerializeField] private int defaultCardTime = 30;
 
-    [Tooltip("Before these rounds everybody picks a card (after the first one, all but the leader).")]
+    [Tooltip("Before these rounds everybody picks a card.")]
     [SerializeField] private int[] cardRounds = { 1, 3, 5, 7 };
 
     [Tooltip("Each milestone rolls one rarity for everybody: chances of silver, gold and diamond.")]
@@ -61,6 +62,8 @@ public class MatchManager : NetworkBehaviour
     // Part of the scene (this object is spawned over the network, so it looks them up).
     private MapManager maps;
     private MatchUI ui;
+    private MapRoulette roulette;
+    private RoundEndShow roundShow;
 
     private readonly NetworkVariable<int> phase = new NetworkVariable<int>((int)Phase.Lobby);
     private readonly NetworkVariable<int> round = new NetworkVariable<int>(0);
@@ -104,6 +107,8 @@ public class MatchManager : NetworkBehaviour
         wins = new NetworkList<int>();
         maps = FindAnyObjectByType<MapManager>();
         ui = FindAnyObjectByType<MatchUI>(FindObjectsInactive.Include);
+        roulette = FindAnyObjectByType<MapRoulette>(FindObjectsInactive.Include);
+        roundShow = FindAnyObjectByType<RoundEndShow>(FindObjectsInactive.Include);
         ui.LobbyButton.onClick.AddListener(BackToLobby);
     }
 
@@ -347,14 +352,8 @@ public class MatchManager : NetworkBehaviour
         busy = true;
         phase.Value = (int)Phase.BetweenRounds;
         if (winner != null)
-        {
             wins[winner.Slot] = wins[winner.Slot] + 1;
-            BannerRpc(winner.Name + " WINS THE ROUND!", winner.Name + " THẮNG VÒNG NÀY!", winner.Color, roundEndDelay + 1f);
-        }
-        else
-        {
-            BannerRpc("DRAW!", "HÒA!", Color.white, roundEndDelay + 1f);
-        }
+        RoundEndRpc(winner != null ? winner.Slot : -1, winner != null ? wins[winner.Slot] : 0);
         yield return new WaitForSecondsRealtime(roundEndDelay);
 
         if (MatchDecided())
@@ -386,19 +385,14 @@ public class MatchManager : NetworkBehaviour
         return count;
     }
 
-    // A card milestone: everybody picks a card of that rarity (after round 1, the leader sits it out), with
+    // A card milestone: everybody picks a card of that rarity, with
     // Card Time to choose; the next round waits for the picks (never forever).
     private IEnumerator PickCards(CoreInventory.Rarity rarity)
     {
-        int best = 0;
-        foreach (PlayerNetwork player in PlayerNetwork.All)
-            best = Mathf.Max(best, Wins(player.Slot));
-
         picking.Clear();
         foreach (PlayerNetwork player in PlayerNetwork.All)
         {
-            bool leader = round.Value > 1 && best > 0 && Wins(player.Slot) == best && LeaderCount() < PlayerNetwork.All.Count;
-            if (leader || player.Cores.OwnsEverything)
+            if (player.Cores.OwnsEverything)
                 continue;
             picking.Add(player);
             OfferCardsRpc((int)rarity, RpcTarget.Single(player.OwnerClientId, RpcTargetUse.Temp));
@@ -439,12 +433,18 @@ public class MatchManager : NetworkBehaviour
         foreach (PlayerNetwork player in PlayerNetwork.All)
             player.Cores.ResetForRound();
 
-        // A card milestone: everybody (but the leader after the first) picks a card before the round.
+        // A card milestone: everybody picks a card before the round.
         if (System.Array.IndexOf(cardRounds, round.Value) >= 0 && !tiebreak.Value)
             yield return PickCards(CoreBridge.RandomRarity(rarityChances));
 
-        // Everybody travels to the next map (the dead come back too).
-        TravelRpc(NextMap());
+        // The map roulette shows which map is next, then everybody travels there (the dead come back too).
+        int next = NextMap();
+        if (roulette != null)
+        {
+            RouletteRpc(next, Random.Range(0, int.MaxValue));
+            yield return new WaitForSecondsRealtime(roulette.Duration);
+        }
+        TravelRpc(next);
         yield return new WaitForSecondsRealtime(0.2f);
         float waited = 0f;
         while (waited < 10f && (AnyTraveling() || AnyDead()))
@@ -597,6 +597,18 @@ public class MatchManager : NetworkBehaviour
 
     // ---------- Every machine ----------
 
+    // The roulette spins to that map; the other cards show every round map (the show; the map itself was picked from
+    // the ones turned on).
+    [Rpc(SendTo.Everyone)]
+    private void RouletteRpc(int map, int seed)
+    {
+        var choices = new List<int>();
+        for (int i = 0; i < maps.Count; i++)
+            if (maps.IsRoundMap(i))
+                choices.Add(i);
+        roulette.Play(map, seed, choices);
+    }
+
     // Every player travels to that map: the players stop, the screen fades to black, the map is swapped, and
     // everybody appears at its spawn point while the screen fades back in.
     [Rpc(SendTo.Everyone)]
@@ -605,20 +617,29 @@ public class MatchManager : NetworkBehaviour
         StartCoroutine(Travel(map));
     }
 
+    // After the map roulette there is no black fade: the map is put in place behind the roulette, and the camera flies
+    // from the chosen card into it (MapRoulette.EnterMap).
     private IEnumerator Travel(int map)
     {
         foreach (PlayerNetwork player in PlayerNetwork.All)
             player.Respawn.BeginRoundTravel();
-        ScreenFade fade = ScreenFade.Instance;
+        while (roulette != null && roulette.Playing && !roulette.WaitingForMap)
+            yield return null; // this machine's roulette may stop a moment after the host's
+        bool fromRoulette = roulette != null && roulette.WaitingForMap;
+        ScreenFade fade = fromRoulette ? null : ScreenFade.Instance;
         if (fade != null)
             yield return fade.FadeOut();
 
         maps.SetMap(map);
+        if (IsServer && maps.TryGetComponent(out MapProps props))
+            props.SpawnFor(map, maps.CurrentMap); // the new map's crates (the old map's go away)
         foreach (PlayerNetwork player in PlayerNetwork.All)
         {
             player.Cores.OnMapChanged();
             player.Respawn.ArriveForRound(maps.SlotSpawn(map, player.Slot));
         }
+        if (fromRoulette)
+            roulette.EnterMap();
         if (fade != null)
             yield return fade.FadeIn();
     }
@@ -632,9 +653,20 @@ public class MatchManager : NetworkBehaviour
         bannerTimer = seconds;
     }
 
+    // The round's show: the winner (slot, -1 = a draw) closes it out with their new number of round wins.
+    [Rpc(SendTo.Everyone)]
+    private void RoundEndRpc(int winnerSlot, int winnerWins)
+    {
+        PlayerNetwork winner = PlayerNetwork.All.Find(player => player.Slot == winnerSlot);
+        if (roundShow != null)
+            roundShow.Play(winner, winnerWins, rounds.Value, roundEndDelay);
+    }
+
     [Rpc(SendTo.Everyone)]
     private void ResultsRpc(string winnerName, Color winnerColor)
     {
+        if (roundShow != null)
+            roundShow.Hide();
         ui.BannerText.text = ""; // the results say it all
         bannerTimer = 0f;
         var ranking = new List<PlayerNetwork>(PlayerNetwork.All);
